@@ -1,0 +1,473 @@
+===== L3P on AntMaze | steps=3000000 seed=0 =====
+(Appendix-E: workers=3 batch=1024 gamma=0.98 hindsight=100 N=50 d_max=20.0 warmup_trajs=500)
+(logging to logs/AntMaze.log, model -> l3p_AntMaze.pt)
+env ready: obs=105 goal=2 act=8 workers=3 horizon=200
+[    2400 steps | 12 eps |  13.8s] landmarks=off | critic=0.097 value=0.076 actor=1.130 ae_rec=0.091 ae_latent=0.962 elbo=0.000
+[    4800 steps | 24 eps |  31.7s] landmarks=off | critic=0.102 value=0.081 actor=1.299 ae_rec=0.011 ae_latent=0.588 elbo=0.000
+[    7200 steps | 36 eps |  50.0s] landmarks=off | critic=0.115 value=0.103 actor=1.446 ae_rec=0.019 ae_latent=0.588 elbo=0.000
+[    9600 steps | 48 eps |  68.6s] landmarks=off | critic=0.115 value=0.140 actor=1.583 ae_rec=0.025 ae_latent=0.774 elbo=0.000
+[   12000 steps | 60 eps |  86.5s] landmarks=off | critic=0.122 value=0.214 actor=1.675 ae_rec=0.026 ae_latent=0.837 elbo=0.000
+[   14400 steps | 72 eps | 104.6s] landmarks=off | critic=0.133 value=0.264 actor=1.756 ae_rec=0.022 ae_latent=1.022 elbo=0.000
+[   16800 steps | 84 eps | 122.9s] landmarks=off | critic=0.143 value=0.360 actor=1.797 ae_rec=0.027 ae_latent=1.388 elbo=0.000
+[   19200 steps | 96 eps | 141.1s] landmarks=off | critic=0.155 value=0.479 actor=1.790 ae_rec=0.042 ae_latent=2.010 elbo=0.000
+    >> eval success rate (long-horizon test): 0.00
+[   21600 steps | 108 eps | 162.6s] landmarks=off | critic=0.164 value=0.565 actor=1.778 ae_rec=0.032 ae_latent=2.243 elbo=0.000
+[   24000 steps | 120 eps | 180.7s] landmarks=off | critic=0.176 value=0.660 actor=1.735 ae_rec=0.038 ae_latent=2.338 elbo=0.000
+[   26400 steps | 132 eps | 198.3s] landmarks=off | critic=0.193 value=0.741 actor=1.717 ae_rec=0.032 ae_latent=2.266 elbo=0.000
+[   28800 steps | 144 eps | 214.9s] landmarks=off | critic=0.202 value=0.801 actor=1.646 ae_rec=0.027 ae_latent=2.312 elbo=0.000
+[   31200 steps | 156 eps | 232.6s] landmarks=off | critic=0.214 value=0.851 actor=1.595 ae_rec=0.036 ae_latent=2.290 elbo=0.000
+[   33600 steps | 168 eps | 250.9s] landmarks=off | critic=0.226 value=0.882 actor=1.539 ae_rec=0.027 ae_latent=2.267 elbo=0.000
+[   36000 steps | 180 eps | 269.5s] landmarks=off | critic=0.233 value=0.887 actor=1.485 ae_rec=0.031 ae_latent=2.205 elbo=0.000
+[   38400 steps | 192 eps | 288.1s] landmarks=off | critic=0.241 value=0.905 actor=1.448 ae_rec=0.036 ae_latent=2.074 elbo=0.000
+    >> eval success rate (long-horizon test): 0.05
+[   40800 steps | 204 eps | 310.0s] landmarks=off | critic=0.244 value=0.897 actor=1.416 ae_rec=0.027 ae_latent=1.947 elbo=0.000
+[   43200 steps | 216 eps | 329.0s] landmarks=off | critic=0.246 value=0.904 actor=1.380 ae_rec=0.032 ae_latent=1.824 elbo=0.000
+[   45600 steps | 228 eps | 347.4s] landmarks=off | critic=0.252 value=0.880 actor=1.364 ae_rec=0.029 ae_latent=1.679 elbo=0.000
+[   48000 steps | 240 eps | 366.7s] landmarks=off | critic=0.255 value=0.882 actor=1.341 ae_rec=0.029 ae_latent=1.604 elbo=0.000
+[   50400 steps | 252 eps | 389.1s] landmarks=off | critic=0.259 value=0.866 actor=1.328 ae_rec=0.035 ae_latent=1.483 elbo=0.000
+[   52800 steps | 264 eps | 410.7s] landmarks=off | critic=0.260 value=0.855 actor=1.318 ae_rec=0.029 ae_latent=1.398 elbo=0.000
+[   55200 steps | 276 eps | 432.9s] landmarks=off | critic=0.264 value=0.851 actor=1.318 ae_rec=0.030 ae_latent=1.299 elbo=0.000
+[   57600 steps | 288 eps | 455.9s] landmarks=off | critic=0.263 value=0.822 actor=1.324 ae_rec=0.028 ae_latent=1.216 elbo=0.000
+[   60000 steps | 300 eps | 478.2s] landmarks=off | critic=0.259 value=0.801 actor=1.329 ae_rec=0.022 ae_latent=1.222 elbo=0.000
+    >> eval success rate (long-horizon test): 0.00
+[   62400 steps | 312 eps | 501.5s] landmarks=off | critic=0.264 value=0.807 actor=1.382 ae_rec=0.025 ae_latent=1.176 elbo=0.000
+[   64800 steps | 324 eps | 520.5s] landmarks=off | critic=0.266 value=0.834 actor=1.451 ae_rec=0.024 ae_latent=1.172 elbo=0.000
+[   67200 steps | 336 eps | 539.1s] landmarks=off | critic=0.265 value=0.857 actor=1.529 ae_rec=0.035 ae_latent=1.119 elbo=0.000
+[   69600 steps | 348 eps | 557.7s] landmarks=off | critic=0.270 value=0.895 actor=1.612 ae_rec=0.027 ae_latent=1.073 elbo=0.000
+[   72000 steps | 360 eps | 576.4s] landmarks=off | critic=0.271 value=0.954 actor=1.686 ae_rec=0.032 ae_latent=1.056 elbo=0.000
+[   74400 steps | 372 eps | 595.0s] landmarks=off | critic=0.271 value=1.017 actor=1.756 ae_rec=0.032 ae_latent=1.037 elbo=0.000
+[   76800 steps | 384 eps | 613.6s] landmarks=off | critic=0.275 value=1.089 actor=1.840 ae_rec=0.029 ae_latent=1.083 elbo=0.000
+[   79200 steps | 396 eps | 632.2s] landmarks=off | critic=0.278 value=1.156 actor=1.918 ae_rec=0.029 ae_latent=1.118 elbo=0.000
+    >> eval success rate (long-horizon test): 0.00
+[   81600 steps | 408 eps | 653.7s] landmarks=off | critic=0.279 value=1.259 actor=1.993 ae_rec=0.027 ae_latent=1.162 elbo=0.000
+[   84000 steps | 420 eps | 671.9s] landmarks=off | critic=0.281 value=1.350 actor=2.053 ae_rec=0.027 ae_latent=1.206 elbo=0.000
+[   86400 steps | 432 eps | 690.3s] landmarks=off | critic=0.285 value=1.425 actor=2.126 ae_rec=0.027 ae_latent=1.278 elbo=0.000
+[   88800 steps | 444 eps | 708.7s] landmarks=off | critic=0.288 value=1.515 actor=2.197 ae_rec=0.025 ae_latent=1.339 elbo=0.000
+[   91200 steps | 456 eps | 727.4s] landmarks=off | critic=0.292 value=1.603 actor=2.261 ae_rec=0.024 ae_latent=1.383 elbo=0.000
+[   93600 steps | 468 eps | 745.9s] landmarks=off | critic=0.291 value=1.703 actor=2.323 ae_rec=0.019 ae_latent=1.457 elbo=0.000
+[   96000 steps | 480 eps | 764.6s] landmarks=off | critic=0.295 value=1.830 actor=2.391 ae_rec=0.023 ae_latent=1.529 elbo=0.000
+[   98400 steps | 492 eps | 783.0s] landmarks=off | critic=0.296 value=1.923 actor=2.457 ae_rec=0.024 ae_latent=1.601 elbo=0.000
+    >> eval success rate (long-horizon test): 0.00
+    >> checkpoint saved @ 100200 steps
+[  100800 steps | 504 eps | 809.3s] landmarks=on | critic=0.298 value=2.087 actor=2.527 ae_rec=0.033 ae_latent=1.719 elbo=10.725
+[  103200 steps | 516 eps | 837.6s] landmarks=on | critic=0.302 value=2.175 actor=2.597 ae_rec=0.024 ae_latent=1.770 elbo=-4.975
+[  105600 steps | 528 eps | 865.6s] landmarks=on | critic=0.304 value=2.296 actor=2.652 ae_rec=0.029 ae_latent=1.861 elbo=-8.890
+[  108000 steps | 540 eps | 895.5s] landmarks=on | critic=0.306 value=2.465 actor=2.719 ae_rec=0.026 ae_latent=1.935 elbo=-8.579
+[  110400 steps | 552 eps | 924.4s] landmarks=on | critic=0.307 value=2.589 actor=2.766 ae_rec=0.022 ae_latent=1.984 elbo=-8.308
+[  112800 steps | 564 eps | 953.7s] landmarks=on | critic=0.310 value=2.785 actor=2.834 ae_rec=0.023 ae_latent=2.048 elbo=-7.950
+[  115200 steps | 576 eps | 983.9s] landmarks=on | critic=0.315 value=2.956 actor=2.883 ae_rec=0.026 ae_latent=2.114 elbo=-7.623
+[  117600 steps | 588 eps | 1010.3s] landmarks=on | critic=0.317 value=3.101 actor=2.938 ae_rec=0.020 ae_latent=2.158 elbo=-7.315
+[  120000 steps | 600 eps | 1035.3s] landmarks=on | critic=0.315 value=3.263 actor=2.992 ae_rec=0.024 ae_latent=2.208 elbo=-6.821
+    >> eval success rate (long-horizon test): 0.00
+[  122400 steps | 612 eps | 1064.4s] landmarks=on | critic=0.317 value=3.450 actor=3.041 ae_rec=0.022 ae_latent=2.241 elbo=-6.343
+[  124800 steps | 624 eps | 1090.8s] landmarks=on | critic=0.319 value=3.635 actor=3.092 ae_rec=0.022 ae_latent=2.333 elbo=-5.950
+[  127200 steps | 636 eps | 1121.8s] landmarks=on | critic=0.323 value=3.809 actor=3.133 ae_rec=0.022 ae_latent=2.441 elbo=-5.757
+[  129600 steps | 648 eps | 1151.2s] landmarks=on | critic=0.325 value=3.972 actor=3.171 ae_rec=0.021 ae_latent=2.490 elbo=-5.624
+[  132000 steps | 660 eps | 1180.1s] landmarks=on | critic=0.330 value=4.164 actor=3.226 ae_rec=0.023 ae_latent=2.579 elbo=-5.337
+[  134400 steps | 672 eps | 1205.0s] landmarks=on | critic=0.333 value=4.376 actor=3.275 ae_rec=0.020 ae_latent=2.666 elbo=-5.050
+[  136800 steps | 684 eps | 1229.8s] landmarks=on | critic=0.335 value=4.582 actor=3.307 ae_rec=0.016 ae_latent=2.663 elbo=-4.799
+[  139200 steps | 696 eps | 1255.3s] landmarks=on | critic=0.337 value=4.766 actor=3.345 ae_rec=0.026 ae_latent=2.737 elbo=-4.529
+    >> eval success rate (long-horizon test): 0.00
+[  141600 steps | 708 eps | 1286.6s] landmarks=on | critic=0.342 value=5.000 actor=3.377 ae_rec=0.023 ae_latent=2.798 elbo=-4.318
+[  144000 steps | 720 eps | 1312.2s] landmarks=on | critic=0.346 value=5.193 actor=3.412 ae_rec=0.021 ae_latent=2.891 elbo=-4.075
+[  146400 steps | 732 eps | 1336.9s] landmarks=on | critic=0.350 value=5.356 actor=3.452 ae_rec=0.018 ae_latent=3.021 elbo=-3.969
+[  148800 steps | 744 eps | 1361.5s] landmarks=on | critic=0.351 value=5.541 actor=3.479 ae_rec=0.016 ae_latent=3.093 elbo=-3.771
+[  151200 steps | 756 eps | 1388.1s] landmarks=on | critic=0.355 value=5.680 actor=3.503 ae_rec=0.019 ae_latent=3.203 elbo=-3.613
+[  153600 steps | 768 eps | 1413.9s] landmarks=on | critic=0.361 value=5.896 actor=3.531 ae_rec=0.017 ae_latent=3.292 elbo=-3.407
+[  156000 steps | 780 eps | 1439.8s] landmarks=on | critic=0.364 value=6.035 actor=3.565 ae_rec=0.019 ae_latent=3.394 elbo=-3.306
+[  158400 steps | 792 eps | 1465.0s] landmarks=on | critic=0.366 value=6.246 actor=3.588 ae_rec=0.018 ae_latent=3.510 elbo=-3.148
+    >> eval success rate (long-horizon test): 0.00
+[  160800 steps | 804 eps | 1495.3s] landmarks=on | critic=0.369 value=6.408 actor=3.626 ae_rec=0.018 ae_latent=3.570 elbo=-2.969
+[  163200 steps | 816 eps | 1521.7s] landmarks=on | critic=0.375 value=6.553 actor=3.635 ae_rec=0.020 ae_latent=3.695 elbo=-2.909
+[  165600 steps | 828 eps | 1546.6s] landmarks=on | critic=0.377 value=6.704 actor=3.671 ae_rec=0.018 ae_latent=3.859 elbo=-2.789
+[  168000 steps | 840 eps | 1570.2s] landmarks=on | critic=0.379 value=6.870 actor=3.692 ae_rec=0.014 ae_latent=3.997 elbo=-2.759
+[  170400 steps | 852 eps | 1595.0s] landmarks=on | critic=0.382 value=7.019 actor=3.701 ae_rec=0.018 ae_latent=4.127 elbo=-2.576
+[  172800 steps | 864 eps | 1620.5s] landmarks=on | critic=0.387 value=7.228 actor=3.725 ae_rec=0.013 ae_latent=4.328 elbo=-2.491
+[  175200 steps | 876 eps | 1646.1s] landmarks=on | critic=0.391 value=7.364 actor=3.745 ae_rec=0.015 ae_latent=4.493 elbo=-2.303
+[  177600 steps | 888 eps | 1670.9s] landmarks=on | critic=0.393 value=7.544 actor=3.767 ae_rec=0.018 ae_latent=4.746 elbo=-2.162
+[  180000 steps | 900 eps | 1696.4s] landmarks=on | critic=0.395 value=7.649 actor=3.762 ae_rec=0.018 ae_latent=4.805 elbo=-1.953
+    >> eval success rate (long-horizon test): 0.00
+[  182400 steps | 912 eps | 1728.9s] landmarks=on | critic=0.400 value=7.831 actor=3.802 ae_rec=0.016 ae_latent=5.100 elbo=-1.977
+[  184800 steps | 924 eps | 1759.3s] landmarks=on | critic=0.401 value=7.897 actor=3.803 ae_rec=0.015 ae_latent=5.185 elbo=-1.848
+[  187200 steps | 936 eps | 1787.0s] landmarks=on | critic=0.405 value=8.051 actor=3.837 ae_rec=0.018 ae_latent=5.278 elbo=-1.744
+[  189600 steps | 948 eps | 1813.0s] landmarks=on | critic=0.405 value=8.177 actor=3.824 ae_rec=0.016 ae_latent=5.301 elbo=-1.620
+[  192000 steps | 960 eps | 1838.1s] landmarks=on | critic=0.413 value=8.296 actor=3.841 ae_rec=0.016 ae_latent=5.573 elbo=-1.567
+[  194400 steps | 972 eps | 1863.6s] landmarks=on | critic=0.415 value=8.374 actor=3.843 ae_rec=0.019 ae_latent=5.923 elbo=-1.529
+[  196800 steps | 984 eps | 1888.8s] landmarks=on | critic=0.418 value=8.432 actor=3.849 ae_rec=0.020 ae_latent=6.027 elbo=-1.473
+[  199200 steps | 996 eps | 1912.9s] landmarks=on | critic=0.424 value=8.597 actor=3.848 ae_rec=0.022 ae_latent=6.309 elbo=-1.516
+    >> eval success rate (long-horizon test): 0.00
+    >> checkpoint saved @ 200400 steps
+[  201600 steps | 1008 eps | 1942.8s] landmarks=on | critic=0.428 value=8.719 actor=3.859 ae_rec=0.019 ae_latent=6.571 elbo=-1.578
+[  204000 steps | 1020 eps | 1968.6s] landmarks=on | critic=0.430 value=8.721 actor=3.865 ae_rec=0.019 ae_latent=6.475 elbo=-1.561
+[  206400 steps | 1032 eps | 1999.2s] landmarks=on | critic=0.433 value=8.797 actor=3.873 ae_rec=0.024 ae_latent=6.575 elbo=-1.558
+[  208800 steps | 1044 eps | 2029.7s] landmarks=on | critic=0.435 value=8.893 actor=3.874 ae_rec=0.022 ae_latent=6.747 elbo=-1.582
+[  211200 steps | 1056 eps | 2054.7s] landmarks=on | critic=0.439 value=8.837 actor=3.874 ae_rec=0.024 ae_latent=6.716 elbo=-1.650
+[  213600 steps | 1068 eps | 2084.5s] landmarks=on | critic=0.445 value=8.950 actor=3.892 ae_rec=0.035 ae_latent=6.577 elbo=-1.516
+[  216000 steps | 1080 eps | 2112.3s] landmarks=on | critic=0.445 value=8.952 actor=3.893 ae_rec=0.032 ae_latent=6.584 elbo=-1.514
+[  218400 steps | 1092 eps | 2140.9s] landmarks=on | critic=0.451 value=8.892 actor=3.869 ae_rec=0.028 ae_latent=6.691 elbo=-1.433
+    >> eval success rate (long-horizon test): 0.00
+[  220800 steps | 1104 eps | 2172.1s] landmarks=on | critic=0.452 value=8.848 actor=3.848 ae_rec=0.027 ae_latent=6.825 elbo=-1.349
+[  223200 steps | 1116 eps | 2197.9s] landmarks=on | critic=0.458 value=8.925 actor=3.870 ae_rec=0.024 ae_latent=6.826 elbo=-1.362
+[  225600 steps | 1128 eps | 2224.9s] landmarks=on | critic=0.457 value=8.921 actor=3.871 ae_rec=0.031 ae_latent=6.905 elbo=-1.349
+[  228000 steps | 1140 eps | 2252.7s] landmarks=on | critic=0.458 value=8.871 actor=3.857 ae_rec=0.021 ae_latent=6.957 elbo=-1.350
+[  230400 steps | 1152 eps | 2280.4s] landmarks=on | critic=0.462 value=8.854 actor=3.879 ae_rec=0.028 ae_latent=6.956 elbo=-1.250
+[  232800 steps | 1164 eps | 2309.2s] landmarks=on | critic=0.465 value=8.874 actor=3.884 ae_rec=0.024 ae_latent=7.009 elbo=-1.194
+[  235200 steps | 1176 eps | 2336.5s] landmarks=on | critic=0.466 value=8.810 actor=3.876 ae_rec=0.029 ae_latent=7.099 elbo=-1.187
+[  237600 steps | 1188 eps | 2362.4s] landmarks=on | critic=0.467 value=8.733 actor=3.869 ae_rec=0.021 ae_latent=7.054 elbo=-1.095
+[  240000 steps | 1200 eps | 2388.8s] landmarks=on | critic=0.468 value=8.756 actor=3.886 ae_rec=0.023 ae_latent=7.130 elbo=-1.027
+    >> eval success rate (long-horizon test): 0.00
+[  242400 steps | 1212 eps | 2423.1s] landmarks=on | critic=0.474 value=8.776 actor=3.884 ae_rec=0.031 ae_latent=7.133 elbo=-0.970
+[  244800 steps | 1224 eps | 2452.3s] landmarks=on | critic=0.474 value=8.682 actor=3.872 ae_rec=0.020 ae_latent=6.978 elbo=-0.863
+[  247200 steps | 1236 eps | 2475.7s] landmarks=on | critic=0.472 value=8.631 actor=3.880 ae_rec=0.020 ae_latent=6.858 elbo=-0.756
+[  249600 steps | 1248 eps | 2501.9s] landmarks=on | critic=0.477 value=8.589 actor=3.875 ae_rec=0.026 ae_latent=6.948 elbo=-0.811
+[  252000 steps | 1260 eps | 2526.1s] landmarks=on | critic=0.475 value=8.601 actor=3.881 ae_rec=0.022 ae_latent=6.806 elbo=-0.696
+[  254400 steps | 1272 eps | 2548.6s] landmarks=on | critic=0.477 value=8.577 actor=3.865 ae_rec=0.019 ae_latent=7.009 elbo=-0.716
+[  256800 steps | 1284 eps | 2571.9s] landmarks=on | critic=0.476 value=8.508 actor=3.876 ae_rec=0.016 ae_latent=6.911 elbo=-0.703
+[  259200 steps | 1296 eps | 2595.6s] landmarks=on | critic=0.478 value=8.418 actor=3.864 ae_rec=0.025 ae_latent=7.156 elbo=-0.640
+    >> eval success rate (long-horizon test): 0.00
+[  261600 steps | 1308 eps | 2623.1s] landmarks=on | critic=0.475 value=8.329 actor=3.851 ae_rec=0.021 ae_latent=7.065 elbo=-0.545
+[  264000 steps | 1320 eps | 2646.2s] landmarks=on | critic=0.480 value=8.275 actor=3.860 ae_rec=0.020 ae_latent=6.965 elbo=-0.550
+[  266400 steps | 1332 eps | 2669.9s] landmarks=on | critic=0.481 value=8.244 actor=3.869 ae_rec=0.023 ae_latent=6.788 elbo=-0.475
+[  268800 steps | 1344 eps | 2692.9s] landmarks=on | critic=0.478 value=8.163 actor=3.847 ae_rec=0.021 ae_latent=6.806 elbo=-0.429
+[  271200 steps | 1356 eps | 2716.6s] landmarks=on | critic=0.480 value=8.150 actor=3.860 ae_rec=0.030 ae_latent=6.759 elbo=-0.371
+[  273600 steps | 1368 eps | 2740.1s] landmarks=on | critic=0.482 value=8.150 actor=3.860 ae_rec=0.024 ae_latent=6.628 elbo=-0.297
+[  276000 steps | 1380 eps | 2764.1s] landmarks=on | critic=0.477 value=8.086 actor=3.840 ae_rec=0.027 ae_latent=6.499 elbo=-0.176
+[  278400 steps | 1392 eps | 2788.3s] landmarks=on | critic=0.480 value=8.037 actor=3.851 ae_rec=0.028 ae_latent=6.325 elbo=-0.172
+    >> eval success rate (long-horizon test): 0.00
+[  280800 steps | 1404 eps | 2817.5s] landmarks=on | critic=0.482 value=7.978 actor=3.859 ae_rec=0.023 ae_latent=6.130 elbo=-0.031
+[  283200 steps | 1416 eps | 2841.3s] landmarks=on | critic=0.482 value=7.984 actor=3.867 ae_rec=0.026 ae_latent=6.167 elbo=-0.050
+[  285600 steps | 1428 eps | 2864.3s] landmarks=on | critic=0.477 value=7.917 actor=3.861 ae_rec=0.019 ae_latent=5.870 elbo=0.082
+[  288000 steps | 1440 eps | 2888.9s] landmarks=on | critic=0.478 value=7.857 actor=3.844 ae_rec=0.019 ae_latent=5.705 elbo=0.170
+[  290400 steps | 1452 eps | 2912.3s] landmarks=on | critic=0.477 value=7.802 actor=3.840 ae_rec=0.022 ae_latent=5.704 elbo=0.199
+[  292800 steps | 1464 eps | 2935.5s] landmarks=on | critic=0.485 value=7.774 actor=3.861 ae_rec=0.022 ae_latent=5.612 elbo=0.334
+[  295200 steps | 1476 eps | 2958.8s] landmarks=on | critic=0.480 value=7.731 actor=3.859 ae_rec=0.029 ae_latent=5.487 elbo=0.412
+[  297600 steps | 1488 eps | 2982.3s] landmarks=on | critic=0.480 value=7.757 actor=3.854 ae_rec=0.015 ae_latent=5.335 elbo=0.438
+[  300000 steps | 1500 eps | 3005.8s] landmarks=on | critic=0.482 value=7.766 actor=3.883 ae_rec=0.018 ae_latent=5.250 elbo=0.447
+    >> eval success rate (long-horizon test): 0.00
+    >> checkpoint saved @ 300600 steps
+[  302400 steps | 1512 eps | 3033.8s] landmarks=on | critic=0.480 value=7.743 actor=3.868 ae_rec=0.024 ae_latent=5.140 elbo=0.599
+[  304800 steps | 1524 eps | 3057.0s] landmarks=on | critic=0.485 value=7.775 actor=3.875 ae_rec=0.023 ae_latent=5.181 elbo=0.651
+[  307200 steps | 1536 eps | 3081.3s] landmarks=on | critic=0.482 value=7.752 actor=3.895 ae_rec=0.029 ae_latent=5.284 elbo=0.648
+[  309600 steps | 1548 eps | 3105.1s] landmarks=on | critic=0.482 value=7.751 actor=3.890 ae_rec=0.021 ae_latent=5.332 elbo=0.667
+[  312000 steps | 1560 eps | 3128.7s] landmarks=on | critic=0.478 value=7.848 actor=3.896 ae_rec=0.025 ae_latent=5.264 elbo=0.805
+[  314400 steps | 1572 eps | 3152.6s] landmarks=on | critic=0.481 value=7.730 actor=3.898 ae_rec=0.025 ae_latent=5.363 elbo=0.756
+[  316800 steps | 1584 eps | 3175.3s] landmarks=on | critic=0.482 value=7.789 actor=3.917 ae_rec=0.025 ae_latent=5.365 elbo=0.812
+[  319200 steps | 1596 eps | 3199.1s] landmarks=on | critic=0.483 value=7.803 actor=3.928 ae_rec=0.028 ae_latent=5.396 elbo=0.930
+    >> eval success rate (long-horizon test): 0.00
+[  321600 steps | 1608 eps | 3228.5s] landmarks=on | critic=0.481 value=7.853 actor=3.935 ae_rec=0.021 ae_latent=5.602 elbo=0.963
+[  324000 steps | 1620 eps | 3252.0s] landmarks=on | critic=0.486 value=7.911 actor=3.956 ae_rec=0.028 ae_latent=5.630 elbo=0.959
+[  326400 steps | 1632 eps | 3276.2s] landmarks=on | critic=0.484 value=7.862 actor=3.951 ae_rec=0.022 ae_latent=5.549 elbo=1.122
+[  328800 steps | 1644 eps | 3298.6s] landmarks=on | critic=0.487 value=7.974 actor=3.966 ae_rec=0.022 ae_latent=5.680 elbo=1.077
+[  331200 steps | 1656 eps | 3322.1s] landmarks=on | critic=0.487 value=7.966 actor=3.977 ae_rec=0.025 ae_latent=5.851 elbo=1.153
+[  333600 steps | 1668 eps | 3345.6s] landmarks=on | critic=0.491 value=8.025 actor=4.006 ae_rec=0.024 ae_latent=5.992 elbo=1.135
+[  336000 steps | 1680 eps | 3368.1s] landmarks=on | critic=0.491 value=8.086 actor=4.019 ae_rec=0.032 ae_latent=6.134 elbo=1.141
+[  338400 steps | 1692 eps | 3391.0s] landmarks=on | critic=0.491 value=8.193 actor=4.023 ae_rec=0.036 ae_latent=6.237 elbo=1.294
+    >> eval success rate (long-horizon test): 0.00
+[  340800 steps | 1704 eps | 3420.4s] landmarks=on | critic=0.494 value=8.159 actor=4.037 ae_rec=0.033 ae_latent=6.367 elbo=1.238
+[  343200 steps | 1716 eps | 3442.4s] landmarks=on | critic=0.490 value=8.286 actor=4.047 ae_rec=0.027 ae_latent=6.414 elbo=1.370
+[  345600 steps | 1728 eps | 3465.4s] landmarks=on | critic=0.489 value=8.324 actor=4.069 ae_rec=0.028 ae_latent=6.419 elbo=1.443
+[  348000 steps | 1740 eps | 3491.1s] landmarks=on | critic=0.492 value=8.342 actor=4.084 ae_rec=0.032 ae_latent=6.661 elbo=1.502
+[  350400 steps | 1752 eps | 3517.6s] landmarks=on | critic=0.497 value=8.388 actor=4.101 ae_rec=0.035 ae_latent=6.955 elbo=1.575
+[  352800 steps | 1764 eps | 3544.8s] landmarks=on | critic=0.497 value=8.487 actor=4.113 ae_rec=0.030 ae_latent=6.998 elbo=1.494
+[  355200 steps | 1776 eps | 3570.4s] landmarks=on | critic=0.503 value=8.526 actor=4.142 ae_rec=0.033 ae_latent=7.098 elbo=1.617
+[  357600 steps | 1788 eps | 3595.6s] landmarks=on | critic=0.502 value=8.560 actor=4.153 ae_rec=0.027 ae_latent=7.219 elbo=1.607
+[  360000 steps | 1800 eps | 3620.8s] landmarks=on | critic=0.501 value=8.667 actor=4.172 ae_rec=0.031 ae_latent=7.343 elbo=1.641
+    >> eval success rate (long-horizon test): 0.00
+[  362400 steps | 1812 eps | 3650.7s] landmarks=on | critic=0.507 value=8.640 actor=4.204 ae_rec=0.029 ae_latent=7.267 elbo=1.793
+[  364800 steps | 1824 eps | 3675.7s] landmarks=on | critic=0.507 value=8.842 actor=4.196 ae_rec=0.032 ae_latent=7.349 elbo=1.808
+[  367200 steps | 1836 eps | 3701.1s] landmarks=on | critic=0.508 value=8.792 actor=4.207 ae_rec=0.034 ae_latent=7.359 elbo=1.891
+[  369600 steps | 1848 eps | 3726.1s] landmarks=on | critic=0.512 value=8.820 actor=4.221 ae_rec=0.031 ae_latent=7.354 elbo=1.995
+[  372000 steps | 1860 eps | 3750.5s] landmarks=on | critic=0.510 value=8.902 actor=4.239 ae_rec=0.034 ae_latent=7.293 elbo=2.022
+[  374400 steps | 1872 eps | 3775.9s] landmarks=on | critic=0.513 value=8.943 actor=4.255 ae_rec=0.032 ae_latent=7.452 elbo=2.036
+[  376800 steps | 1884 eps | 3801.7s] landmarks=on | critic=0.514 value=9.066 actor=4.275 ae_rec=0.038 ae_latent=7.403 elbo=2.136
+[  379200 steps | 1896 eps | 3829.5s] landmarks=on | critic=0.519 value=9.064 actor=4.288 ae_rec=0.031 ae_latent=7.608 elbo=2.150
+    >> eval success rate (long-horizon test): 0.00
+[  381600 steps | 1908 eps | 3859.9s] landmarks=on | critic=0.519 value=9.133 actor=4.289 ae_rec=0.036 ae_latent=7.775 elbo=2.157
+[  384000 steps | 1920 eps | 3884.9s] landmarks=on | critic=0.520 value=9.204 actor=4.302 ae_rec=0.040 ae_latent=7.932 elbo=2.128
+[  386400 steps | 1932 eps | 3909.6s] landmarks=on | critic=0.525 value=9.189 actor=4.303 ae_rec=0.030 ae_latent=8.080 elbo=2.153
+[  388800 steps | 1944 eps | 3934.9s] landmarks=on | critic=0.523 value=9.308 actor=4.328 ae_rec=0.042 ae_latent=8.298 elbo=2.206
+[  391200 steps | 1956 eps | 3959.4s] landmarks=on | critic=0.521 value=9.333 actor=4.342 ae_rec=0.034 ae_latent=8.161 elbo=2.286
+[  393600 steps | 1968 eps | 3984.9s] landmarks=on | critic=0.527 value=9.439 actor=4.355 ae_rec=0.037 ae_latent=8.454 elbo=2.302
+[  396000 steps | 1980 eps | 4011.9s] landmarks=on | critic=0.529 value=9.458 actor=4.367 ae_rec=0.033 ae_latent=8.624 elbo=2.330
+[  398400 steps | 1992 eps | 4038.3s] landmarks=on | critic=0.527 value=9.454 actor=4.379 ae_rec=0.034 ae_latent=8.850 elbo=2.417
+    >> eval success rate (long-horizon test): 0.00
+[  400800 steps | 2004 eps | 4072.6s] landmarks=on | critic=0.530 value=9.528 actor=4.393 ae_rec=0.038 ae_latent=8.887 elbo=2.397
+    >> checkpoint saved @ 400800 steps
+[  403200 steps | 2016 eps | 4102.6s] landmarks=on | critic=0.532 value=9.550 actor=4.391 ae_rec=0.034 ae_latent=9.066 elbo=2.434
+[  405600 steps | 2028 eps | 4130.4s] landmarks=on | critic=0.532 value=9.540 actor=4.399 ae_rec=0.037 ae_latent=9.353 elbo=2.476
+[  408000 steps | 2040 eps | 4155.1s] landmarks=on | critic=0.535 value=9.567 actor=4.412 ae_rec=0.039 ae_latent=9.518 elbo=2.570
+[  410400 steps | 2052 eps | 4179.4s] landmarks=on | critic=0.539 value=9.652 actor=4.442 ae_rec=0.036 ae_latent=9.522 elbo=2.510
+[  412800 steps | 2064 eps | 4205.4s] landmarks=on | critic=0.534 value=9.693 actor=4.452 ae_rec=0.033 ae_latent=9.786 elbo=2.483
+[  415200 steps | 2076 eps | 4231.1s] landmarks=on | critic=0.535 value=9.764 actor=4.464 ae_rec=0.047 ae_latent=10.186 elbo=2.498
+[  417600 steps | 2088 eps | 4260.0s] landmarks=on | critic=0.538 value=9.768 actor=4.466 ae_rec=0.032 ae_latent=9.946 elbo=2.488
+[  420000 steps | 2100 eps | 4284.8s] landmarks=on | critic=0.540 value=9.825 actor=4.482 ae_rec=0.037 ae_latent=9.859 elbo=2.594
+    >> eval success rate (long-horizon test): 0.00
+[  422400 steps | 2112 eps | 4313.0s] landmarks=on | critic=0.544 value=9.981 actor=4.514 ae_rec=0.033 ae_latent=10.105 elbo=2.616
+[  424800 steps | 2124 eps | 4340.2s] landmarks=on | critic=0.542 value=9.998 actor=4.533 ae_rec=0.045 ae_latent=10.152 elbo=2.694
+[  427200 steps | 2136 eps | 4365.1s] landmarks=on | critic=0.546 value=10.022 actor=4.533 ae_rec=0.032 ae_latent=10.190 elbo=2.651
+[  429600 steps | 2148 eps | 4389.9s] landmarks=on | critic=0.549 value=10.182 actor=4.556 ae_rec=0.044 ae_latent=10.387 elbo=2.621
+[  432000 steps | 2160 eps | 4414.6s] landmarks=on | critic=0.552 value=10.103 actor=4.554 ae_rec=0.040 ae_latent=10.387 elbo=2.643
+[  434400 steps | 2172 eps | 4443.6s] landmarks=on | critic=0.549 value=10.212 actor=4.580 ae_rec=0.044 ae_latent=10.430 elbo=2.701
+[  436800 steps | 2184 eps | 4473.6s] landmarks=on | critic=0.554 value=10.200 actor=4.593 ae_rec=0.040 ae_latent=10.390 elbo=2.663
+[  439200 steps | 2196 eps | 4503.5s] landmarks=on | critic=0.554 value=10.411 actor=4.584 ae_rec=0.040 ae_latent=10.451 elbo=2.733
+    >> eval success rate (long-horizon test): 0.00
+[  441600 steps | 2208 eps | 4538.4s] landmarks=on | critic=0.556 value=10.425 actor=4.619 ae_rec=0.040 ae_latent=11.145 elbo=2.633
+[  444000 steps | 2220 eps | 4566.2s] landmarks=on | critic=0.558 value=10.404 actor=4.625 ae_rec=0.046 ae_latent=11.241 elbo=2.601
+[  446400 steps | 2232 eps | 4597.1s] landmarks=on | critic=0.560 value=10.512 actor=4.624 ae_rec=0.052 ae_latent=11.981 elbo=2.511
+[  448800 steps | 2244 eps | 4620.9s] landmarks=on | critic=0.564 value=10.506 actor=4.649 ae_rec=0.043 ae_latent=12.234 elbo=2.536
+[  451200 steps | 2256 eps | 4645.8s] landmarks=on | critic=0.564 value=10.671 actor=4.663 ae_rec=0.052 ae_latent=12.485 elbo=2.467
+[  453600 steps | 2268 eps | 4671.0s] landmarks=on | critic=0.565 value=10.622 actor=4.661 ae_rec=0.052 ae_latent=12.966 elbo=2.499
+[  456000 steps | 2280 eps | 4696.0s] landmarks=on | critic=0.567 value=10.659 actor=4.676 ae_rec=0.046 ae_latent=12.975 elbo=2.474
+[  458400 steps | 2292 eps | 4721.6s] landmarks=on | critic=0.572 value=10.763 actor=4.695 ae_rec=0.040 ae_latent=12.555 elbo=2.495
+    >> eval success rate (long-horizon test): 0.00
+[  460800 steps | 2304 eps | 4751.0s] landmarks=on | critic=0.575 value=10.741 actor=4.708 ae_rec=0.039 ae_latent=13.131 elbo=2.530
+[  463200 steps | 2316 eps | 4775.8s] landmarks=on | critic=0.573 value=10.777 actor=4.704 ae_rec=0.052 ae_latent=12.682 elbo=2.570
+[  465600 steps | 2328 eps | 4801.7s] landmarks=on | critic=0.575 value=10.816 actor=4.709 ae_rec=0.053 ae_latent=13.119 elbo=2.285
+[  468000 steps | 2340 eps | 4825.8s] landmarks=on | critic=0.573 value=10.901 actor=4.731 ae_rec=0.047 ae_latent=13.305 elbo=2.364
+[  470400 steps | 2352 eps | 4849.9s] landmarks=on | critic=0.574 value=10.908 actor=4.731 ae_rec=0.036 ae_latent=13.214 elbo=2.333
+[  472800 steps | 2364 eps | 4875.8s] landmarks=on | critic=0.575 value=10.951 actor=4.744 ae_rec=0.047 ae_latent=13.453 elbo=2.332
+[  475200 steps | 2376 eps | 4900.3s] landmarks=on | critic=0.577 value=10.989 actor=4.761 ae_rec=0.044 ae_latent=13.689 elbo=2.407
+[  477600 steps | 2388 eps | 4924.4s] landmarks=on | critic=0.588 value=11.085 actor=4.769 ae_rec=0.041 ae_latent=13.619 elbo=2.404
+[  480000 steps | 2400 eps | 4947.4s] landmarks=on | critic=0.582 value=11.033 actor=4.768 ae_rec=0.045 ae_latent=13.252 elbo=2.460
+    >> eval success rate (long-horizon test): 0.00
+[  482400 steps | 2412 eps | 4974.9s] landmarks=on | critic=0.583 value=11.129 actor=4.775 ae_rec=0.032 ae_latent=13.131 elbo=2.432
+[  484800 steps | 2424 eps | 4997.9s] landmarks=on | critic=0.583 value=11.047 actor=4.787 ae_rec=0.039 ae_latent=13.292 elbo=2.464
+[  487200 steps | 2436 eps | 5022.3s] landmarks=on | critic=0.586 value=11.203 actor=4.814 ae_rec=0.036 ae_latent=13.239 elbo=2.518
+[  489600 steps | 2448 eps | 5047.5s] landmarks=on | critic=0.586 value=11.211 actor=4.812 ae_rec=0.035 ae_latent=12.876 elbo=2.619
+[  492000 steps | 2460 eps | 5070.9s] landmarks=on | critic=0.587 value=11.184 actor=4.821 ae_rec=0.040 ae_latent=12.973 elbo=2.655
+[  494400 steps | 2472 eps | 5095.8s] landmarks=on | critic=0.584 value=11.245 actor=4.819 ae_rec=0.038 ae_latent=12.630 elbo=2.731
+[  496800 steps | 2484 eps | 5121.2s] landmarks=on | critic=0.590 value=11.230 actor=4.830 ae_rec=0.041 ae_latent=12.722 elbo=2.750
+[  499200 steps | 2496 eps | 5146.0s] landmarks=on | critic=0.590 value=11.297 actor=4.846 ae_rec=0.039 ae_latent=12.623 elbo=2.819
+    >> eval success rate (long-horizon test): 0.00
+    >> checkpoint saved @ 501000 steps
+[  501600 steps | 2508 eps | 5175.5s] landmarks=on | critic=0.592 value=11.327 actor=4.850 ae_rec=0.031 ae_latent=12.563 elbo=2.849
+[  504000 steps | 2520 eps | 5200.3s] landmarks=on | critic=0.595 value=11.407 actor=4.890 ae_rec=0.051 ae_latent=12.645 elbo=2.943
+[  506400 steps | 2532 eps | 5225.7s] landmarks=on | critic=0.594 value=11.383 actor=4.876 ae_rec=0.045 ae_latent=12.697 elbo=2.943
+[  508800 steps | 2544 eps | 5250.8s] landmarks=on | critic=0.592 value=11.437 actor=4.887 ae_rec=0.035 ae_latent=12.310 elbo=2.944
+[  511200 steps | 2556 eps | 5275.6s] landmarks=on | critic=0.592 value=11.450 actor=4.898 ae_rec=0.040 ae_latent=11.864 elbo=3.121
+[  513600 steps | 2568 eps | 5301.3s] landmarks=on | critic=0.593 value=11.432 actor=4.907 ae_rec=0.030 ae_latent=12.170 elbo=3.041
+[  516000 steps | 2580 eps | 5326.8s] landmarks=on | critic=0.595 value=11.513 actor=4.943 ae_rec=0.042 ae_latent=12.218 elbo=3.090
+[  518400 steps | 2592 eps | 5351.8s] landmarks=on | critic=0.598 value=11.577 actor=4.951 ae_rec=0.038 ae_latent=12.062 elbo=3.157
+    >> eval success rate (long-horizon test): 0.05
+[  520800 steps | 2604 eps | 5386.8s] landmarks=on | critic=0.596 value=11.581 actor=4.945 ae_rec=0.040 ae_latent=11.737 elbo=3.197
+[  523200 steps | 2616 eps | 5414.5s] landmarks=on | critic=0.596 value=11.634 actor=4.960 ae_rec=0.043 ae_latent=11.691 elbo=3.256
+[  525600 steps | 2628 eps | 5443.8s] landmarks=on | critic=0.598 value=11.587 actor=4.964 ae_rec=0.031 ae_latent=11.822 elbo=3.273
+[  528000 steps | 2640 eps | 5470.8s] landmarks=on | critic=0.594 value=11.596 actor=4.980 ae_rec=0.047 ae_latent=11.717 elbo=3.372
+[  530400 steps | 2652 eps | 5496.4s] landmarks=on | critic=0.600 value=11.683 actor=5.005 ae_rec=0.042 ae_latent=11.458 elbo=3.339
+[  532800 steps | 2664 eps | 5521.2s] landmarks=on | critic=0.597 value=11.761 actor=5.001 ae_rec=0.031 ae_latent=11.362 elbo=3.413
+[  535200 steps | 2676 eps | 5545.7s] landmarks=on | critic=0.598 value=11.738 actor=5.024 ae_rec=0.040 ae_latent=11.267 elbo=3.484
+[  537600 steps | 2688 eps | 5570.8s] landmarks=on | critic=0.599 value=11.792 actor=5.018 ae_rec=0.037 ae_latent=11.103 elbo=3.512
+[  540000 steps | 2700 eps | 5595.6s] landmarks=on | critic=0.600 value=11.783 actor=5.032 ae_rec=0.031 ae_latent=11.136 elbo=3.487
+    >> eval success rate (long-horizon test): 0.00
+[  542400 steps | 2712 eps | 5625.0s] landmarks=on | critic=0.600 value=11.737 actor=5.044 ae_rec=0.032 ae_latent=11.480 elbo=3.404
+[  544800 steps | 2724 eps | 5648.0s] landmarks=on | critic=0.596 value=11.781 actor=5.044 ae_rec=0.044 ae_latent=11.463 elbo=3.381
+[  547200 steps | 2736 eps | 5671.0s] landmarks=on | critic=0.601 value=11.714 actor=5.054 ae_rec=0.042 ae_latent=11.890 elbo=3.456
+[  549600 steps | 2748 eps | 5695.0s] landmarks=on | critic=0.602 value=11.895 actor=5.066 ae_rec=0.032 ae_latent=11.948 elbo=3.427
+[  552000 steps | 2760 eps | 5718.0s] landmarks=on | critic=0.602 value=11.843 actor=5.075 ae_rec=0.030 ae_latent=11.628 elbo=3.474
+[  554400 steps | 2772 eps | 5741.0s] landmarks=on | critic=0.602 value=11.805 actor=5.078 ae_rec=0.028 ae_latent=11.396 elbo=3.479
+[  556800 steps | 2784 eps | 5763.5s] landmarks=on | critic=0.605 value=11.885 actor=5.096 ae_rec=0.034 ae_latent=12.055 elbo=3.479
+[  559200 steps | 2796 eps | 5786.7s] landmarks=on | critic=0.604 value=11.986 actor=5.120 ae_rec=0.028 ae_latent=11.984 elbo=3.498
+    >> eval success rate (long-horizon test): 0.00
+[  561600 steps | 2808 eps | 5814.8s] landmarks=on | critic=0.601 value=11.942 actor=5.114 ae_rec=0.031 ae_latent=11.755 elbo=3.524
+[  564000 steps | 2820 eps | 5837.4s] landmarks=on | critic=0.604 value=11.976 actor=5.132 ae_rec=0.033 ae_latent=12.089 elbo=3.555
+[  566400 steps | 2832 eps | 5860.9s] landmarks=on | critic=0.606 value=12.064 actor=5.159 ae_rec=0.033 ae_latent=12.155 elbo=3.536
+[  568800 steps | 2844 eps | 5885.0s] landmarks=on | critic=0.603 value=12.036 actor=5.149 ae_rec=0.039 ae_latent=12.054 elbo=3.564
+[  571200 steps | 2856 eps | 5910.3s] landmarks=on | critic=0.607 value=12.093 actor=5.161 ae_rec=0.035 ae_latent=12.072 elbo=3.579
+[  573600 steps | 2868 eps | 5934.1s] landmarks=on | critic=0.605 value=12.134 actor=5.183 ae_rec=0.030 ae_latent=11.917 elbo=3.581
+[  576000 steps | 2880 eps | 5959.0s] landmarks=on | critic=0.606 value=12.215 actor=5.185 ae_rec=0.031 ae_latent=12.011 elbo=3.617
+[  578400 steps | 2892 eps | 5984.1s] landmarks=on | critic=0.604 value=12.145 actor=5.186 ae_rec=0.031 ae_latent=11.966 elbo=3.625
+    >> eval success rate (long-horizon test): 0.00
+[  580800 steps | 2904 eps | 6019.8s] landmarks=on | critic=0.604 value=12.231 actor=5.216 ae_rec=0.030 ae_latent=12.448 elbo=3.731
+[  583200 steps | 2916 eps | 6049.6s] landmarks=on | critic=0.602 value=12.137 actor=5.207 ae_rec=0.041 ae_latent=12.333 elbo=3.718
+[  585600 steps | 2928 eps | 6081.0s] landmarks=on | critic=0.609 value=12.268 actor=5.227 ae_rec=0.024 ae_latent=12.277 elbo=3.736
+[  588000 steps | 2940 eps | 6109.5s] landmarks=on | critic=0.605 value=12.341 actor=5.257 ae_rec=0.020 ae_latent=12.070 elbo=3.767
+[  590400 steps | 2952 eps | 6138.0s] landmarks=on | critic=0.607 value=12.308 actor=5.253 ae_rec=0.029 ae_latent=12.252 elbo=3.802
+[  592800 steps | 2964 eps | 6161.4s] landmarks=on | critic=0.606 value=12.357 actor=5.263 ae_rec=0.031 ae_latent=11.885 elbo=3.855
+[  595200 steps | 2976 eps | 6187.5s] landmarks=on | critic=0.604 value=12.323 actor=5.293 ae_rec=0.025 ae_latent=12.478 elbo=3.818
+[  597600 steps | 2988 eps | 6215.7s] landmarks=on | critic=0.607 value=12.354 actor=5.295 ae_rec=0.030 ae_latent=12.302 elbo=3.955
+[  600000 steps | 3000 eps | 6243.8s] landmarks=on | critic=0.607 value=12.378 actor=5.314 ae_rec=0.025 ae_latent=12.353 elbo=3.847
+    >> eval success rate (long-horizon test): 0.00
+    >> checkpoint saved @ 601200 steps
+[  602400 steps | 3012 eps | 6276.1s] landmarks=on | critic=0.604 value=12.453 actor=5.321 ae_rec=0.037 ae_latent=12.813 elbo=3.858
+[  604800 steps | 3024 eps | 6305.6s] landmarks=on | critic=0.610 value=12.491 actor=5.336 ae_rec=0.029 ae_latent=12.736 elbo=3.902
+[  607200 steps | 3036 eps | 6334.2s] landmarks=on | critic=0.607 value=12.533 actor=5.354 ae_rec=0.023 ae_latent=12.484 elbo=3.991
+[  609600 steps | 3048 eps | 6361.4s] landmarks=on | critic=0.606 value=12.449 actor=5.364 ae_rec=0.031 ae_latent=12.308 elbo=4.009
+[  612000 steps | 3060 eps | 6388.3s] landmarks=on | critic=0.604 value=12.595 actor=5.380 ae_rec=0.023 ae_latent=12.732 elbo=3.988
+[  614400 steps | 3072 eps | 6414.3s] landmarks=on | critic=0.603 value=12.624 actor=5.396 ae_rec=0.025 ae_latent=12.754 elbo=4.035
+[  616800 steps | 3084 eps | 6441.4s] landmarks=on | critic=0.607 value=12.596 actor=5.409 ae_rec=0.025 ae_latent=12.680 elbo=4.037
+[  619200 steps | 3096 eps | 6467.9s] landmarks=on | critic=0.605 value=12.637 actor=5.426 ae_rec=0.023 ae_latent=13.208 elbo=4.064
+    >> eval success rate (long-horizon test): 0.00
+[  621600 steps | 3108 eps | 6498.3s] landmarks=on | critic=0.600 value=12.666 actor=5.427 ae_rec=0.025 ae_latent=13.044 elbo=4.115
+[  624000 steps | 3120 eps | 6523.5s] landmarks=on | critic=0.606 value=12.826 actor=5.454 ae_rec=0.031 ae_latent=14.120 elbo=4.002
+[  626400 steps | 3132 eps | 6548.3s] landmarks=on | critic=0.604 value=12.745 actor=5.470 ae_rec=0.026 ae_latent=13.520 elbo=4.025
+[  628800 steps | 3144 eps | 6572.4s] landmarks=on | critic=0.607 value=12.869 actor=5.490 ae_rec=0.034 ae_latent=13.484 elbo=4.040
+[  631200 steps | 3156 eps | 6596.3s] landmarks=on | critic=0.603 value=12.892 actor=5.496 ae_rec=0.022 ae_latent=13.839 elbo=4.003
+[  633600 steps | 3168 eps | 6621.6s] landmarks=on | critic=0.603 value=12.889 actor=5.494 ae_rec=0.025 ae_latent=13.531 elbo=4.155
+[  636000 steps | 3180 eps | 6650.0s] landmarks=on | critic=0.602 value=13.035 actor=5.540 ae_rec=0.029 ae_latent=14.045 elbo=4.130
+[  638400 steps | 3192 eps | 6678.8s] landmarks=on | critic=0.606 value=13.142 actor=5.551 ae_rec=0.023 ae_latent=14.331 elbo=4.165
+    >> eval success rate (long-horizon test): 0.00
+[  640800 steps | 3204 eps | 6710.3s] landmarks=on | critic=0.605 value=13.104 actor=5.553 ae_rec=0.030 ae_latent=14.892 elbo=4.106
+[  643200 steps | 3216 eps | 6737.4s] landmarks=on | critic=0.602 value=13.127 actor=5.578 ae_rec=0.023 ae_latent=15.090 elbo=4.172
+[  645600 steps | 3228 eps | 6761.4s] landmarks=on | critic=0.606 value=13.233 actor=5.597 ae_rec=0.022 ae_latent=14.485 elbo=4.252
+[  648000 steps | 3240 eps | 6783.5s] landmarks=on | critic=0.607 value=13.295 actor=5.613 ae_rec=0.019 ae_latent=14.610 elbo=4.228
+[  650400 steps | 3252 eps | 6804.7s] landmarks=on | critic=0.599 value=13.305 actor=5.619 ae_rec=0.024 ae_latent=14.572 elbo=4.283
+[  652800 steps | 3264 eps | 6823.8s] landmarks=on | critic=0.602 value=13.364 actor=5.663 ae_rec=0.026 ae_latent=15.226 elbo=4.294
+[  655200 steps | 3276 eps | 6843.5s] landmarks=on | critic=0.599 value=13.555 actor=5.658 ae_rec=0.026 ae_latent=14.803 elbo=4.394
+[  657600 steps | 3288 eps | 6861.7s] landmarks=on | critic=0.600 value=13.541 actor=5.668 ae_rec=0.024 ae_latent=14.909 elbo=4.360
+[  660000 steps | 3300 eps | 6879.7s] landmarks=on | critic=0.604 value=13.572 actor=5.683 ae_rec=0.024 ae_latent=15.472 elbo=4.398
+    >> eval success rate (long-horizon test): 0.00
+[  662400 steps | 3312 eps | 6903.1s] landmarks=on | critic=0.603 value=13.703 actor=5.697 ae_rec=0.025 ae_latent=15.863 elbo=4.437
+[  664800 steps | 3324 eps | 6923.1s] landmarks=on | critic=0.607 value=13.744 actor=5.710 ae_rec=0.024 ae_latent=15.716 elbo=4.426
+[  667200 steps | 3336 eps | 6944.2s] landmarks=on | critic=0.604 value=13.756 actor=5.718 ae_rec=0.019 ae_latent=15.911 elbo=4.505
+[  669600 steps | 3348 eps | 6964.4s] landmarks=on | critic=0.603 value=13.791 actor=5.737 ae_rec=0.018 ae_latent=16.542 elbo=4.477
+[  672000 steps | 3360 eps | 6983.5s] landmarks=on | critic=0.602 value=13.812 actor=5.758 ae_rec=0.021 ae_latent=16.563 elbo=4.497
+[  674400 steps | 3372 eps | 7002.9s] landmarks=on | critic=0.601 value=13.838 actor=5.766 ae_rec=0.024 ae_latent=17.043 elbo=4.465
+[  676800 steps | 3384 eps | 7021.6s] landmarks=on | critic=0.603 value=14.024 actor=5.793 ae_rec=0.026 ae_latent=17.378 elbo=4.505
+[  679200 steps | 3396 eps | 7039.4s] landmarks=on | critic=0.608 value=13.970 actor=5.792 ae_rec=0.024 ae_latent=17.005 elbo=4.486
+    >> eval success rate (long-horizon test): 0.00
+[  681600 steps | 3408 eps | 7061.7s] landmarks=on | critic=0.606 value=14.135 actor=5.821 ae_rec=0.019 ae_latent=17.510 elbo=4.519
+[  684000 steps | 3420 eps | 7079.5s] landmarks=on | critic=0.605 value=14.183 actor=5.831 ae_rec=0.022 ae_latent=17.862 elbo=4.459
+[  686400 steps | 3432 eps | 7097.9s] landmarks=on | critic=0.601 value=14.235 actor=5.862 ae_rec=0.022 ae_latent=17.433 elbo=4.592
+[  688800 steps | 3444 eps | 7115.6s] landmarks=on | critic=0.606 value=14.305 actor=5.848 ae_rec=0.018 ae_latent=17.807 elbo=4.627
+[  691200 steps | 3456 eps | 7134.3s] landmarks=on | critic=0.604 value=14.255 actor=5.867 ae_rec=0.024 ae_latent=18.184 elbo=4.689
+[  693600 steps | 3468 eps | 7152.5s] landmarks=on | critic=0.602 value=14.338 actor=5.876 ae_rec=0.019 ae_latent=18.740 elbo=4.596
+[  696000 steps | 3480 eps | 7171.0s] landmarks=on | critic=0.606 value=14.363 actor=5.913 ae_rec=0.018 ae_latent=18.883 elbo=4.734
+[  698400 steps | 3492 eps | 7189.8s] landmarks=on | critic=0.602 value=14.506 actor=5.930 ae_rec=0.022 ae_latent=19.908 elbo=4.690
+    >> eval success rate (long-horizon test): 0.00
+[  700800 steps | 3504 eps | 7211.6s] landmarks=on | critic=0.605 value=14.551 actor=5.923 ae_rec=0.017 ae_latent=19.065 elbo=4.792
+    >> checkpoint saved @ 701400 steps
+[  703200 steps | 3516 eps | 7229.0s] landmarks=on | critic=0.606 value=14.602 actor=5.947 ae_rec=0.018 ae_latent=19.013 elbo=4.840
+[  705600 steps | 3528 eps | 7246.6s] landmarks=on | critic=0.605 value=14.733 actor=5.960 ae_rec=0.017 ae_latent=19.519 elbo=4.866
+[  708000 steps | 3540 eps | 7265.1s] landmarks=on | critic=0.606 value=14.796 actor=5.990 ae_rec=0.021 ae_latent=19.879 elbo=4.916
+[  710400 steps | 3552 eps | 7284.6s] landmarks=on | critic=0.607 value=14.826 actor=5.988 ae_rec=0.017 ae_latent=20.853 elbo=4.828
+[  712800 steps | 3564 eps | 7305.7s] landmarks=on | critic=0.613 value=14.756 actor=6.001 ae_rec=0.022 ae_latent=20.977 elbo=4.943
+[  715200 steps | 3576 eps | 7323.2s] landmarks=on | critic=0.612 value=14.845 actor=6.011 ae_rec=0.020 ae_latent=21.282 elbo=4.976
+[  717600 steps | 3588 eps | 7341.0s] landmarks=on | critic=0.611 value=14.881 actor=6.013 ae_rec=0.018 ae_latent=21.083 elbo=4.969
+[  720000 steps | 3600 eps | 7359.5s] landmarks=on | critic=0.610 value=14.962 actor=6.027 ae_rec=0.016 ae_latent=21.189 elbo=5.008
+    >> eval success rate (long-horizon test): 0.00
+[  722400 steps | 3612 eps | 7381.5s] landmarks=on | critic=0.611 value=15.023 actor=6.051 ae_rec=0.019 ae_latent=22.021 elbo=5.008
+[  724800 steps | 3624 eps | 7399.5s] landmarks=on | critic=0.606 value=14.975 actor=6.046 ae_rec=0.016 ae_latent=22.643 elbo=5.094
+[  727200 steps | 3636 eps | 7417.4s] landmarks=on | critic=0.612 value=15.044 actor=6.053 ae_rec=0.017 ae_latent=22.497 elbo=5.147
+[  729600 steps | 3648 eps | 7435.0s] landmarks=on | critic=0.611 value=15.101 actor=6.073 ae_rec=0.019 ae_latent=22.533 elbo=5.223
+[  732000 steps | 3660 eps | 7453.1s] landmarks=on | critic=0.606 value=15.047 actor=6.081 ae_rec=0.017 ae_latent=22.897 elbo=5.267
+[  734400 steps | 3672 eps | 7470.2s] landmarks=on | critic=0.613 value=15.233 actor=6.099 ae_rec=0.018 ae_latent=22.882 elbo=5.268
+[  736800 steps | 3684 eps | 7488.4s] landmarks=on | critic=0.619 value=15.212 actor=6.108 ae_rec=0.018 ae_latent=22.840 elbo=5.302
+[  739200 steps | 3696 eps | 7506.3s] landmarks=on | critic=0.617 value=15.109 actor=6.107 ae_rec=0.017 ae_latent=23.815 elbo=5.302
+    >> eval success rate (long-horizon test): 0.00
+[  741600 steps | 3708 eps | 7528.1s] landmarks=on | critic=0.616 value=15.318 actor=6.134 ae_rec=0.014 ae_latent=23.855 elbo=5.425
+[  744000 steps | 3720 eps | 7546.1s] landmarks=on | critic=0.618 value=15.312 actor=6.123 ae_rec=0.020 ae_latent=24.595 elbo=5.456
+[  746400 steps | 3732 eps | 7564.7s] landmarks=on | critic=0.617 value=15.197 actor=6.150 ae_rec=0.016 ae_latent=25.703 elbo=5.374
+[  748800 steps | 3744 eps | 7582.8s] landmarks=on | critic=0.622 value=15.366 actor=6.147 ae_rec=0.017 ae_latent=26.126 elbo=5.368
+[  751200 steps | 3756 eps | 7601.3s] landmarks=on | critic=0.615 value=15.474 actor=6.171 ae_rec=0.021 ae_latent=25.950 elbo=5.426
+[  753600 steps | 3768 eps | 7619.5s] landmarks=on | critic=0.618 value=15.348 actor=6.152 ae_rec=0.019 ae_latent=25.826 elbo=5.448
+[  756000 steps | 3780 eps | 7638.6s] landmarks=on | critic=0.624 value=15.495 actor=6.184 ae_rec=0.015 ae_latent=25.777 elbo=5.390
+[  758400 steps | 3792 eps | 7656.6s] landmarks=on | critic=0.625 value=15.456 actor=6.171 ae_rec=0.015 ae_latent=26.032 elbo=5.364
+    >> eval success rate (long-horizon test): 0.00
+[  760800 steps | 3804 eps | 7678.2s] landmarks=on | critic=0.621 value=15.524 actor=6.171 ae_rec=0.018 ae_latent=26.410 elbo=5.422
+[  763200 steps | 3816 eps | 7695.4s] landmarks=on | critic=0.621 value=15.550 actor=6.187 ae_rec=0.016 ae_latent=27.491 elbo=5.416
+[  765600 steps | 3828 eps | 7713.2s] landmarks=on | critic=0.629 value=15.507 actor=6.196 ae_rec=0.012 ae_latent=26.559 elbo=5.442
+[  768000 steps | 3840 eps | 7730.7s] landmarks=on | critic=0.628 value=15.670 actor=6.213 ae_rec=0.020 ae_latent=27.592 elbo=5.455
+[  770400 steps | 3852 eps | 7748.7s] landmarks=on | critic=0.626 value=15.628 actor=6.214 ae_rec=0.018 ae_latent=26.904 elbo=5.463
+[  772800 steps | 3864 eps | 7767.1s] landmarks=on | critic=0.628 value=15.817 actor=6.237 ae_rec=0.024 ae_latent=27.704 elbo=5.520
+[  775200 steps | 3876 eps | 7786.3s] landmarks=on | critic=0.626 value=15.648 actor=6.233 ae_rec=0.023 ae_latent=28.364 elbo=5.438
+[  777600 steps | 3888 eps | 7805.9s] landmarks=on | critic=0.627 value=15.739 actor=6.237 ae_rec=0.022 ae_latent=28.186 elbo=5.485
+[  780000 steps | 3900 eps | 7824.3s] landmarks=on | critic=0.626 value=15.720 actor=6.264 ae_rec=0.017 ae_latent=27.728 elbo=5.459
+    >> eval success rate (long-horizon test): 0.00
+[  782400 steps | 3912 eps | 7846.2s] landmarks=on | critic=0.630 value=15.811 actor=6.271 ae_rec=0.014 ae_latent=29.304 elbo=5.431
+[  784800 steps | 3924 eps | 7865.0s] landmarks=on | critic=0.633 value=15.645 actor=6.277 ae_rec=0.018 ae_latent=28.864 elbo=5.511
+[  787200 steps | 3936 eps | 7883.9s] landmarks=on | critic=0.636 value=15.788 actor=6.278 ae_rec=0.018 ae_latent=29.219 elbo=5.452
+[  789600 steps | 3948 eps | 7902.2s] landmarks=on | critic=0.628 value=15.852 actor=6.284 ae_rec=0.017 ae_latent=28.968 elbo=5.475
+[  792000 steps | 3960 eps | 7920.0s] landmarks=on | critic=0.635 value=15.826 actor=6.303 ae_rec=0.018 ae_latent=28.485 elbo=5.568
+[  794400 steps | 3972 eps | 7938.3s] landmarks=on | critic=0.635 value=15.823 actor=6.305 ae_rec=0.017 ae_latent=30.488 elbo=5.412
+[  796800 steps | 3984 eps | 7955.8s] landmarks=on | critic=0.634 value=15.874 actor=6.306 ae_rec=0.019 ae_latent=30.930 elbo=5.466
+[  799200 steps | 3996 eps | 7973.2s] landmarks=on | critic=0.634 value=15.673 actor=6.292 ae_rec=0.018 ae_latent=29.742 elbo=5.315
+    >> eval success rate (long-horizon test): 0.00
+[  801600 steps | 4008 eps | 7994.0s] landmarks=on | critic=0.631 value=15.890 actor=6.338 ae_rec=0.014 ae_latent=29.807 elbo=5.447
+    >> checkpoint saved @ 801600 steps
+[  804000 steps | 4020 eps | 8012.1s] landmarks=on | critic=0.634 value=15.825 actor=6.338 ae_rec=0.022 ae_latent=29.463 elbo=5.461
+[  806400 steps | 4032 eps | 8029.9s] landmarks=on | critic=0.631 value=15.773 actor=6.330 ae_rec=0.017 ae_latent=30.089 elbo=5.514
+[  808800 steps | 4044 eps | 8047.6s] landmarks=on | critic=0.633 value=15.976 actor=6.344 ae_rec=0.016 ae_latent=30.322 elbo=5.451
+[  811200 steps | 4056 eps | 8065.1s] landmarks=on | critic=0.634 value=16.066 actor=6.370 ae_rec=0.015 ae_latent=29.971 elbo=5.405
+[  813600 steps | 4068 eps | 8082.3s] landmarks=on | critic=0.633 value=15.936 actor=6.365 ae_rec=0.015 ae_latent=30.203 elbo=5.428
+[  816000 steps | 4080 eps | 8100.0s] landmarks=on | critic=0.636 value=16.049 actor=6.394 ae_rec=0.012 ae_latent=31.029 elbo=5.359
+[  818400 steps | 4092 eps | 8117.7s] landmarks=on | critic=0.635 value=15.974 actor=6.381 ae_rec=0.021 ae_latent=31.395 elbo=5.415
+    >> eval success rate (long-horizon test): 0.00
+[  820800 steps | 4104 eps | 8139.7s] landmarks=on | critic=0.633 value=16.010 actor=6.404 ae_rec=0.019 ae_latent=32.841 elbo=5.362
+[  823200 steps | 4116 eps | 8157.6s] landmarks=on | critic=0.633 value=16.099 actor=6.414 ae_rec=0.022 ae_latent=32.540 elbo=5.492
+[  825600 steps | 4128 eps | 8175.3s] landmarks=on | critic=0.627 value=16.062 actor=6.407 ae_rec=0.016 ae_latent=32.515 elbo=5.395
+[  828000 steps | 4140 eps | 8193.3s] landmarks=on | critic=0.626 value=16.049 actor=6.427 ae_rec=0.014 ae_latent=33.048 elbo=5.356
+[  830400 steps | 4152 eps | 8211.1s] landmarks=on | critic=0.631 value=16.079 actor=6.428 ae_rec=0.021 ae_latent=32.673 elbo=5.412
+[  832800 steps | 4164 eps | 8229.0s] landmarks=on | critic=0.632 value=16.205 actor=6.448 ae_rec=0.017 ae_latent=33.061 elbo=5.430
+[  835200 steps | 4176 eps | 8247.5s] landmarks=on | critic=0.633 value=16.119 actor=6.440 ae_rec=0.016 ae_latent=32.784 elbo=5.374
+[  837600 steps | 4188 eps | 8264.7s] landmarks=on | critic=0.631 value=16.156 actor=6.451 ae_rec=0.015 ae_latent=32.767 elbo=5.369
+[  840000 steps | 4200 eps | 8282.9s] landmarks=on | critic=0.631 value=16.162 actor=6.453 ae_rec=0.018 ae_latent=33.551 elbo=5.390
+    >> eval success rate (long-horizon test): 0.00
+[  842400 steps | 4212 eps | 8304.2s] landmarks=on | critic=0.631 value=16.058 actor=6.464 ae_rec=0.019 ae_latent=35.016 elbo=5.309
+[  844800 steps | 4224 eps | 8321.8s] landmarks=on | critic=0.635 value=16.145 actor=6.480 ae_rec=0.016 ae_latent=34.487 elbo=5.400
+[  847200 steps | 4236 eps | 8339.4s] landmarks=on | critic=0.631 value=16.011 actor=6.479 ae_rec=0.016 ae_latent=34.896 elbo=5.236
+[  849600 steps | 4248 eps | 8356.9s] landmarks=on | critic=0.633 value=16.131 actor=6.484 ae_rec=0.016 ae_latent=34.320 elbo=5.347
+[  852000 steps | 4260 eps | 8374.3s] landmarks=on | critic=0.635 value=16.204 actor=6.501 ae_rec=0.020 ae_latent=35.111 elbo=5.349
+[  854400 steps | 4272 eps | 8392.3s] landmarks=on | critic=0.630 value=16.195 actor=6.525 ae_rec=0.022 ae_latent=35.150 elbo=5.413
+[  856800 steps | 4284 eps | 8410.0s] landmarks=on | critic=0.628 value=16.162 actor=6.511 ae_rec=0.015 ae_latent=33.835 elbo=5.451
+[  859200 steps | 4296 eps | 8427.8s] landmarks=on | critic=0.625 value=16.212 actor=6.524 ae_rec=0.015 ae_latent=34.527 elbo=5.363
+    >> eval success rate (long-horizon test): 0.00
+[  861600 steps | 4308 eps | 8448.9s] landmarks=on | critic=0.633 value=16.071 actor=6.528 ae_rec=0.023 ae_latent=34.364 elbo=5.493
+[  864000 steps | 4320 eps | 8466.7s] landmarks=on | critic=0.625 value=16.131 actor=6.541 ae_rec=0.021 ae_latent=34.177 elbo=5.510
+[  866400 steps | 4332 eps | 8484.6s] landmarks=on | critic=0.634 value=16.282 actor=6.546 ae_rec=0.019 ae_latent=34.866 elbo=5.340
+[  868800 steps | 4344 eps | 8502.5s] landmarks=on | critic=0.628 value=16.215 actor=6.569 ae_rec=0.018 ae_latent=35.883 elbo=5.464
+[  871200 steps | 4356 eps | 8520.3s] landmarks=on | critic=0.629 value=16.110 actor=6.558 ae_rec=0.021 ae_latent=34.984 elbo=5.533
+[  873600 steps | 4368 eps | 8538.0s] landmarks=on | critic=0.629 value=16.176 actor=6.554 ae_rec=0.020 ae_latent=34.759 elbo=5.568
+[  876000 steps | 4380 eps | 8556.0s] landmarks=on | critic=0.627 value=16.217 actor=6.578 ae_rec=0.013 ae_latent=35.008 elbo=5.568
+[  878400 steps | 4392 eps | 8574.2s] landmarks=on | critic=0.625 value=16.054 actor=6.572 ae_rec=0.013 ae_latent=36.628 elbo=5.427
+    >> eval success rate (long-horizon test): 0.00
+[  880800 steps | 4404 eps | 8595.0s] landmarks=on | critic=0.633 value=16.250 actor=6.601 ae_rec=0.015 ae_latent=36.205 elbo=5.529
+[  883200 steps | 4416 eps | 8613.8s] landmarks=on | critic=0.626 value=16.114 actor=6.579 ae_rec=0.019 ae_latent=36.635 elbo=5.566
+[  885600 steps | 4428 eps | 8632.1s] landmarks=on | critic=0.629 value=16.100 actor=6.587 ae_rec=0.015 ae_latent=36.089 elbo=5.546
+[  888000 steps | 4440 eps | 8649.6s] landmarks=on | critic=0.630 value=16.141 actor=6.606 ae_rec=0.015 ae_latent=37.625 elbo=5.492
+[  890400 steps | 4452 eps | 8668.0s] landmarks=on | critic=0.629 value=16.130 actor=6.601 ae_rec=0.015 ae_latent=37.073 elbo=5.559
+[  892800 steps | 4464 eps | 8685.4s] landmarks=on | critic=0.625 value=16.017 actor=6.621 ae_rec=0.016 ae_latent=37.402 elbo=5.552
+[  895200 steps | 4476 eps | 8703.3s] landmarks=on | critic=0.622 value=16.114 actor=6.619 ae_rec=0.016 ae_latent=37.390 elbo=5.639
+[  897600 steps | 4488 eps | 8722.2s] landmarks=on | critic=0.629 value=16.175 actor=6.640 ae_rec=0.015 ae_latent=36.537 elbo=5.656
+[  900000 steps | 4500 eps | 8741.0s] landmarks=on | critic=0.626 value=16.150 actor=6.642 ae_rec=0.012 ae_latent=37.597 elbo=5.598
+    >> eval success rate (long-horizon test): 0.00
+    >> checkpoint saved @ 901800 steps
+[  902400 steps | 4512 eps | 8762.0s] landmarks=on | critic=0.626 value=16.200 actor=6.670 ae_rec=0.014 ae_latent=38.147 elbo=5.573
+[  904800 steps | 4524 eps | 8780.3s] landmarks=on | critic=0.630 value=16.145 actor=6.660 ae_rec=0.016 ae_latent=38.849 elbo=5.616
+[  907200 steps | 4536 eps | 8798.2s] landmarks=on | critic=0.626 value=16.056 actor=6.661 ae_rec=0.013 ae_latent=39.332 elbo=5.666
+[  909600 steps | 4548 eps | 8817.0s] landmarks=on | critic=0.625 value=16.100 actor=6.686 ae_rec=0.017 ae_latent=40.337 elbo=5.629
+[  912000 steps | 4560 eps | 8834.6s] landmarks=on | critic=0.629 value=16.096 actor=6.687 ae_rec=0.020 ae_latent=40.654 elbo=5.650
+[  914400 steps | 4572 eps | 8852.5s] landmarks=on | critic=0.627 value=16.123 actor=6.704 ae_rec=0.014 ae_latent=40.268 elbo=5.706
+[  916800 steps | 4584 eps | 8870.5s] landmarks=on | critic=0.626 value=16.123 actor=6.696 ae_rec=0.014 ae_latent=40.248 elbo=5.729
+[  919200 steps | 4596 eps | 8888.6s] landmarks=on | critic=0.625 value=16.208 actor=6.732 ae_rec=0.019 ae_latent=40.339 elbo=5.698
+    >> eval success rate (long-horizon test): 0.00
+[  921600 steps | 4608 eps | 8909.8s] landmarks=on | critic=0.623 value=16.297 actor=6.740 ae_rec=0.012 ae_latent=39.884 elbo=5.643
+[  924000 steps | 4620 eps | 8927.7s] landmarks=on | critic=0.624 value=16.005 actor=6.736 ae_rec=0.016 ae_latent=42.500 elbo=5.641
+[  926400 steps | 4632 eps | 8945.1s] landmarks=on | critic=0.620 value=16.121 actor=6.739 ae_rec=0.014 ae_latent=41.746 elbo=5.674
+[  928800 steps | 4644 eps | 8962.5s] landmarks=on | critic=0.616 value=16.271 actor=6.772 ae_rec=0.014 ae_latent=41.374 elbo=5.690
+[  931200 steps | 4656 eps | 8980.5s] landmarks=on | critic=0.626 value=16.164 actor=6.775 ae_rec=0.017 ae_latent=42.542 elbo=5.673
+[  933600 steps | 4668 eps | 8997.9s] landmarks=on | critic=0.615 value=16.125 actor=6.783 ae_rec=0.015 ae_latent=43.344 elbo=5.685
+[  936000 steps | 4680 eps | 9015.6s] landmarks=on | critic=0.621 value=16.292 actor=6.787 ae_rec=0.014 ae_latent=43.420 elbo=5.670
+[  938400 steps | 4692 eps | 9033.5s] landmarks=on | critic=0.625 value=16.318 actor=6.809 ae_rec=0.012 ae_latent=43.008 elbo=5.689
+    >> eval success rate (long-horizon test): 0.00
+[  940800 steps | 4704 eps | 9054.6s] landmarks=on | critic=0.624 value=16.230 actor=6.809 ae_rec=0.014 ae_latent=42.561 elbo=5.728
+[  943200 steps | 4716 eps | 9072.8s] landmarks=on | critic=0.625 value=16.169 actor=6.826 ae_rec=0.011 ae_latent=42.899 elbo=5.711
+[  945600 steps | 4728 eps | 9090.0s] landmarks=on | critic=0.621 value=16.368 actor=6.832 ae_rec=0.011 ae_latent=43.060 elbo=5.724
+[  948000 steps | 4740 eps | 9107.3s] landmarks=on | critic=0.621 value=16.158 actor=6.836 ae_rec=0.013 ae_latent=44.490 elbo=5.770
+[  950400 steps | 4752 eps | 9125.5s] landmarks=on | critic=0.626 value=16.247 actor=6.857 ae_rec=0.012 ae_latent=44.199 elbo=5.781
+[  952800 steps | 4764 eps | 9143.2s] landmarks=on | critic=0.627 value=16.265 actor=6.869 ae_rec=0.012 ae_latent=46.095 elbo=5.607
+[  955200 steps | 4776 eps | 9161.0s] landmarks=on | critic=0.624 value=16.120 actor=6.867 ae_rec=0.012 ae_latent=45.304 elbo=5.725
+[  957600 steps | 4788 eps | 9179.3s] landmarks=on | critic=0.627 value=16.367 actor=6.903 ae_rec=0.010 ae_latent=44.384 elbo=5.705
+[  960000 steps | 4800 eps | 9197.2s] landmarks=on | critic=0.626 value=16.337 actor=6.913 ae_rec=0.014 ae_latent=47.130 elbo=5.697
+    >> eval success rate (long-horizon test): 0.00
+[  962400 steps | 4812 eps | 9218.4s] landmarks=on | critic=0.625 value=16.309 actor=6.913 ae_rec=0.013 ae_latent=47.979 elbo=5.643
+[  964800 steps | 4824 eps | 9236.8s] landmarks=on | critic=0.628 value=16.468 actor=6.927 ae_rec=0.010 ae_latent=47.037 elbo=5.636
+[  967200 steps | 4836 eps | 9255.3s] landmarks=on | critic=0.623 value=16.386 actor=6.933 ae_rec=0.012 ae_latent=48.509 elbo=5.639
+[  969600 steps | 4848 eps | 9274.6s] landmarks=on | critic=0.626 value=16.389 actor=6.928 ae_rec=0.013 ae_latent=48.145 elbo=5.714
+[  972000 steps | 4860 eps | 9292.7s] landmarks=on | critic=0.624 value=16.378 actor=6.948 ae_rec=0.014 ae_latent=46.812 elbo=5.799
+[  974400 steps | 4872 eps | 9310.4s] landmarks=on | critic=0.628 value=16.240 actor=6.949 ae_rec=0.014 ae_latent=46.979 elbo=5.749
+[  976800 steps | 4884 eps | 9328.2s] landmarks=on | critic=0.627 value=16.524 actor=6.959 ae_rec=0.012 ae_latent=46.403 elbo=5.718
+[  979200 steps | 4896 eps | 9345.8s] landmarks=on | critic=0.632 value=16.296 actor=6.974 ae_rec=0.013 ae_latent=48.271 elbo=5.747
+    >> eval success rate (long-horizon test): 0.00
+[  981600 steps | 4908 eps | 9366.6s] landmarks=on | critic=0.634 value=16.314 actor=6.978 ae_rec=0.012 ae_latent=48.671 elbo=5.729
+[  984000 steps | 4920 eps | 9386.0s] landmarks=on | critic=0.621 value=16.269 actor=6.975 ae_rec=0.011 ae_latent=48.856 elbo=5.729
+[  986400 steps | 4932 eps | 9403.6s] landmarks=on | critic=0.619 value=16.346 actor=6.982 ae_rec=0.011 ae_latent=47.180 elbo=5.762

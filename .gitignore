@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+*.pt
+*.egg-info/
+.pytest_cache/
+.DS_Store

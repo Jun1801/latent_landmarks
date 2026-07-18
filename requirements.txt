@@ -1,0 +1,10 @@
+# Core (required, sufficient to run PointMaze end-to-end)
+torch>=2.0
+numpy>=1.23
+
+# Optional: only needed for the MuJoCo AntMaze / Fetch environments.
+# These mirror the versions used by the original paper and are NOT installed
+# or verified in this repo's default setup (MuJoCo is heavy/fragile on macOS ARM).
+# See README.md -> "Running the MuJoCo environments".
+#   gym==0.13.1
+#   mujoco-py<2.1,>=2.0
