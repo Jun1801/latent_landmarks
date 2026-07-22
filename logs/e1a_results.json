@@ -1,0 +1,183 @@
+{
+  "meta": {
+    "load": "l3p_pointmaze_full.pt",
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "episodes": 50,
+    "sigmas": [
+      0.0,
+      0.1,
+      0.3,
+      0.5
+    ],
+    "d_max": 0.680012,
+    "mcts_n_simulations": 200,
+    "mcts_rollout_horizon": 10,
+    "n_boot": 2000
+  },
+  "results": [
+    {
+      "sigma": 0.0,
+      "aggregate": {
+        "soft_floyd": {
+          "mean": 0.9333333333333333,
+          "ci_low": 0.8933333333333333,
+          "ci_high": 0.9733333333333334,
+          "n": 150
+        },
+        "naive_replan": {
+          "mean": 0.9333333333333333,
+          "ci_low": 0.8866666666666667,
+          "ci_high": 0.9733333333333334,
+          "n": 150
+        },
+        "mcts": {
+          "mean": 0.92,
+          "ci_low": 0.8733333333333333,
+          "ci_high": 0.96,
+          "n": 150
+        }
+      },
+      "per_seed": {
+        "0": {
+          "soft_floyd": 0.88,
+          "naive_replan": 0.88,
+          "mcts": 0.84
+        },
+        "1": {
+          "soft_floyd": 0.94,
+          "naive_replan": 0.94,
+          "mcts": 0.94
+        },
+        "2": {
+          "soft_floyd": 0.98,
+          "naive_replan": 0.98,
+          "mcts": 0.98
+        }
+      }
+    },
+    {
+      "sigma": 0.1,
+      "aggregate": {
+        "soft_floyd": {
+          "mean": 0.9466666666666667,
+          "ci_low": 0.9066666666666666,
+          "ci_high": 0.98,
+          "n": 150
+        },
+        "naive_replan": {
+          "mean": 0.94,
+          "ci_low": 0.9,
+          "ci_high": 0.9733333333333334,
+          "n": 150
+        },
+        "mcts": {
+          "mean": 0.92,
+          "ci_low": 0.8733333333333333,
+          "ci_high": 0.96,
+          "n": 150
+        }
+      },
+      "per_seed": {
+        "0": {
+          "soft_floyd": 0.9,
+          "naive_replan": 0.88,
+          "mcts": 0.84
+        },
+        "1": {
+          "soft_floyd": 0.96,
+          "naive_replan": 0.96,
+          "mcts": 0.94
+        },
+        "2": {
+          "soft_floyd": 0.98,
+          "naive_replan": 0.98,
+          "mcts": 0.98
+        }
+      }
+    },
+    {
+      "sigma": 0.3,
+      "aggregate": {
+        "soft_floyd": {
+          "mean": 0.30666666666666664,
+          "ci_low": 0.23333333333333334,
+          "ci_high": 0.38,
+          "n": 150
+        },
+        "naive_replan": {
+          "mean": 0.24666666666666667,
+          "ci_low": 0.18,
+          "ci_high": 0.32,
+          "n": 150
+        },
+        "mcts": {
+          "mean": 0.5733333333333334,
+          "ci_low": 0.49333333333333335,
+          "ci_high": 0.6533333333333333,
+          "n": 150
+        }
+      },
+      "per_seed": {
+        "0": {
+          "soft_floyd": 0.36,
+          "naive_replan": 0.28,
+          "mcts": 0.64
+        },
+        "1": {
+          "soft_floyd": 0.36,
+          "naive_replan": 0.32,
+          "mcts": 0.6
+        },
+        "2": {
+          "soft_floyd": 0.2,
+          "naive_replan": 0.14,
+          "mcts": 0.48
+        }
+      }
+    },
+    {
+      "sigma": 0.5,
+      "aggregate": {
+        "soft_floyd": {
+          "mean": 0.03333333333333333,
+          "ci_low": 0.006666666666666667,
+          "ci_high": 0.06666666666666667,
+          "n": 150
+        },
+        "naive_replan": {
+          "mean": 0.03333333333333333,
+          "ci_low": 0.006666666666666667,
+          "ci_high": 0.06666666666666667,
+          "n": 150
+        },
+        "mcts": {
+          "mean": 0.04,
+          "ci_low": 0.013333333333333334,
+          "ci_high": 0.07333333333333333,
+          "n": 150
+        }
+      },
+      "per_seed": {
+        "0": {
+          "soft_floyd": 0.04,
+          "naive_replan": 0.04,
+          "mcts": 0.04
+        },
+        "1": {
+          "soft_floyd": 0.04,
+          "naive_replan": 0.04,
+          "mcts": 0.04
+        },
+        "2": {
+          "soft_floyd": 0.02,
+          "naive_replan": 0.02,
+          "mcts": 0.04
+        }
+      }
+    }
+  ]
+}

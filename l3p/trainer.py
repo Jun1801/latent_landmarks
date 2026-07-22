@@ -205,22 +205,24 @@ class L3PTrainer:
 
     # ------------------------------------------------------------------ evaluation
     @torch.no_grad()
-    def evaluate(self, n_episodes: int = 20, use_planning: bool = True) -> float:
+    def evaluate(self, n_episodes: int = 20, use_planning: bool = True,
+                planner: Optional[LatentPlanner] = None) -> float:
         self.env.set_eval(True)
         env = self.env.envs[0]
+        planner = planner or self.planner
         successes = 0
         for _ in range(n_episodes):
             obs_dict = env.reset()
             goal = obs_dict["desired_goal"].astype(np.float32)
             planning = use_planning and self.centroids_initialized
             if planning:
-                self.planner.reset(goal)
+                planner.reset(goal)
             success = 0.0
             # Test-time horizon (paper uses a longer horizon than training, e.g.
             # 200 train / 500 test for the mazes — Section 5.2 / Figure 5).
             for _ in range(self.cfg.test_episode_steps):
                 if planning:
-                    a = self.planner.act(obs_dict["observation"])
+                    a = planner.act(obs_dict["observation"])
                 else:
                     a = self.agent.act(obs_dict["observation"], goal)
                 obs_dict, reward, done, info = env.step(a)

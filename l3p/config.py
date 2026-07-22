@@ -62,6 +62,12 @@ class Config:
     random_landmarks_train: int = 150   # per-env below; extra GLS landmarks added per episode
     neg_inf: float = -1e6               # value used to mask out edges beyond d_max (Appendix B)
 
+    # ---- MCTS-over-landmarks (Phase 1 scaffold; docs/SPEC_MCTS_Landmark_L3P.md) ----
+    mcts_n_simulations: int = 200        # simulations per macro-step replan
+    mcts_c_uct: float = 1.4              # UCT exploration constant (~sqrt(2))
+    mcts_rollout_horizon: int = 10       # max additional macro-hops per rollout
+    mcts_seed: int = 0                   # rng stream for MCTS's own randomness
+
     # ---- training loop (Algorithm 3) ----
     total_steps: int = 2_000_000
     k_env: int = 1                      # episodes collected per outer iteration before grad steps
