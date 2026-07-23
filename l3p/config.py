@@ -68,6 +68,14 @@ class Config:
     mcts_rollout_horizon: int = 10       # max additional macro-hops per rollout
     mcts_seed: int = 0                   # rng stream for MCTS's own randomness
 
+    # ---- E1b uncertainty bonus (docs/SPEC_MCTS_Landmark_L3P.md Sec 3) ----
+    # "none" = plain MCTS (= MCTS-beta=0 ablation); "alpha" = risk penalty in the
+    # reward (avoid uncertain edges); "beta" = exploration bonus in UCT (probe
+    # uncertain edges). NB: distinct from `beta` above (the soft-Floyd temperature).
+    mcts_uncertainty_mode: str = "none"
+    mcts_lambda_risk: float = 1.0        # alpha: reward penalty weight on edge uncertainty
+    mcts_beta_uncertainty: float = 1.0   # beta: UCT exploration-bonus weight on edge uncertainty
+
     # ---- training loop (Algorithm 3) ----
     total_steps: int = 2_000_000
     k_env: int = 1                      # episodes collected per outer iteration before grad steps

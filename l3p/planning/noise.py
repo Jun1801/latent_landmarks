@@ -20,6 +20,8 @@ the real agent except `.value`.
 
 from __future__ import annotations
 
+from typing import Optional
+
 import numpy as np
 import torch
 
@@ -68,6 +70,59 @@ def bootstrap_ci(outcomes, n_boot: int = 2000, alpha: float = 0.05, rng=None):
     means = x[idx].mean(axis=1)
     lo, hi = np.percentile(means, [100 * alpha / 2, 100 * (1 - alpha / 2)])
     return float(x.mean()), float(lo), float(hi)
+
+
+def build_sigma_matrix(m: int, frac_high: float, sigma_lo: float, sigma_hi: float,
+                       rng: np.random.Generator, goal_idx: Optional[int] = None) -> np.ndarray:
+    """Heterogeneous per-edge oracle uncertainty for E1b (docs/... Sec 3, Cach 1):
+    a symmetric [m, m] matrix where a random `frac_high` of the unordered
+    landmark-landmark edges get sigma_hi and the rest sigma_lo. The high-sigma
+    edges are assigned INDEPENDENTLY of V (a short-looking edge can be secretly
+    unreliable) -- that decorrelation is what makes knowing sigma useful. The
+    goal node's edges (if `goal_idx` given) are kept at sigma_lo (goal
+    reachability is treated as reliably estimated). Diagonal is 0."""
+    sig = np.full((m, m), sigma_lo, dtype=np.float64)
+    pairs = [(i, j) for i in range(m) for j in range(i + 1, m)
+             if goal_idx is None or (i != goal_idx and j != goal_idx)]
+    k = int(round(frac_high * len(pairs)))
+    if k > 0 and pairs:
+        chosen = rng.choice(len(pairs), size=min(k, len(pairs)), replace=False)
+        for c in chosen:
+            i, j = pairs[c]
+            sig[i, j] = sig[j, i] = sigma_hi
+    np.fill_diagonal(sig, 0.0)
+    return sig
+
+
+class HeterogeneousNoise:
+    """Loai-2 noise with a PER-EDGE sigma (E1b). Wraps a base value_fn and, given
+    a fixed node set, adds N(0, sigma_ij^2) to V(i, j) -- resampled every call --
+    where sigma_ij comes from `sigma_matrix`. Node indices are recovered from the
+    query coordinates by nearest-node lookup (every planner/graph-search query is
+    on the fixed episode node set, so the match is exact). `sigma_of(i, j)` gives
+    the oracle sigma an index-based caller (the MCTS bonus) can read directly."""
+
+    def __init__(self, value_fn, nodes_t: torch.Tensor, sigma_matrix: np.ndarray,
+                 rng: np.random.Generator):
+        self.value_fn = value_fn
+        self.nodes = nodes_t                       # [m, gdim]
+        self.sigma = np.asarray(sigma_matrix, dtype=np.float64)
+        self.rng = rng
+
+    def _idx(self, g: torch.Tensor) -> np.ndarray:
+        return torch.cdist(g, self.nodes).argmin(dim=1).cpu().numpy()
+
+    def __call__(self, g1: torch.Tensor, g2: torch.Tensor) -> torch.Tensor:
+        v = self.value_fn(g1, g2)
+        s = self.sigma[self._idx(g1), self._idx(g2)]          # [k] per-edge std
+        if not np.any(s > 0):
+            return v
+        eta = self.rng.normal(0.0, s)                          # N(0, s_k)
+        noisy = v + torch.as_tensor(eta.reshape(v.shape), dtype=v.dtype, device=v.device)
+        return noisy.clamp_min(0.0)
+
+    def sigma_of(self, i: int, j: int) -> float:
+        return float(self.sigma[i, j])
 
 
 class ValueOverrideAgent:

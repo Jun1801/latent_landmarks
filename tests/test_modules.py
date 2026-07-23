@@ -18,8 +18,9 @@ from l3p.models.landmarks import LatentLandmarks, greedy_latent_sparsification
 from l3p.models.networks import Critic, ValueFunction
 from l3p.planning.graph_search import GraphSearch
 from l3p.planning.planner import LatentPlanner
-from l3p.planning.noise import NoisyValueFn, ValueOverrideAgent, dmax_candidates, bootstrap_ci
-from l3p.planning.mcts_planner import LandmarkMCTS, MCTSPlanner
+from l3p.planning.noise import (NoisyValueFn, ValueOverrideAgent, dmax_candidates,
+                                 bootstrap_ci, build_sigma_matrix, HeterogeneousNoise)
+from l3p.planning.mcts_planner import LandmarkMCTS, MCTSPlanner, _Node
 from l3p.planning.baselines import NaiveReplanPlanner
 from l3p.losses import ae_losses
 
@@ -407,6 +408,80 @@ def test_bootstrap_ci():
     print("ok  test_bootstrap_ci")
 
 
+def test_build_sigma_matrix():
+    """Symmetric, zero diagonal, goal edges kept low, and ~frac_high of
+    landmark-landmark edges set to sigma_hi (E1b heterogeneous oracle)."""
+    m, goal_idx = 6, 5
+    sig = build_sigma_matrix(m, frac_high=0.5, sigma_lo=0.1, sigma_hi=0.9,
+                             rng=np.random.default_rng(0), goal_idx=goal_idx)
+    assert np.allclose(sig, sig.T)                        # symmetric
+    assert np.allclose(np.diag(sig), 0.0)                 # zero diagonal
+    # goal row/col never high
+    assert not np.any(np.isclose(sig[goal_idx], 0.9)) and not np.any(np.isclose(sig[:, goal_idx], 0.9))
+    # among landmark-landmark unordered pairs, ~50% are high
+    lm = [(i, j) for i in range(m) for j in range(i + 1, m) if i != goal_idx and j != goal_idx]
+    n_high = sum(np.isclose(sig[i, j], 0.9) for i, j in lm)
+    assert n_high == round(0.5 * len(lm)), (n_high, len(lm))
+    print("ok  test_build_sigma_matrix")
+
+
+def test_heterogeneous_noise():
+    """Zero-sigma edges pass through exactly; a high-sigma edge gets the right
+    empirical std; sigma_of exposes the oracle by index."""
+    nodes = torch.tensor([[0.], [3.], [7.]])              # 3 nodes on a line
+    base = _FakeV()                                        # V = |g1-g2|
+    sig = np.array([[0.0, 0.0, 0.6],
+                    [0.0, 0.0, 0.0],
+                    [0.6, 0.0, 0.0]])
+    hz = HeterogeneousNoise(base, nodes, sig, np.random.default_rng(0))
+    # edge (0,1): sigma 0 -> exact passthrough (V=3)
+    assert torch.allclose(hz(nodes[0:1], nodes[1:2]), torch.tensor([3.0]))
+    # edge (0,2): sigma 0.6 around true V=7
+    samples = torch.stack([hz(nodes[0:1], nodes[2:3]) for _ in range(3000)]).numpy().ravel()
+    assert abs(samples.mean() - 7.0) < 0.1 and abs(samples.std() - 0.6) < 0.1
+    assert hz.sigma_of(0, 2) == 0.6 and hz.sigma_of(0, 1) == 0.0
+    print(f"ok  test_heterogeneous_noise (mean={samples.mean():.2f}, std={samples.std():.2f})")
+
+
+def test_mcts_alpha_avoids_uncertain_edge():
+    """E1b alpha: with a risk penalty, MCTS routes AWAY from a landmark whose
+    onward edge to the goal is high-sigma, even though that landmark is marginally
+    preferred with no uncertainty term."""
+    nodes = torch.tensor([[1.0], [3.0], [2.0]])   # L0, L1, goal (V=euclidean)
+    heuristic = np.array([-1.0, -1.0, 0.0])
+    d_s2c = np.array([0.0, -0.1, -10.0])           # root slightly prefers L0; goal far
+    sigma = np.array([[0.0, 0.0, 0.9],             # L0->goal is unreliable
+                      [0.0, 0.0, 0.0],             # L1->goal is reliable
+                      [0.9, 0.0, 0.0]])
+
+    def run(mode):
+        cfg = get_config("PointMaze", d_max=5.0, mcts_n_simulations=300,
+                         mcts_rollout_horizon=6, mcts_uncertainty_mode=mode,
+                         mcts_lambda_risk=5.0)
+        mcts = LandmarkMCTS(n_landmarks=2, value_fn=_FakeV(), nodes_t=nodes,
+                            d_c2g_heuristic=heuristic, cfg=cfg,
+                            rng=np.random.default_rng(0), sigma_matrix=sigma)
+        return mcts.search(d_s2c)[0]
+
+    assert run("none") == 0, "no uncertainty term -> take the marginally-closer L0"
+    assert run("alpha") == 1, "risk penalty -> avoid L0's unreliable onward edge, take L1"
+    print("ok  test_mcts_alpha_avoids_uncertain_edge")
+
+
+def test_uct_beta_bonus_shifts_selection():
+    """E1b beta: the UCT exploration bonus steers selection toward the
+    higher-uncertainty child when Q and visit counts are otherwise tied."""
+    node = _Node(idx=0, candidates=[1, 2])
+    node.visits = 10
+    for j in (1, 2):
+        node.child_visits[j] = 5
+        node.child_total[j] = -5.0                 # equal Q = -1 for both
+    # no bonus: tie -> deterministic first-max; bonus favoring child 2 -> child 2
+    assert node.best_uct_child(1.4, bonus=lambda j: 1.0 if j == 2 else 0.0) == 2
+    assert node.best_uct_child(1.4, bonus=lambda j: 1.0 if j == 1 else 0.0) == 1
+    print("ok  test_uct_beta_bonus_shifts_selection")
+
+
 ALL_TESTS = [
     test_q_from_distance,
     test_value_regression,
@@ -423,6 +498,10 @@ ALL_TESTS = [
     test_mcts_admissibility_cached_once_per_episode,
     test_dmax_candidates_track_v_scale,
     test_bootstrap_ci,
+    test_build_sigma_matrix,
+    test_heterogeneous_noise,
+    test_mcts_alpha_avoids_uncertain_edge,
+    test_uct_beta_bonus_shifts_selection,
 ]
 
 if __name__ == "__main__":
