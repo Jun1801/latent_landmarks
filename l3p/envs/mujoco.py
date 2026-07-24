@@ -59,16 +59,19 @@ _MAZE_ENVS = {"AntMaze", "PointMazeMuJoCo"}
 
 def _load_backend():
     """Return (module, kind) where kind is 'gym' or 'gymnasium'; None if absent."""
-    try:
-        import gym  # noqa: F401
-        return gym, "gym"
-    except ImportError:
-        pass
+    # Prefer the maintained gymnasium-robotics stack. Kaggle often has the old
+    # unmaintained `gym` package preinstalled; if we import gym first, modern ids
+    # such as PointMaze_Large-v3 are not registered and env construction fails.
     try:
         import gymnasium
         import gymnasium_robotics
         gymnasium.register_envs(gymnasium_robotics)   # register Fetch/etc. ids
         return gymnasium, "gymnasium"
+    except ImportError:
+        pass
+    try:
+        import gym  # noqa: F401
+        return gym, "gym"
     except ImportError:
         return None, None
 
