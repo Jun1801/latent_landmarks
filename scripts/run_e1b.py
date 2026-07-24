@@ -28,7 +28,7 @@ legitimate outcome and means the uncertainty win, if any, needs BIASED noise
 (Loai 1 = E1c) to show clearly -- report accordingly.
 
 Example (~2.6h):
-    python scripts/run_e1b.py --load l3p_pointmaze_full.pt --seeds 0 1 \
+    python scripts/run_e1b.py --load checkpoint/l3p_pointmaze_full.pt --seeds 0 1 \
         --episodes 40 --sigma-hi 0 0.3 0.5 --mcts-n-simulations 120
 """
 
@@ -44,7 +44,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 import torch
 
-from l3p.config import get_config
+from l3p.config import get_config, list_envs
 from l3p.envs import make_vec_env
 from l3p.planning.mcts_planner import UncertaintyMCTSPlanner
 from l3p.planning.noise import dmax_candidates, bootstrap_ci
@@ -108,7 +108,8 @@ def run_point(trainer, base_cfg, sigma_hi, variant, args, base_seed):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--load", type=str, default="l3p_pointmaze_full.pt")
+    p.add_argument("--env", default="PointMaze", choices=list_envs())
+    p.add_argument("--load", type=str, default="checkpoint/l3p_pointmaze_full.pt")
     p.add_argument("--seeds", type=int, nargs="+", default=[0, 1])
     p.add_argument("--episodes", type=int, default=40)
     p.add_argument("--sigma-hi", type=float, nargs="+", default=[0.0, 0.3, 0.5],
@@ -132,10 +133,10 @@ def main():
     if 0.0 not in args.sigma_hi:
         args.sigma_hi = [0.0] + list(args.sigma_hi)
 
-    print("E1b: uncertainty-bonus ablation (none / alpha / beta) under heterogeneous "
-          "per-edge oracle uncertainty. Caveat R2: PointMaze-Hard, flat policy ~0.9.")
+    print(f"E1b on {args.env}: uncertainty-bonus ablation (none / alpha / beta) "
+          "under heterogeneous per-edge oracle uncertainty.")
 
-    cfg = get_config("PointMaze", seed=args.seeds[0],
+    cfg = get_config(args.env, seed=args.seeds[0],
                      mcts_n_simulations=args.mcts_n_simulations,
                      mcts_rollout_horizon=args.mcts_rollout_horizon)
     env = make_vec_env(cfg, 1, cfg.seed)
@@ -199,7 +200,7 @@ def main():
 def _save(path, results, args, base_cfg):
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w") as f:
-        json.dump(dict(meta=dict(load=args.load, seeds=args.seeds, episodes=args.episodes,
+        json.dump(dict(meta=dict(env=args.env, load=args.load, seeds=args.seeds, episodes=args.episodes,
                                  sigma_hi=args.sigma_hi, frac_high=args.frac_high,
                                  sigma_lo=args.sigma_lo, lambda_risk=args.lambda_risk,
                                  beta_unc=args.beta_unc, d_max=base_cfg.d_max,

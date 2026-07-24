@@ -43,7 +43,7 @@ smaller/shorter-horizon than the paper's setting, and the flat policy already
 solves the task ~0.9, so planning has thin headroom over "no planning".
 
 Example (the ~2.5h "real" run):
-    python scripts/run_e1a.py --load l3p_pointmaze_full.pt \
+    python scripts/run_e1a.py --load checkpoint/l3p_pointmaze_full.pt \
         --seeds 0 1 2 --episodes 50 --sigmas 0 0.1 0.3 0.5
 """
 
@@ -58,7 +58,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 import torch
 
-from l3p.config import get_config
+from l3p.config import get_config, list_envs
 from l3p.envs import make_vec_env
 from l3p.planning.baselines import NaiveReplanPlanner
 from l3p.planning.mcts_planner import MCTSPlanner
@@ -152,7 +152,8 @@ def aggregate(pooled, n_boot, alpha, seed):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--load", type=str, default="l3p_pointmaze_full.pt")
+    p.add_argument("--env", default="PointMaze", choices=list_envs())
+    p.add_argument("--load", type=str, default="checkpoint/l3p_pointmaze_full.pt")
     p.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2],
                    help="reporting seeds; pooled for mean +/- bootstrap CI (spec Sec 10)")
     p.add_argument("--episodes", type=int, default=50, help="eval episodes per (planner, sigma, seed)")
@@ -175,16 +176,15 @@ def main():
     if 0.0 not in args.sigmas:
         args.sigmas = [0.0] + list(args.sigmas)
 
-    print("Caveat (spec risk R2): running on PointMaze-Hard, not AntMaze-Hard "
-          "(AntMaze needs MuJoCo, not installed in this repo -- see docs/ENVIRONMENTS.md). "
-          "The landmark graph here is smaller/shorter-horizon than the paper's setting.")
+    print(f"E1a on {args.env}. Caveat (spec risk R2): short/easy envs can have "
+          "thin planning headroom; MuJoCo envs require gymnasium-robotics/mujoco.")
 
     cfg_overrides = {}
     if args.mcts_n_simulations is not None:
         cfg_overrides["mcts_n_simulations"] = args.mcts_n_simulations
     if args.mcts_rollout_horizon is not None:
         cfg_overrides["mcts_rollout_horizon"] = args.mcts_rollout_horizon
-    cfg = get_config("PointMaze", seed=args.seeds[0], **cfg_overrides)
+    cfg = get_config(args.env, seed=args.seeds[0], **cfg_overrides)
     env = make_vec_env(cfg, 1, cfg.seed)
     trainer = L3PTrainer(env, cfg)
     trainer.load(args.load)
@@ -253,7 +253,7 @@ def _save(path, results, args, trainer):
     with open(path, "w") as f:
         json.dump(dict(
             meta=dict(load=args.load, seeds=args.seeds, episodes=args.episodes,
-                      sigmas=args.sigmas, d_max=trainer.cfg.d_max,
+                      env=args.env, sigmas=args.sigmas, d_max=trainer.cfg.d_max,
                       mcts_n_simulations=trainer.cfg.mcts_n_simulations,
                       mcts_rollout_horizon=trainer.cfg.mcts_rollout_horizon,
                       n_boot=args.n_boot),

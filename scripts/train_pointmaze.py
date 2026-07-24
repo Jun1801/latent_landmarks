@@ -50,7 +50,7 @@ def main():
                    help="HER hindsight range (shorter -> low-level only learns short hops)")
     p.add_argument("--eval-episodes", type=int, default=None,
                    help="episodes per evaluation (more -> smoother success-rate curve)")
-    p.add_argument("--save", type=str, default="l3p_pointmaze.pt")
+    p.add_argument("--save", type=str, default="checkpoint/l3p_pointmaze.pt")
     p.add_argument("--save-every", type=int, default=0,
                    help="also save a checkpoint every N env steps (0 = only at end)")
     p.add_argument("--log-file", type=str, default="logs/pointmaze.log",

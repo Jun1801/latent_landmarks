@@ -55,7 +55,7 @@ def main():
         overrides["eval_episodes"] = args.eval_episodes
 
     cfg = get_config(args.env, **overrides)
-    save = args.save or f"l3p_{cfg.env_name}.pt"
+    save = args.save or f"checkpoint/l3p_{cfg.env_name}.pt"
     log_file = args.log_file or f"logs/{cfg.env_name}.log"
     sys.stdout = Tee(log_file)
 

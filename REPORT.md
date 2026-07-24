@@ -152,7 +152,7 @@ Mỗi bộ có thư mục riêng `logs/<env>/` gồm `train.log`, `model.pt`, `l
 `trajectory.png`. Vẽ lại bất kỳ lúc nào:
 ```bash
 python scripts/plot_log.py --log logs/point_maze_mujoco/train.log --out logs/point_maze_mujoco/learning_curve.png
-python scripts/plot_trajectory_mujoco.py --env PointMazeMuJoCo --load logs/point_maze_mujoco/model.pt --out logs/point_maze_mujoco/trajectory.png
+python scripts/plot_trajectory_mujoco.py --env PointMazeMuJoCo --load checkpoint/logs/point_maze_mujoco/model.pt --out logs/point_maze_mujoco/trajectory.png
 ```
 
 ---

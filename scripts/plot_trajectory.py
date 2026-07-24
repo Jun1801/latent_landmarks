@@ -10,7 +10,7 @@ planner, and draws:
   * start (orange dot) and goal (red star)
 
 Example:
-    python scripts/plot_trajectory.py --load l3p_pointmaze_full.pt --out logs/trajectory.png
+    python scripts/plot_trajectory.py --load checkpoint/l3p_pointmaze_full.pt --out logs/trajectory.png
 """
 
 import argparse
@@ -55,7 +55,7 @@ def run_episode(trainer, env):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--load", default="l3p_pointmaze_full.pt")
+    p.add_argument("--load", default="checkpoint/l3p_pointmaze_full.pt")
     p.add_argument("--out", default="logs/trajectory.png")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--tries", type=int, default=8, help="episodes to try for a successful one")

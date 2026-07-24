@@ -1,0 +1,34 @@
+{
+  "tasks": [
+    {
+      "name": "pointmaze_numpy",
+      "env": "PointMaze",
+      "checkpoint": "checkpoint/l3p_pointmaze_full.pt",
+      "experiments": ["e1a", "e1b", "e1c", "e1d"]
+    },
+    {
+      "name": "pointmaze_numpy_alt",
+      "env": "PointMaze",
+      "checkpoint": "/kaggle/input/your-checkpoint-dataset/l3p_pointmaze_seed1.pt",
+      "experiments": ["e1a", "e1b", "e1c", "e1d"]
+    },
+    {
+      "name": "pointmaze_mujoco",
+      "env": "PointMazeMuJoCo",
+      "checkpoint": "checkpoint/l3p_pointmaze_mujoco.pt",
+      "experiments": ["e1a", "e1b"]
+    },
+    {
+      "name": "fetch_pick_and_place",
+      "env": "FetchPickAndPlace",
+      "checkpoint": "checkpoint/l3p_fetch.pt",
+      "experiments": ["e1a", "e1b"]
+    },
+    {
+      "name": "antmaze",
+      "env": "AntMaze",
+      "checkpoint": "checkpoint/l3p_AntMaze.pt",
+      "experiments": ["e1a", "e1b"]
+    }
+  ]
+}

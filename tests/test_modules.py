@@ -19,8 +19,10 @@ from l3p.models.networks import Critic, ValueFunction
 from l3p.planning.graph_search import GraphSearch
 from l3p.planning.planner import LatentPlanner
 from l3p.planning.noise import (NoisyValueFn, ValueOverrideAgent, dmax_candidates,
-                                 bootstrap_ci, build_sigma_matrix, HeterogeneousNoise)
-from l3p.planning.mcts_planner import LandmarkMCTS, MCTSPlanner, _Node
+                                 bootstrap_ci, build_sigma_matrix, HeterogeneousNoise,
+                                 build_bias_matrix, CriticEdgeFn, BiasedValueFn)
+from l3p.planning.mcts_planner import (LandmarkMCTS, MCTSPlanner, _Node,
+                                        FeedbackMCTSPlanner, SoftFloydE1c)
 from l3p.planning.baselines import NaiveReplanPlanner
 from l3p.losses import ae_losses
 
@@ -482,6 +484,116 @@ def test_uct_beta_bonus_shifts_selection():
     print("ok  test_uct_beta_bonus_shifts_selection")
 
 
+def test_build_bias_matrix():
+    """E1c Loai-1 bias: symmetric, zero diagonal, goal edges unbiased, and the
+    landmark-landmark biases are ~N(0, sigma^2)."""
+    m, goal_idx, sigma = 5, 4, 0.3
+    b = build_bias_matrix(m, sigma, np.random.default_rng(0), goal_idx=goal_idx)
+    assert np.allclose(b, b.T) and np.allclose(np.diag(b), 0.0)
+    assert np.allclose(b[goal_idx], 0.0) and np.allclose(b[:, goal_idx], 0.0)
+    # empirical std of the landmark-landmark biases ~ sigma (large sample)
+    big = build_bias_matrix(80, sigma, np.random.default_rng(1), goal_idx=79)
+    off = big[np.triu_indices(79, k=1)]           # exclude goal row/col
+    assert abs(off.std() - sigma) < 0.05, off.std()
+    print("ok  test_build_bias_matrix")
+
+
+class _StubAgent:
+    """Minimal agent exposing distance_after_action = scale * euclidean(obs, goal)."""
+    def __init__(self, scale=3.0):
+        self.scale = scale
+    def distance_after_action(self, obs, goals):
+        obs = np.atleast_2d(obs); goals = np.atleast_2d(goals)
+        return self.scale * np.linalg.norm(obs - goals, axis=1)
+
+
+def test_critic_edge_fn():
+    """CriticEdgeFn exposes the critic's matched-row distance as a value_fn."""
+    fn = CriticEdgeFn(_StubAgent(scale=2.0))
+    g1 = torch.tensor([[0.0, 0.0], [1.0, 0.0]])
+    g2 = torch.tensor([[3.0, 4.0], [1.0, 0.0]])   # dists 5 and 0 -> *2 = 10, 0
+    out = fn(g1, g2)
+    assert torch.allclose(out, torch.tensor([10.0, 0.0]))
+    print("ok  test_critic_edge_fn")
+
+
+def test_biased_value_fn():
+    """Loai-1: multiplicative fixed bias, deterministic (no resampling), and
+    nearest-node index lookup picks the right per-edge bias."""
+    nodes = torch.tensor([[0.0], [2.0], [5.0]])
+    base = _FakeV()                                # V = |g1 - g2|
+    bias = np.array([[0.0, 0.5, 0.0],              # edge (0,1) inflated +50%
+                     [0.5, 0.0, -0.4],             # edge (1,2) deflated -40% (wormhole)
+                     [0.0, -0.4, 0.0]])
+    bv = BiasedValueFn(base, nodes, bias)
+    # (0,1): V=2 -> 2*1.5 = 3.0 ; (1,2): V=3 -> 3*0.6 = 1.8
+    assert torch.allclose(bv(nodes[0:1], nodes[1:2]), torch.tensor([3.0]))
+    assert torch.allclose(bv(nodes[1:2], nodes[2:3]), torch.tensor([1.8]))
+    # deterministic: repeated calls identical (fixed bias, unlike Loai-2)
+    assert torch.equal(bv(nodes[1:2], nodes[2:3]), bv(nodes[1:2], nodes[2:3]))
+    print("ok  test_biased_value_fn")
+
+
+def _make_feedback_planner():
+    cfg = get_config("PointMaze", d_max=50.0, mcts_n_simulations=20)
+    pl = FeedbackMCTSPlanner(_StubAgent(scale=1.0), LatentLandmarks(3, 2), _IdentityAE(),
+                             GraphSearch(cfg), cfg, sigma=0.0, noise_seed=0,
+                             rho=0.5, tau_reach=1.0, tau_progress=3.0, r_max=2,
+                             rng=np.random.default_rng(0))
+    # manually set episode state (bypass reset, like test_planner_commitment_and_masking)
+    pl.n_landmarks = 3
+    pl.landmark_goals = np.array([[0., 0.], [10., 0.], [0., 10.]], dtype=np.float32)
+    pl.goal = np.array([10., 10.], dtype=np.float32)
+    pl._nodes_t = torch.tensor([[0., 0.], [10., 0.], [0., 10.], [10., 10.]])
+    bias = np.zeros((4, 4)); bias[0, 1] = bias[1, 0] = 0.5      # edge (0,1) inflated +50%
+    pl._biased = BiasedValueFn(CriticEdgeFn(_StubAgent(scale=1.0)), pl._nodes_t, bias)
+    pl._v_exec, pl._attempts, pl._blacklist = {}, {}, set()
+    return pl
+
+
+def test_feedback_ema_correction_and_reached():
+    """Sec 4.3: a REACHED macro-step blends realized env-step cost into V_exec[i][j]
+    via EMA (rho), and clears the failure counter."""
+    pl = _make_feedback_planner()
+    pl._macro_start_i, pl._cur_j = 0, 1
+    pl._macro_start_z = np.array([0., 0.], dtype=np.float32)
+    pl._macro_k = 8
+    pl._attempts = {1: 1}
+    pl._observe(np.array([10., 0.], dtype=np.float32))          # reached c_1 (dist 0)
+    # biased edge (0,1) = |(0,0)-(10,0)| * 1.5 = 15 ; realized = 8 + 0 ; rho=0.5
+    assert abs(pl._v_exec[(0, 1)] - 0.5 * 15 - 0.5 * 8) < 1e-6, pl._v_exec[(0, 1)]
+    assert pl._attempts == {}                                   # cleared on REACHED
+    assert 1 not in pl._blacklist
+    print("ok  test_feedback_ema_correction_and_reached")
+
+
+def test_feedback_stuck_blacklists_immediately():
+    """Sec 4.1/4.4: a STUCK macro-step (barely moved) blacklists the subgoal at once."""
+    pl = _make_feedback_planner()
+    pl._macro_start_i, pl._cur_j = 0, 1
+    pl._macro_start_z = np.array([0., 0.], dtype=np.float32)
+    pl._macro_k = 5
+    pl._observe(np.array([0.5, 0.], dtype=np.float32))          # moved 0.5 < tau_progress
+    assert 1 in pl._blacklist
+    print("ok  test_feedback_stuck_blacklists_immediately")
+
+
+def test_feedback_progressed_blacklists_after_rmax():
+    """Sec 4.4: a PROGRESSED-but-not-reached edge is blacklisted only after r_max tries."""
+    pl = _make_feedback_planner()
+    for attempt in range(2):                                    # r_max = 2
+        pl._macro_start_i, pl._cur_j = 0, 1
+        pl._macro_start_z = np.array([0., 0.], dtype=np.float32)
+        pl._macro_k = 5
+        # end at (5,0): travelled 5 >= tau_progress, dist to c_1 (10,0) = 5 > tau_reach
+        blacklisted_before = 1 in pl._blacklist
+        pl._observe(np.array([5., 0.], dtype=np.float32))
+        if attempt == 0:
+            assert not blacklisted_before and 1 not in pl._blacklist, "not yet at attempt 1"
+    assert 1 in pl._blacklist, "blacklisted after reaching r_max"
+    print("ok  test_feedback_progressed_blacklists_after_rmax")
+
+
 ALL_TESTS = [
     test_q_from_distance,
     test_value_regression,
@@ -502,6 +614,12 @@ ALL_TESTS = [
     test_heterogeneous_noise,
     test_mcts_alpha_avoids_uncertain_edge,
     test_uct_beta_bonus_shifts_selection,
+    test_build_bias_matrix,
+    test_critic_edge_fn,
+    test_biased_value_fn,
+    test_feedback_ema_correction_and_reached,
+    test_feedback_stuck_blacklists_immediately,
+    test_feedback_progressed_blacklists_after_rmax,
 ]
 
 if __name__ == "__main__":

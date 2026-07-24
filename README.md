@@ -34,7 +34,7 @@ python scripts/train_pointmaze.py --short
 python scripts/train_pointmaze.py --steps 500000
 
 # evaluate a checkpoint on the long-horizon test + inspect landmarks
-python scripts/eval.py --load l3p_pointmaze.pt --episodes 50 --show-landmarks
+python scripts/eval.py --load checkpoint/l3p_pointmaze.pt --episodes 50 --show-landmarks
 ```
 
 ---

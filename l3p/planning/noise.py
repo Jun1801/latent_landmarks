@@ -125,6 +125,62 @@ class HeterogeneousNoise:
         return float(self.sigma[i, j])
 
 
+def build_bias_matrix(m: int, sigma: float, rng: np.random.Generator,
+                      goal_idx: Optional[int] = None) -> np.ndarray:
+    """Loai-1 estimation bias for E1c (docs/... Sec 5.1): a symmetric [m, m]
+    matrix of multiplicative biases b_ij ~ N(0, sigma^2), one per landmark-
+    landmark edge, sampled ONCE (fixed for the episode). Edges with b_ij < 0
+    look shorter than they are -- the "wormhole" traps. Goal-node edges (if
+    `goal_idx` given) and the diagonal are left unbiased (0)."""
+    b = np.zeros((m, m), dtype=np.float64)
+    for i in range(m):
+        for j in range(i + 1, m):
+            if goal_idx is not None and (i == goal_idx or j == goal_idx):
+                continue
+            b[i, j] = b[j, i] = rng.normal(0.0, sigma)
+    return b
+
+
+class CriticEdgeFn:
+    """A `value_fn`-interface adapter returning the critic's CLEAN state->goal
+    distance D(g1, pi(g1, g2), g2) on env-step scale. This is the E1c graph
+    substrate: unlike `agent.value` (compressed ~10x and only weakly correlated
+    with D on this checkpoint), the critic D is accurate and on the same scale
+    as the realized env-step cost used by execution feedback -- so a Loai-1 bias
+    injected on top is the ONLY error, and step-count feedback can correct it
+    without a unit mismatch. PointMaze-only: a goal coordinate doubles as a state
+    (obs == achieved_goal there)."""
+
+    def __init__(self, agent):
+        self.agent = agent
+
+    def __call__(self, g1: torch.Tensor, g2: torch.Tensor) -> torch.Tensor:
+        d = self.agent.distance_after_action(g1.detach().cpu().numpy(),
+                                             g2.detach().cpu().numpy())
+        return torch.as_tensor(np.atleast_1d(d), dtype=torch.float32)
+
+
+class BiasedValueFn:
+    """Loai-1 noise (E1c): V_obs(i,j) = V_true(i,j) * (1 + b_ij) with a per-episode
+    FIXED bias matrix (NOT resampled) -- a systematic mis-estimate that averaging
+    over rollout samples cannot remove, so only execution feedback can correct it.
+    Nearest-node index lookup like HeterogeneousNoise. Clamped >= 0."""
+
+    def __init__(self, value_fn, nodes_t: torch.Tensor, bias_matrix: np.ndarray):
+        self.value_fn = value_fn
+        self.nodes = nodes_t
+        self.bias = np.asarray(bias_matrix, dtype=np.float64)
+
+    def _idx(self, g: torch.Tensor) -> np.ndarray:
+        return torch.cdist(g, self.nodes).argmin(dim=1).cpu().numpy()
+
+    def __call__(self, g1: torch.Tensor, g2: torch.Tensor) -> torch.Tensor:
+        v = self.value_fn(g1, g2)
+        b = self.bias[self._idx(g1), self._idx(g2)]
+        factor = torch.as_tensor((1.0 + b).reshape(v.shape), dtype=v.dtype, device=v.device)
+        return (v * factor).clamp_min(0.0)
+
+
 class ValueOverrideAgent:
     """Forwards every attribute to `agent` except `.value`, which is fixed to
     `value_fn`. Lets callers build a "noisy V_obs" variant of an existing

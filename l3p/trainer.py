@@ -18,6 +18,7 @@ GLS landmarks for exploration.
 
 from __future__ import annotations
 
+import os
 import time
 from typing import Dict, List, Optional
 
@@ -267,6 +268,7 @@ class L3PTrainer:
                 print(f"    >> checkpoint saved @ {self.total_env_steps} steps", flush=True)
 
     def save(self, path: str) -> None:
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         torch.save(dict(agent=self.agent.state_dict(), ae=self.ae.state_dict(),
                         landmarks=self.landmarks.state_dict(),
                         centroids_initialized=self.centroids_initialized), path)

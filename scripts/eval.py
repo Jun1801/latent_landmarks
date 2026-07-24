@@ -5,7 +5,7 @@ Reports the test-time success rate and, optionally, the decoded latent landmark
 coordinates (to check they scatter across the free space, as in the paper).
 
 Example:
-    python scripts/eval.py --load l3p_pointmaze.pt --episodes 50 --show-landmarks
+    python scripts/eval.py --load checkpoint/l3p_pointmaze.pt --episodes 50 --show-landmarks
 """
 
 import argparse
@@ -24,7 +24,7 @@ from l3p.trainer import L3PTrainer
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--load", type=str, default="l3p_pointmaze.pt")
+    p.add_argument("--load", type=str, default="checkpoint/l3p_pointmaze.pt")
     p.add_argument("--episodes", type=int, default=50)
     p.add_argument("--seed", type=int, default=123)
     p.add_argument("--no-planning", action="store_true",

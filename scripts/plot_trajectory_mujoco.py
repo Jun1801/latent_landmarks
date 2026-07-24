@@ -9,7 +9,7 @@ top-down mode, for Fetch (draws the object's path on the table). Plots:
 
 Example:
     python scripts/plot_trajectory_mujoco.py --env PointMazeMuJoCo \
-        --load logs/point_maze_mujoco/model.pt --out logs/point_maze_mujoco/trajectory.png
+        --load checkpoint/logs/point_maze_mujoco/model.pt --out logs/point_maze_mujoco/trajectory.png
 """
 
 import argparse

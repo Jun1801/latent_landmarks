@@ -1,0 +1,42 @@
+{
+  "preset": "smoke",
+  "tasks": [
+    {
+      "name": "pointmaze_numpy",
+      "env": "PointMaze",
+      "checkpoint": "checkpoint/l3p_pointmaze_full.pt",
+      "runs": [
+        {
+          "exp": "e1a",
+          "cmd": [
+            "/opt/homebrew/opt/python@3.11/bin/python3.11",
+            "/Users/mac/Documents/MCTS_VLA/Latent Lanmarks/scripts/run_e1a.py",
+            "--env",
+            "PointMaze",
+            "--load",
+            "/Users/mac/Documents/MCTS_VLA/Latent Lanmarks/checkpoint/l3p_pointmaze_full.pt",
+            "--seeds",
+            "0",
+            "--episodes",
+            "5",
+            "--calibrate-episodes",
+            "5",
+            "--out",
+            "/Users/mac/Documents/MCTS_VLA/Latent Lanmarks/logs/kaggle_e1_runs/pointmaze_numpy/e1a_results.json",
+            "--plot",
+            "/Users/mac/Documents/MCTS_VLA/Latent Lanmarks/logs/kaggle_e1_runs/pointmaze_numpy/e1a_curve.png",
+            "--sigmas",
+            "0",
+            "0.3",
+            "--mcts-n-simulations",
+            "20"
+          ],
+          "status": "dry-run"
+        }
+      ],
+      "status": "done"
+    }
+  ],
+  "started_at": 1784908270.642111,
+  "finished_at": 1784908270.645749
+}

@@ -1,0 +1,118 @@
+{
+  "meta": {
+    "load": "l3p_pointmaze_full.pt",
+    "seeds": [
+      0
+    ],
+    "episodes": 2,
+    "sigmas": [
+      0.0,
+      0.3
+    ],
+    "graph_sigma_scale": 1.0,
+    "exec_sigma_scale": 10.0,
+    "rho": 0.5,
+    "tau_reach": 2.0,
+    "tau_progress": 3.0,
+    "r_max": 2,
+    "d_max": 0.998185,
+    "mcts_n_simulations": 5,
+    "mcts_rollout_horizon": 10
+  },
+  "results": [
+    {
+      "sigma": 0.0,
+      "aggregate": {
+        "soft_floyd": {
+          "mean": 0.5,
+          "ci_low": 0.0,
+          "ci_high": 1.0,
+          "n": 2,
+          "stats": {}
+        },
+        "mcts_nofb": {
+          "mean": 1.0,
+          "ci_low": 1.0,
+          "ci_high": 1.0,
+          "n": 2,
+          "stats": {
+            "blacklisted": 0.0,
+            "corrections": 0.0,
+            "macros": 90.5,
+            "progressed": 0.0,
+            "reached": 0.0,
+            "stuck": 0.0
+          }
+        },
+        "mcts_fb": {
+          "mean": 1.0,
+          "ci_low": 1.0,
+          "ci_high": 1.0,
+          "n": 2,
+          "stats": {
+            "blacklisted": 1.0,
+            "corrections": 87.0,
+            "macros": 95.0,
+            "progressed": 1.0,
+            "reached": 85.0,
+            "stuck": 1.0
+          }
+        }
+      },
+      "per_seed": {
+        "0": {
+          "soft_floyd": 0.5,
+          "mcts_nofb": 1.0,
+          "mcts_fb": 1.0
+        }
+      }
+    },
+    {
+      "sigma": 0.3,
+      "aggregate": {
+        "soft_floyd": {
+          "mean": 0.5,
+          "ci_low": 0.0,
+          "ci_high": 1.0,
+          "n": 2,
+          "stats": {}
+        },
+        "mcts_nofb": {
+          "mean": 1.0,
+          "ci_low": 1.0,
+          "ci_high": 1.0,
+          "n": 2,
+          "stats": {
+            "blacklisted": 0.0,
+            "corrections": 0.0,
+            "macros": 96.0,
+            "progressed": 0.0,
+            "reached": 0.0,
+            "stuck": 0.0
+          }
+        },
+        "mcts_fb": {
+          "mean": 1.0,
+          "ci_low": 1.0,
+          "ci_high": 1.0,
+          "n": 2,
+          "stats": {
+            "blacklisted": 8.5,
+            "corrections": 68.0,
+            "macros": 74.5,
+            "progressed": 8.0,
+            "reached": 51.5,
+            "stuck": 8.5
+          }
+        }
+      },
+      "per_seed": {
+        "0": {
+          "soft_floyd": 0.5,
+          "mcts_nofb": 1.0,
+          "mcts_fb": 1.0
+        }
+      }
+    }
+  ]
+}
