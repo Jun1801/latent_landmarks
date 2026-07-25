@@ -7,6 +7,7 @@ any of them can be overridden on the command line.
 Examples:
     python scripts/train.py --env FetchPickAndPlace --steps 1000000
     python scripts/train.py --env PointMaze --steps 500000
+    python scripts/train.py --env AntMaze
 """
 
 import argparse
@@ -39,7 +40,8 @@ class Tee:
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--env", default="FetchPickAndPlace", choices=list_envs())
-    p.add_argument("--steps", type=int, default=1_000_000)
+    p.add_argument("--steps", type=int, default=None,
+                   help="total env steps; default is env-specific from l3p/config.py")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--workers", type=int, default=None)
     p.add_argument("--save", type=str, default=None)
@@ -48,7 +50,9 @@ def main():
     p.add_argument("--eval-episodes", type=int, default=None)
     args = p.parse_args()
 
-    overrides = dict(seed=args.seed, total_steps=args.steps)
+    overrides = dict(seed=args.seed)
+    if args.steps is not None:
+        overrides["total_steps"] = args.steps
     if args.workers is not None:
         overrides["n_workers"] = args.workers
     if args.eval_episodes is not None:

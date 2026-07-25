@@ -1,0 +1,186 @@
+{
+  "meta": {
+    "env": "AntMaze",
+    "load": "/kaggle/working/latent_landmarks/checkpoint/l3p_AntMaze.pt",
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "episodes": 50,
+    "sigma_hi": [
+      0.0,
+      0.3,
+      0.5,
+      1.0
+    ],
+    "frac_high": 0.3,
+    "sigma_lo": 0.0,
+    "lambda_risk": 3.0,
+    "beta_unc": 1.0,
+    "d_max": 0.002455,
+    "mcts_n_simulations": 120
+  },
+  "results": [
+    {
+      "sigma_hi": 0.0,
+      "aggregate": {
+        "none": {
+          "mean": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "n": 150
+        },
+        "alpha": {
+          "mean": 0.013333333333333334,
+          "ci_low": 0.0,
+          "ci_high": 0.03333333333333333,
+          "n": 150
+        },
+        "beta": {
+          "mean": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "n": 150
+        }
+      },
+      "per_seed": {
+        "0": {
+          "none": 0.0,
+          "alpha": 0.0,
+          "beta": 0.0
+        },
+        "1": {
+          "none": 0.0,
+          "alpha": 0.02,
+          "beta": 0.0
+        },
+        "2": {
+          "none": 0.0,
+          "alpha": 0.02,
+          "beta": 0.0
+        }
+      }
+    },
+    {
+      "sigma_hi": 0.3,
+      "aggregate": {
+        "none": {
+          "mean": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "n": 150
+        },
+        "alpha": {
+          "mean": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "n": 150
+        },
+        "beta": {
+          "mean": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "n": 150
+        }
+      },
+      "per_seed": {
+        "0": {
+          "none": 0.0,
+          "alpha": 0.0,
+          "beta": 0.0
+        },
+        "1": {
+          "none": 0.0,
+          "alpha": 0.0,
+          "beta": 0.0
+        },
+        "2": {
+          "none": 0.0,
+          "alpha": 0.0,
+          "beta": 0.0
+        }
+      }
+    },
+    {
+      "sigma_hi": 0.5,
+      "aggregate": {
+        "none": {
+          "mean": 0.006666666666666667,
+          "ci_low": 0.0,
+          "ci_high": 0.02,
+          "n": 150
+        },
+        "alpha": {
+          "mean": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "n": 150
+        },
+        "beta": {
+          "mean": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "n": 150
+        }
+      },
+      "per_seed": {
+        "0": {
+          "none": 0.0,
+          "alpha": 0.0,
+          "beta": 0.0
+        },
+        "1": {
+          "none": 0.0,
+          "alpha": 0.0,
+          "beta": 0.0
+        },
+        "2": {
+          "none": 0.02,
+          "alpha": 0.0,
+          "beta": 0.0
+        }
+      }
+    },
+    {
+      "sigma_hi": 1.0,
+      "aggregate": {
+        "none": {
+          "mean": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "n": 150
+        },
+        "alpha": {
+          "mean": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "n": 150
+        },
+        "beta": {
+          "mean": 0.006666666666666667,
+          "ci_low": 0.0,
+          "ci_high": 0.02,
+          "n": 150
+        }
+      },
+      "per_seed": {
+        "0": {
+          "none": 0.0,
+          "alpha": 0.0,
+          "beta": 0.0
+        },
+        "1": {
+          "none": 0.0,
+          "alpha": 0.0,
+          "beta": 0.02
+        },
+        "2": {
+          "none": 0.0,
+          "alpha": 0.0,
+          "beta": 0.0
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+$ /usr/bin/python3 /kaggle/working/latent_landmarks/scripts/run_e1b.py --env AntMaze --load /kaggle/working/latent_landmarks/checkpoint/l3p_AntMaze.pt --seeds 0 1 2 --episodes 50 --calibrate-episodes 20 --out /kaggle/working/e1_runs/antmaze/e1b_results.json --plot /kaggle/working/e1_runs/antmaze/e1b_curve.png --sanity-tol 0.15 --sigma-hi 0 0.3 0.5 1.0 --mcts-n-simulations 120
+
+E1b on AntMaze: uncertainty-bonus ablation (none / alpha / beta) under heterogeneous per-edge oracle uncertainty.
+d_max calibration (clean Soft Floyd, spec R3):
+    d_max=  0.002 -> 0.00   <- chosen
+    d_max=  0.349 -> 0.00
+    d_max=  2.563 -> 0.00
+    d_max=  6.402 -> 0.00
+    d_max= 10.152 -> 0.00
+    d_max= 12.946 -> 0.00
+    d_max= 14.867 -> 0.00
+Config: d_max=0.002  sims=120  frac_high=0.3  lambda_risk=3.0  beta_unc=1.0  seeds=[0, 1, 2]  eps/seed=50
+sigma_hi=0.00  MCTS (β=0)=0.00[0.00,0.00]  MCTS+α (risk penalty)=0.01[0.00,0.03]  MCTS+β (UCT bonus)=0.00[0.00,0.00]
+  >> sigma_hi=0 sanity passed (variant spread=0.01 <= 0.15)
+sigma_hi=0.30  MCTS (β=0)=0.00[0.00,0.00]  MCTS+α (risk penalty)=0.00[0.00,0.00]  MCTS+β (UCT bonus)=0.00[0.00,0.00]
+sigma_hi=0.50  MCTS (β=0)=0.01[0.00,0.02]  MCTS+α (risk penalty)=0.00[0.00,0.00]  MCTS+β (UCT bonus)=0.00[0.00,0.00]
+sigma_hi=1.00  MCTS (β=0)=0.00[0.00,0.00]  MCTS+α (risk penalty)=0.00[0.00,0.00]  MCTS+β (UCT bonus)=0.01[0.00,0.02]
+
+MCTS latency: 11.53 s/episode (budget 120).
+Saved results to /kaggle/working/e1_runs/antmaze/e1b_results.json
+Saved plot to /kaggle/working/e1_runs/antmaze/e1b_curve.png

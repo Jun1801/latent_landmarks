@@ -1,0 +1,24 @@
+$ /usr/bin/python3 /kaggle/working/latent_landmarks/scripts/run_e1a.py --env AntMaze --load /kaggle/working/latent_landmarks/checkpoint/l3p_AntMaze.pt --seeds 0 1 2 --episodes 50 --calibrate-episodes 20 --out /kaggle/working/e1_runs/antmaze/e1a_results.json --plot /kaggle/working/e1_runs/antmaze/e1a_curve.png --sanity-tol 0.15 --sigmas 0 0.1 0.3 0.5 --mcts-n-simulations 200
+
+
+*** WARNING: even the best-tuned Soft Floyd baseline is near 0. E1a results would be meaningless; retrain / pick a better checkpoint (spec Sec 8 KB3).
+
+E1a on AntMaze. Caveat (spec risk R2): short/easy envs can have thin planning headroom; MuJoCo envs require gymnasium-robotics/mujoco.
+d_max calibration (noise-free Soft Floyd, spec R3):
+    d_max=  0.002 -> floyd success 0.00   <- chosen
+    d_max=  0.349 -> floyd success 0.00
+    d_max=  2.563 -> floyd success 0.00
+    d_max=  6.402 -> floyd success 0.00
+    d_max= 10.152 -> floyd success 0.00
+    d_max= 12.946 -> floyd success 0.00
+    d_max= 14.867 -> floyd success 0.00
+Config: d_max=0.002  mcts_n_simulations=200  mcts_rollout_horizon=10  seeds=[0, 1, 2]  episodes/seed=50
+sigma=0.00  Soft Floyd=0.00 [0.00,0.00]  Naive re-plan=0.00 [0.00,0.00]  MCTS=0.00 [0.00,0.00]
+  >> sigma=0 sanity check passed (|mcts-floyd|=0.00 <= 0.15)
+sigma=0.10  Soft Floyd=0.00 [0.00,0.00]  Naive re-plan=0.00 [0.00,0.00]  MCTS=0.00 [0.00,0.00]
+sigma=0.30  Soft Floyd=0.00 [0.00,0.00]  Naive re-plan=0.00 [0.00,0.00]  MCTS=0.00 [0.00,0.00]
+sigma=0.50  Soft Floyd=0.00 [0.00,0.00]  Naive re-plan=0.01 [0.00,0.02]  MCTS=0.00 [0.00,0.00]
+
+MCTS latency: 10.66 s/episode (budget 200 sims).
+Saved results to /kaggle/working/e1_runs/antmaze/e1a_results.json
+Saved plot to /kaggle/working/e1_runs/antmaze/e1a_curve.png

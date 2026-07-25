@@ -1,0 +1,304 @@
+[{"stream_name":"stderr","time":9.590427159,"data":"0.00s - Debugger warning: It seems that frozen modules are being used, which may\n"}
+,{"stream_name":"stderr","time":9.590484007,"data":"0.00s - make the debugger miss breakpoints. Please pass -Xfrozen_modules=off\n"}
+,{"stream_name":"stderr","time":9.590491458,"data":"0.00s - to python to disable frozen modules.\n"}
+,{"stream_name":"stderr","time":9.590496136,"data":"0.00s - Note: Debugging will proceed. Set PYDEVD_DISABLE_FILE_VALIDATION=1 to disable this validation.\n"}
+,{"stream_name":"stderr","time":10.395150188,"data":"0.00s - Debugger warning: It seems that frozen modules are being used, which may\n"}
+,{"stream_name":"stderr","time":10.395194124,"data":"0.00s - make the debugger miss breakpoints. Please pass -Xfrozen_modules=off\n"}
+,{"stream_name":"stderr","time":10.395199644,"data":"0.00s - to python to disable frozen modules.\n"}
+,{"stream_name":"stderr","time":10.395204242,"data":"0.00s - Note: Debugging will proceed. Set PYDEVD_DISABLE_FILE_VALIDATION=1 to disable this validation.\n"}
+,{"stream_name":"stderr","time":11.907619949,"data":"Cloning into '/kaggle/working/latent_landmarks'...\n"}
+,{"stream_name":"stderr","time":12.11190304,"data":"Cloning into '/kaggle/working/latent_landmarks'...\n"}
+,{"stream_name":"stderr","time":12.111949411,"data":"\n"}
+,{"stream_name":"stderr","time":12.111955185,"data":"Cloning into '/kaggle/working/latent_landmarks'...\n"}
+,{"stream_name":"stdout","time":12.915667497,"data":"feature/mcts-landmark\n"}
+,{"stream_name":"stdout","time":12.92044064,"data":"2743a1d\n"}
+,{"stream_name":"stdout","time":12.925775156,"data":"cwd: /kaggle/working/latent_landmarks\n"}
+,{"stream_name":"stdout","time":12.925823763,"data":"feature/mcts-landmark\n"}
+,{"stream_name":"stdout","time":12.925828932,"data":"2743a1d\n"}
+,{"stream_name":"stdout","time":23.859072257,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 232.7/232.7 kB 5.0 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":24.061941803,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 232.7/232.7 kB 5.0 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":24.495488997,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 20.9/20.9 MB 69.8 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":24.69850413,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 20.9/20.9 MB 69.8 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":24.76013932,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 26.2/26.2 MB 59.0 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":24.796101457,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 248.5/248.5 kB 13.7 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":24.962667034,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 26.2/26.2 MB 59.0 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":24.962711146,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 248.5/248.5 kB 13.7 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":28.848503453,"data":"Dependencies ready.\n"}
+,{"stream_name":"stdout","time":29.049779888,"data":"$ /usr/bin/python3 scripts/hf_sync_checkpoints.py download --repo-id Jun1801/mcts_vla --checkpoint-dir checkpoint\n"}
+,{"stream_name":"stderr","time":30.085366624,"data":"/usr/local/lib/python3.12/dist-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `snapshot_download`. Downloading to a local directory does not use symlinks anymore.\n"}
+,{"stream_name":"stderr","time":30.085401519,"data":"  warnings.warn(\n"}
+,{"stream_name":"stdout","time":30.287044005,"data":"Downloading checkpoint files from dataset Jun1801/mcts_vla to checkpoint\n"}
+,{"stream_name":"stderr","time":30.288674353,"data":"\rFetching 10 files:   0%|          | 0/10 [00:00\u003c?, ?it/s]/usr/local/lib/python3.12/dist-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `snapshot_download`. Downloading to a local directory does not use symlinks anymore.\n"}
+,{"stream_name":"stderr","time":30.288711872,"data":"  warnings.warn(\n"}
+,{"stream_name":"stderr","time":30.288718348,"data":"\n"}
+,{"stream_name":"stderr","time":30.288722463,"data":"/usr/local/lib/python3.12/dist-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `snapshot_download`. Downloading to a local directory does not use symlinks anymore.\n"}
+,{"stream_name":"stderr","time":30.288727119,"data":"  warnings.warn(\n"}
+,{"stream_name":"stderr","time":30.365907696,"data":"Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.\n"}
+,{"stream_name":"stderr","time":30.489956096,"data":"\rFetching 10 files:   0%|          | 0/10 [00:00\u003c?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.\n"}
+,{"stream_name":"stderr","time":30.489999355,"data":"\n"}
+,{"stream_name":"stderr","time":30.490004522,"data":"\rFetching 10 files:   0%|          | 0/10 [00:00\u003c?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.\n"}
+,{"stream_name":"stdout","time":30.491144771,"data":"Downloading checkpoint files from dataset Jun1801/mcts_vla to checkpoint\n"}
+,{"stream_name":"stderr","time":31.565887049,"data":"\rFetching 10 files:  10%|█         | 1/10 [00:01\u003c00:09,  1.08s/it]\rFetching 10 files:  10%|█         | 1/10 [00:01\u003c00:09,  1.08s/it]\n"}
+,{"stream_name":"stderr","time":31.584459208,"data":"\rFetching 10 files:  10%|█         | 1/10 [00:01\u003c00:09,  1.08s/it]\rFetching 10 files:  30%|███       | 3/10 [00:01\u003c00:02,  2.77it/s]\rFetching 10 files: 100%|██████████| 10/10 [00:01\u003c00:00,  7.71it/s]\n"}
+,{"stream_name":"stdout","time":31.586623614,"data":"Downloaded/found 10 .pt file(s):\n"}
+,{"stream_name":"stdout","time":31.586653983,"data":"  checkpoint/l3p_AntMaze.pt\n"}
+,{"stream_name":"stdout","time":31.586658757,"data":"  checkpoint/l3p_fetch.pt\n"}
+,{"stream_name":"stdout","time":31.586663143,"data":"  checkpoint/l3p_pointmaze_full.pt\n"}
+,{"stream_name":"stdout","time":31.586667043,"data":"  checkpoint/l3p_pointmaze_mujoco.pt\n"}
+,{"stream_name":"stdout","time":31.586670477,"data":"  checkpoint/logs/antmaze/model.pt\n"}
+,{"stream_name":"stdout","time":31.586674568,"data":"  checkpoint/logs/box_distractor/model.pt\n"}
+,{"stream_name":"stdout","time":31.586679073,"data":"  checkpoint/logs/fetch_pick_and_place/model.pt\n"}
+,{"stream_name":"stdout","time":31.586683135,"data":"  checkpoint/logs/place_inside_box/model.pt\n"}
+,{"stream_name":"stdout","time":31.586687092,"data":"  checkpoint/logs/point_maze_mujoco/model.pt\n"}
+,{"stream_name":"stdout","time":31.586708214,"data":"  checkpoint/logs/point_maze_numpy/model.pt\n"}
+,{"stream_name":"stdout","time":31.703128669,"data":"Downloaded/found 10 .pt file(s):\n"}
+,{"stream_name":"stdout","time":31.703170742,"data":"  checkpoint/l3p_AntMaze.pt\n"}
+,{"stream_name":"stdout","time":31.703176898,"data":"  checkpoint/l3p_fetch.pt\n"}
+,{"stream_name":"stdout","time":31.703181105,"data":"  checkpoint/l3p_pointmaze_full.pt\n"}
+,{"stream_name":"stdout","time":31.703185603,"data":"  checkpoint/l3p_pointmaze_mujoco.pt\n"}
+,{"stream_name":"stdout","time":31.703189748,"data":"  checkpoint/logs/antmaze/model.pt\n"}
+,{"stream_name":"stdout","time":31.703193397,"data":"  checkpoint/logs/box_distractor/model.pt\n"}
+,{"stream_name":"stdout","time":31.703197218,"data":"  checkpoint/logs/fetch_pick_and_place/model.pt\n"}
+,{"stream_name":"stdout","time":31.703201122,"data":"  checkpoint/logs/place_inside_box/model.pt\n"}
+,{"stream_name":"stdout","time":31.703205056,"data":"  checkpoint/logs/point_maze_mujoco/model.pt\n"}
+,{"stream_name":"stdout","time":31.703209086,"data":"  checkpoint/logs/point_maze_numpy/model.pt\n"}
+,{"stream_name":"stdout","time":31.703212697,"data":"Found 10 local checkpoint(s) under checkpoint/\n"}
+,{"stream_name":"stdout","time":31.703216718,"data":"checkpoint/l3p_AntMaze.pt\n"}
+,{"stream_name":"stdout","time":31.703220774000002,"data":"checkpoint/l3p_fetch.pt\n"}
+,{"stream_name":"stdout","time":31.703224867,"data":"checkpoint/l3p_pointmaze_full.pt\n"}
+,{"stream_name":"stdout","time":31.703229147000002,"data":"checkpoint/l3p_pointmaze_mujoco.pt\n"}
+,{"stream_name":"stdout","time":31.703233546,"data":"checkpoint/logs/antmaze/model.pt\n"}
+,{"stream_name":"stdout","time":31.703237747,"data":"checkpoint/logs/box_distractor/model.pt\n"}
+,{"stream_name":"stdout","time":31.703241968,"data":"checkpoint/logs/fetch_pick_and_place/model.pt\n"}
+,{"stream_name":"stdout","time":31.703245976,"data":"checkpoint/logs/place_inside_box/model.pt\n"}
+,{"stream_name":"stdout","time":31.703249946,"data":"checkpoint/logs/point_maze_mujoco/model.pt\n"}
+,{"stream_name":"stdout","time":31.703254491,"data":"checkpoint/logs/point_maze_numpy/model.pt\n"}
+,{"stream_name":"stderr","time":31.704555281,"data":"\rFetching 10 files:  30%|███       | 3/10 [00:01\u003c00:02,  2.77it/s]\rFetching 10 files: 100%|██████████| 10/10 [00:01\u003c00:00,  7.71it/s]\n"}
+,{"stream_name":"stderr","time":31.704591177,"data":"\n"}
+,{"stream_name":"stderr","time":31.704596667,"data":"\rFetching 10 files:  30%|███       | 3/10 [00:01\u003c00:02,  2.77it/s]\rFetching 10 files: 100%|██████████| 10/10 [00:01\u003c00:00,  7.71it/s]\n"}
+,{"stream_name":"stdout","time":31.732671305,"data":"Found 10 checkpoint(s) under /kaggle/input\n"}
+,{"stream_name":"stdout","time":31.732707953,"data":"/kaggle/working/latent_landmarks/checkpoint/l3p_AntMaze.pt\n"}
+,{"stream_name":"stdout","time":31.732714062,"data":"/kaggle/working/latent_landmarks/checkpoint/l3p_fetch.pt\n"}
+,{"stream_name":"stdout","time":31.732719038,"data":"/kaggle/working/latent_landmarks/checkpoint/l3p_pointmaze_full.pt\n"}
+,{"stream_name":"stdout","time":31.732723352,"data":"/kaggle/working/latent_landmarks/checkpoint/l3p_pointmaze_mujoco.pt\n"}
+,{"stream_name":"stdout","time":31.732727479,"data":"/kaggle/working/latent_landmarks/checkpoint/logs/antmaze/model.pt\n"}
+,{"stream_name":"stdout","time":31.732731337,"data":"/kaggle/working/latent_landmarks/checkpoint/logs/box_distractor/model.pt\n"}
+,{"stream_name":"stdout","time":31.732735527,"data":"/kaggle/working/latent_landmarks/checkpoint/logs/fetch_pick_and_place/model.pt\n"}
+,{"stream_name":"stdout","time":31.732760707,"data":"/kaggle/working/latent_landmarks/checkpoint/logs/place_inside_box/model.pt\n"}
+,{"stream_name":"stdout","time":31.73276553,"data":"/kaggle/working/latent_landmarks/checkpoint/logs/point_maze_mujoco/model.pt\n"}
+,{"stream_name":"stdout","time":31.732769517,"data":"/kaggle/working/latent_landmarks/checkpoint/logs/point_maze_numpy/model.pt\n"}
+,{"stream_name":"stdout","time":31.759235785,"data":"MANIFEST = None\n"}
+,{"stream_name":"stdout","time":31.78999032,"data":"$ /usr/bin/python3 scripts/kaggle_run_e1_all.py --preset full --output-root /kaggle/working/e1_runs --dry-run --only antmaze --experiments e1a e1b\n"}
+,{"stream_name":"stdout","time":31.893090026,"data":"\n"}
+,{"stream_name":"stdout","time":31.893122368,"data":"=== antmaze | env=AntMaze | checkpoint=/kaggle/working/latent_landmarks/checkpoint/l3p_AntMaze.pt | exps=['e1a', 'e1b'] ===\n"}
+,{"stream_name":"stdout","time":31.893128526,"data":"$ /usr/bin/python3 /kaggle/working/latent_landmarks/scripts/run_e1a.py --env AntMaze --load /kaggle/working/latent_landmarks/checkpoint/l3p_AntMaze.pt --seeds 0 1 2 --episodes 50 --calibrate-episodes 20 --out /kaggle/working/e1_runs/antmaze/e1a_results.json --plot /kaggle/working/e1_runs/antmaze/e1a_curve.png --sanity-tol 0.15 --sigmas 0 0.1 0.3 0.5 --mcts-n-simulations 200\n"}
+,{"stream_name":"stdout","time":31.893134973,"data":"$ /usr/bin/python3 /kaggle/working/latent_landmarks/scripts/run_e1b.py --env AntMaze --load /kaggle/working/latent_landmarks/checkpoint/l3p_AntMaze.pt --seeds 0 1 2 --episodes 50 --calibrate-episodes 20 --out /kaggle/working/e1_runs/antmaze/e1b_results.json --plot /kaggle/working/e1_runs/antmaze/e1b_curve.png --sanity-tol 0.15 --sigma-hi 0 0.3 0.5 1.0 --mcts-n-simulations 120\n"}
+,{"stream_name":"stdout","time":31.893487588,"data":"\n"}
+,{"stream_name":"stdout","time":31.893509231,"data":"Summary saved to /kaggle/working/e1_runs/summary.json\n"}
+,{"stream_name":"stdout","time":31.916146167,"data":"\n"}
+,{"stream_name":"stdout","time":31.916186489,"data":"=== antmaze | env=AntMaze | checkpoint=/kaggle/working/latent_landmarks/checkpoint/l3p_AntMaze.pt | exps=['e1a', 'e1b'] ===\n"}
+,{"stream_name":"stdout","time":31.916192162,"data":"$ /usr/bin/python3 /kaggle/working/latent_landmarks/scripts/run_e1a.py --env AntMaze --load /kaggle/working/latent_landmarks/checkpoint/l3p_AntMaze.pt --seeds 0 1 2 --episodes 50 --calibrate-episodes 20 --out /kaggle/working/e1_runs/antmaze/e1a_results.json --plot /kaggle/working/e1_runs/antmaze/e1a_curve.png --sanity-tol 0.15 --sigmas 0 0.1 0.3 0.5 --mcts-n-simulations 200\n"}
+,{"stream_name":"stdout","time":31.916197996,"data":"$ /usr/bin/python3 /kaggle/working/latent_landmarks/scripts/run_e1b.py --env AntMaze --load /kaggle/working/latent_landmarks/checkpoint/l3p_AntMaze.pt --seeds 0 1 2 --episodes 50 --calibrate-episodes 20 --out /kaggle/working/e1_runs/antmaze/e1b_results.json --plot /kaggle/working/e1_runs/antmaze/e1b_curve.png --sanity-tol 0.15 --sigma-hi 0 0.3 0.5 1.0 --mcts-n-simulations 120\n"}
+,{"stream_name":"stdout","time":31.916203638,"data":"\n"}
+,{"stream_name":"stdout","time":31.916207664,"data":"Summary saved to /kaggle/working/e1_runs/summary.json\n"}
+,{"stream_name":"stdout","time":31.959490786,"data":"$ /usr/bin/python3 scripts/kaggle_run_e1_all.py --preset full --output-root /kaggle/working/e1_runs --only antmaze --experiments e1a e1b\n"}
+,{"stream_name":"stdout","time":32.04883348,"data":"\n"}
+,{"stream_name":"stdout","time":32.04886358,"data":"=== antmaze | env=AntMaze | checkpoint=/kaggle/working/latent_landmarks/checkpoint/l3p_AntMaze.pt | exps=['e1a', 'e1b'] ===\n"}
+,{"stream_name":"stdout","time":32.096270415,"data":"\n"}
+,{"stream_name":"stdout","time":32.09630816,"data":"=== antmaze | env=AntMaze | checkpoint=/kaggle/working/latent_landmarks/checkpoint/l3p_AntMaze.pt | exps=['e1a', 'e1b'] ===\n"}
+,{"stream_name":"stdout","time":28518.412897834,"data":"\n"}
+,{"stream_name":"stdout","time":28518.41312348,"data":"*** WARNING: even the best-tuned Soft Floyd baseline is near 0. E1a results would be meaningless; retrain / pick a better checkpoint (spec Sec 8 KB3).\n"}
+,{"stream_name":"stdout","time":28518.413215815,"data":"\n"}
+,{"stream_name":"stdout","time":28518.41322378,"data":"E1a on AntMaze. Caveat (spec risk R2): short/easy envs can have thin planning headroom; MuJoCo envs require gymnasium-robotics/mujoco.\n"}
+,{"stream_name":"stdout","time":28518.41323024,"data":"d_max calibration (noise-free Soft Floyd, spec R3):\n"}
+,{"stream_name":"stdout","time":28518.41323568,"data":"    d_max=  0.002 -\u003e floyd success 0.00   \u003c- chosen\n"}
+,{"stream_name":"stdout","time":28518.413241707,"data":"    d_max=  0.349 -\u003e floyd success 0.00\n"}
+,{"stream_name":"stdout","time":28518.413247366,"data":"    d_max=  2.563 -\u003e floyd success 0.00\n"}
+,{"stream_name":"stdout","time":28518.413252491,"data":"    d_max=  6.402 -\u003e floyd success 0.00\n"}
+,{"stream_name":"stdout","time":28518.413257606,"data":"    d_max= 10.152 -\u003e floyd success 0.00\n"}
+,{"stream_name":"stdout","time":28518.413262554,"data":"    d_max= 12.946 -\u003e floyd success 0.00\n"}
+,{"stream_name":"stdout","time":28518.413267538,"data":"    d_max= 14.867 -\u003e floyd success 0.00\n"}
+,{"stream_name":"stdout","time":28518.413272566,"data":"Config: d_max=0.002  mcts_n_simulations=200  mcts_rollout_horizon=10  seeds=[0, 1, 2]  episodes/seed=50\n"}
+,{"stream_name":"stdout","time":28518.413277861,"data":"sigma=0.00  Soft Floyd=0.00 [0.00,0.00]  Naive re-plan=0.00 [0.00,0.00]  MCTS=0.00 [0.00,0.00]\n"}
+,{"stream_name":"stdout","time":28518.413282379,"data":"  \u003e\u003e sigma=0 sanity check passed (|mcts-floyd|=0.00 \u003c= 0.15)\n"}
+,{"stream_name":"stdout","time":28518.413287694,"data":"sigma=0.10  Soft Floyd=0.00 [0.00,0.00]  Naive re-plan=0.00 [0.00,0.00]  MCTS=0.00 [0.00,0.00]\n"}
+,{"stream_name":"stdout","time":28518.41329203,"data":"sigma=0.30  Soft Floyd=0.00 [0.00,0.00]  Naive re-plan=0.00 [0.00,0.00]  MCTS=0.00 [0.00,0.00]\n"}
+,{"stream_name":"stdout","time":28518.413297359,"data":"sigma=0.50  Soft Floyd=0.00 [0.00,0.00]  Naive re-plan=0.01 [0.00,0.02]  MCTS=0.00 [0.00,0.00]\n"}
+,{"stream_name":"stdout","time":28518.413302451,"data":"\n"}
+,{"stream_name":"stdout","time":28518.413306881,"data":"MCTS latency: 10.66 s/episode (budget 200 sims).\n"}
+,{"stream_name":"stdout","time":28518.413311615,"data":"Saved results to /kaggle/working/e1_runs/antmaze/e1a_results.json\n"}
+,{"stream_name":"stdout","time":28518.41333379,"data":"Saved plot to /kaggle/working/e1_runs/antmaze/e1a_curve.png\n"}
+,{"stream_name":"stdout","time":28518.413342287,"data":"E1b on AntMaze: uncertainty-bonus ablation (none / alpha / beta) under heterogeneous per-edge oracle uncertainty.\n"}
+,{"stream_name":"stdout","time":28518.413347891,"data":"d_max calibration (clean Soft Floyd, spec R3):\n"}
+,{"stream_name":"stdout","time":28518.413353029,"data":"    d_max=  0.002 -\u003e 0.00   \u003c- chosen\n"}
+,{"stream_name":"stdout","time":28518.413358319,"data":"    d_max=  0.349 -\u003e 0.00\n"}
+,{"stream_name":"stdout","time":28518.413363438,"data":"    d_max=  2.563 -\u003e 0.00\n"}
+,{"stream_name":"stdout","time":28518.413368372,"data":"    d_max=  6.402 -\u003e 0.00\n"}
+,{"stream_name":"stdout","time":28518.413373262,"data":"    d_max= 10.152 -\u003e 0.00\n"}
+,{"stream_name":"stdout","time":28518.413378246,"data":"    d_max= 12.946 -\u003e 0.00\n"}
+,{"stream_name":"stdout","time":28518.413383359,"data":"    d_max= 14.867 -\u003e 0.00\n"}
+,{"stream_name":"stdout","time":28518.413388594,"data":"Config: d_max=0.002  sims=120  frac_high=0.3  lambda_risk=3.0  beta_unc=1.0  seeds=[0, 1, 2]  eps/seed=50\n"}
+,{"stream_name":"stdout","time":28518.41340993,"data":"sigma_hi=0.00  MCTS (β=0)=0.00[0.00,0.00]  MCTS+α (risk penalty)=0.01[0.00,0.03]  MCTS+β (UCT bonus)=0.00[0.00,0.00]\n"}
+,{"stream_name":"stdout","time":28518.413415913,"data":"  \u003e\u003e sigma_hi=0 sanity passed (variant spread=0.01 \u003c= 0.15)\n"}
+,{"stream_name":"stdout","time":28518.413431775,"data":"sigma_hi=0.30  MCTS (β=0)=0.00[0.00,0.00]  MCTS+α (risk penalty)=0.00[0.00,0.00]  MCTS+β (UCT bonus)=0.00[0.00,0.00]\n"}
+,{"stream_name":"stdout","time":28518.413437013,"data":"sigma_hi=0.50  MCTS (β=0)=0.01[0.00,0.02]  MCTS+α (risk penalty)=0.00[0.00,0.00]  MCTS+β (UCT bonus)=0.00[0.00,0.00]\n"}
+,{"stream_name":"stdout","time":28518.413441456,"data":"sigma_hi=1.00  MCTS (β=0)=0.00[0.00,0.00]  MCTS+α (risk penalty)=0.00[0.00,0.00]  MCTS+β (UCT bonus)=0.01[0.00,0.02]\n"}
+,{"stream_name":"stdout","time":28518.413445868,"data":"\n"}
+,{"stream_name":"stdout","time":28518.413449851,"data":"MCTS latency: 11.53 s/episode (budget 120).\n"}
+,{"stream_name":"stdout","time":28518.41345419,"data":"Saved results to /kaggle/working/e1_runs/antmaze/e1b_results.json\n"}
+,{"stream_name":"stdout","time":28518.413458384,"data":"Saved plot to /kaggle/working/e1_runs/antmaze/e1b_curve.png\n"}
+,{"stream_name":"stdout","time":28518.413462614,"data":"\n"}
+,{"stream_name":"stdout","time":28518.413466386,"data":"Summary saved to /kaggle/working/e1_runs/summary.json\n"}
+,{"stream_name":"stdout","time":28518.447995691,"data":"\n"}
+,{"stream_name":"stdout","time":28518.448033857,"data":"*** WARNING: even the best-tuned Soft Floyd baseline is near 0. E1a results would be meaningless; retrain / pick a better checkpoint (spec Sec 8 KB3).\n"}
+,{"stream_name":"stdout","time":28518.448040338,"data":"\n"}
+,{"stream_name":"stdout","time":28518.448044534,"data":"E1a on AntMaze. Caveat (spec risk R2): short/easy envs can have thin planning headroom; MuJoCo envs require gymnasium-robotics/mujoco.\n"}
+,{"stream_name":"stdout","time":28518.448048933,"data":"d_max calibration (noise-free Soft Floyd, spec R3):\n"}
+,{"stream_name":"stdout","time":28518.4480541,"data":"    d_max=  0.002 -\u003e floyd success 0.00   \u003c- chosen\n"}
+,{"stream_name":"stdout","time":28518.448059292,"data":"    d_max=  0.349 -\u003e floyd success 0.00\n"}
+,{"stream_name":"stdout","time":28518.4480641,"data":"    d_max=  2.563 -\u003e floyd success 0.00\n"}
+,{"stream_name":"stdout","time":28518.448068554,"data":"    d_max=  6.402 -\u003e floyd success 0.00\n"}
+,{"stream_name":"stdout","time":28518.448072946,"data":"    d_max= 10.152 -\u003e floyd success 0.00\n"}
+,{"stream_name":"stdout","time":28518.448077075,"data":"    d_max= 12.946 -\u003e floyd success 0.00\n"}
+,{"stream_name":"stdout","time":28518.448080991,"data":"    d_max= 14.867 -\u003e floyd success 0.00\n"}
+,{"stream_name":"stdout","time":28518.448085033,"data":"Config: d_max=0.002  mcts_n_simulations=200  mcts_rollout_horizon=10  seeds=[0, 1, 2]  episodes/seed=50\n"}
+,{"stream_name":"stdout","time":28518.448089213,"data":"sigma=0.00  Soft Floyd=0.00 [0.00,0.00]  Naive re-plan=0.00 [0.00,0.00]  MCTS=0.00 [0.00,0.00]\n"}
+,{"stream_name":"stdout","time":28518.448093478,"data":"  \u003e\u003e sigma=0 sanity check passed (|mcts-floyd|=0.00 \u003c= 0.15)\n"}
+,{"stream_name":"stdout","time":28518.448097757,"data":"sigma=0.10  Soft Floyd=0.00 [0.00,0.00]  Naive re-plan=0.00 [0.00,0.00]  MCTS=0.00 [0.00,0.00]\n"}
+,{"stream_name":"stdout","time":28518.44810207,"data":"sigma=0.30  Soft Floyd=0.00 [0.00,0.00]  Naive re-plan=0.00 [0.00,0.00]  MCTS=0.00 [0.00,0.00]\n"}
+,{"stream_name":"stdout","time":28518.448106521,"data":"sigma=0.50  Soft Floyd=0.00 [0.00,0.00]  Naive re-plan=0.01 [0.00,0.02]  MCTS=0.00 [0.00,0.00]\n"}
+,{"stream_name":"stdout","time":28518.448123083,"data":"\n"}
+,{"stream_name":"stdout","time":28518.44812584,"data":"MCTS latency: 10.66 s/episode (budget 200 sims).\n"}
+,{"stream_name":"stdout","time":28518.448129008,"data":"Saved results to /kaggle/working/e1_runs/antmaze/e1a_results.json\n"}
+,{"stream_name":"stdout","time":28518.44813299,"data":"Saved plot to /kaggle/working/e1_runs/antmaze/e1a_curve.png\n"}
+,{"stream_name":"stdout","time":28518.448137113,"data":"E1b on AntMaze: uncertainty-bonus ablation (none / alpha / beta) under heterogeneous per-edge oracle uncertainty.\n"}
+,{"stream_name":"stdout","time":28518.448141466,"data":"d_max calibration (clean Soft Floyd, spec R3):\n"}
+,{"stream_name":"stdout","time":28518.448145675,"data":"    d_max=  0.002 -\u003e 0.00   \u003c- chosen\n"}
+,{"stream_name":"stdout","time":28518.448150306,"data":"    d_max=  0.349 -\u003e 0.00\n"}
+,{"stream_name":"stdout","time":28518.448154198,"data":"    d_max=  2.563 -\u003e 0.00\n"}
+,{"stream_name":"stdout","time":28518.448158402,"data":"    d_max=  6.402 -\u003e 0.00\n"}
+,{"stream_name":"stdout","time":28518.448162166,"data":"    d_max= 10.152 -\u003e 0.00\n"}
+,{"stream_name":"stdout","time":28518.448166032,"data":"    d_max= 12.946 -\u003e 0.00\n"}
+,{"stream_name":"stdout","time":28518.448169919,"data":"    d_max= 14.867 -\u003e 0.00\n"}
+,{"stream_name":"stdout","time":28518.448173721,"data":"Config: d_max=0.002  sims=120  frac_high=0.3  lambda_risk=3.0  beta_unc=1.0  seeds=[0, 1, 2]  eps/seed=50\n"}
+,{"stream_name":"stdout","time":28518.44817822,"data":"sigma_hi=0.00  MCTS (β=0)=0.00[0.00,0.00]  MCTS+α (risk penalty)=0.01[0.00,0.03]  MCTS+β (UCT bonus)=0.00[0.00,0.00]\n"}
+,{"stream_name":"stdout","time":28518.44818327,"data":"  \u003e\u003e sigma_hi=0 sanity passed (variant spread=0.01 \u003c= 0.15)\n"}
+,{"stream_name":"stdout","time":28518.448188962,"data":"sigma_hi=0.30  MCTS (β=0)=0.00[0.00,0.00]  MCTS+α (risk penalty)=0.00[0.00,0.00]  MCTS+β (UCT bonus)=0.00[0.00,0.00]\n"}
+,{"stream_name":"stdout","time":28518.448192911,"data":"sigma_hi=0.50  MCTS (β=0)=0.01[0.00,0.02]  MCTS+α (risk penalty)=0.00[0.00,0.00]  MCTS+β (UCT bonus)=0.00[0.00,0.00]\n"}
+,{"stream_name":"stdout","time":28518.448196464,"data":"sigma_hi=1.00  MCTS (β=0)=0.00[0.00,0.00]  MCTS+α (risk penalty)=0.00[0.00,0.00]  MCTS+β (UCT bonus)=0.01[0.00,0.02]\n"}
+,{"stream_name":"stdout","time":28518.448199913,"data":"\n"}
+,{"stream_name":"stdout","time":28518.448203433,"data":"MCTS latency: 11.53 s/episode (budget 120).\n"}
+,{"stream_name":"stdout","time":28518.448206755,"data":"Saved results to /kaggle/working/e1_runs/antmaze/e1b_results.json\n"}
+,{"stream_name":"stdout","time":28518.448210329,"data":"Saved plot to /kaggle/working/e1_runs/antmaze/e1b_curve.png\n"}
+,{"stream_name":"stdout","time":28518.448214089,"data":"\n"}
+,{"stream_name":"stdout","time":28518.448217741,"data":"Summary saved to /kaggle/working/e1_runs/summary.json\n"}
+,{"stream_name":"stdout","time":28525.614419895,"data":"Saved /kaggle/working/e1_runs/pointmaze_numpy/trajectory.png\n"}
+,{"stream_name":"stdout","time":28525.614463931,"data":"episode: 201 steps, success=False, sub-goals used: 2\n"}
+,{"stream_name":"stdout","time":28525.817498824,"data":"Saved /kaggle/working/e1_runs/pointmaze_numpy/trajectory.png\n"}
+,{"stream_name":"stdout","time":28525.817542116,"data":"episode: 201 steps, success=False, sub-goals used: 2\n"}
+,{"stream_name":"stdout","time":28526.438637496,"data":"Saved trajectory plot to /kaggle/working/e1_runs/pointmaze_numpy/trajectory.png\n"}
+,{"stream_name":"stdout","time":28526.468900515,"data":"Found 3 PNG plot(s).\n"}
+,{"stream_name":"stdout","time":28526.468932637,"data":"/kaggle/working/e1_runs/antmaze/e1a_curve.png\n"}
+,{"stream_name":"stdout","time":28526.471962372,"data":"/kaggle/working/e1_runs/antmaze/e1b_curve.png\n"}
+,{"stream_name":"stdout","time":28526.474870042,"data":"/kaggle/working/e1_runs/pointmaze_numpy/trajectory.png\n"}
+,{"stream_name":"stdout","time":28526.51087178,"data":"summary: /kaggle/working/e1_runs/summary.json\n"}
+,{"stream_name":"stdout","time":28526.510908632,"data":"{\n"}
+,{"stream_name":"stdout","time":28526.510914794,"data":"  \"preset\": \"full\",\n"}
+,{"stream_name":"stdout","time":28526.510919166,"data":"  \"tasks\": [\n"}
+,{"stream_name":"stdout","time":28526.510923421,"data":"    {\n"}
+,{"stream_name":"stdout","time":28526.510927548,"data":"      \"name\": \"antmaze\",\n"}
+,{"stream_name":"stdout","time":28526.510932101,"data":"      \"env\": \"AntMaze\",\n"}
+,{"stream_name":"stdout","time":28526.510936038,"data":"      \"checkpoint\": \"checkpoint/l3p_AntMaze.pt\",\n"}
+,{"stream_name":"stdout","time":28526.510944141,"data":"      \"runs\": [\n"}
+,{"stream_name":"stdout","time":28526.510948365,"data":"        {\n"}
+,{"stream_name":"stdout","time":28526.510952115,"data":"          \"exp\": \"e1a\",\n"}
+,{"stream_name":"stdout","time":28526.510956021,"data":"          \"cmd\": [\n"}
+,{"stream_name":"stdout","time":28526.510959468,"data":"            \"/usr/bin/python3\",\n"}
+,{"stream_name":"stdout","time":28526.510963717,"data":"            \"/kaggle/working/latent_landmarks/scripts/run_e1a.py\",\n"}
+,{"stream_name":"stdout","time":28526.510967589,"data":"            \"--env\",\n"}
+,{"stream_name":"stdout","time":28526.51097163,"data":"            \"AntMaze\",\n"}
+,{"stream_name":"stdout","time":28526.51097639,"data":"            \"--load\",\n"}
+,{"stream_name":"stdout","time":28526.510980731,"data":"            \"/kaggle/working/latent_landmarks/checkpoint/l3p_AntMaze.pt\",\n"}
+,{"stream_name":"stdout","time":28526.510985205,"data":"            \"--seeds\",\n"}
+,{"stream_name":"stdout","time":28526.510989164,"data":"            \"0\",\n"}
+,{"stream_name":"stdout","time":28526.510992566,"data":"            \"1\",\n"}
+,{"stream_name":"stdout","time":28526.510996472,"data":"            \"2\",\n"}
+,{"stream_name":"stdout","time":28526.510999915,"data":"            \"--episodes\",\n"}
+,{"stream_name":"stdout","time":28526.511003622,"data":"            \"50\",\n"}
+,{"stream_name":"stdout","time":28526.511007381,"data":"            \"--calibrate-episodes\",\n"}
+,{"stream_name":"stdout","time":28526.511011518,"data":"            \"20\",\n"}
+,{"stream_name":"stdout","time":28526.511015092,"data":"            \"--out\",\n"}
+,{"stream_name":"stdout","time":28526.511018539,"data":"            \"/kaggle/working/e1_runs/antmaze/e1a_results.json\",\n"}
+,{"stream_name":"stdout","time":28526.511022187,"data":"            \"--plot\",\n"}
+,{"stream_name":"stdout","time":28526.511026238,"data":"            \"/kaggle/working/e1_runs/antmaze/e1a_curve.png\",\n"}
+,{"stream_name":"stdout","time":28526.511030122,"data":"            \"--sanity-tol\",\n"}
+,{"stream_name":"stdout","time":28526.51103443,"data":"            \"0.15\",\n"}
+,{"stream_name":"stdout","time":28526.511038098,"data":"            \"--sigmas\",\n"}
+,{"stream_name":"stdout","time":28526.511042065,"data":"            \"0\",\n"}
+,{"stream_name":"stdout","time":28526.511045986,"data":"            \"0.1\",\n"}
+,{"stream_name":"stdout","time":28526.511049936,"data":"            \"0.3\",\n"}
+,{"stream_name":"stdout","time":28526.511053608,"data":"            \"0.5\",\n"}
+,{"stream_name":"stdout","time":28526.511058097,"data":"            \"--mcts-n-simulations\",\n"}
+,{"stream_name":"stdout","time":28526.511061974,"data":"            \"200\"\n"}
+,{"stream_name":"stdout","time":28526.511085283,"data":"          ],\n"}
+,{"stream_name":"stdout","time":28526.511089424,"data":"          \"status\": \"ok\",\n"}
+,{"stream_name":"stdout","time":28526.511093426,"data":"          \"returncode\": 0,\n"}
+,{"stream_name":"stdout","time":28526.511097373,"data":"          \"seconds\": 7629.979717254639,\n"}
+,{"stream_name":"stdout","time":28526.511101404,"data":"          \"log\": \"/kaggle/working/e1_runs/antmaze/e1a.log\"\n"}
+,{"stream_name":"stdout","time":28526.511105564,"data":"        },\n"}
+,{"stream_name":"stdout","time":28526.511109617,"data":"        {\n"}
+,{"stream_name":"stdout","time":28526.511113282,"data":"          \"exp\": \"e1b\",\n"}
+,{"stream_name":"stdout","time":28526.511117202,"data":"          \"cmd\": [\n"}
+,{"stream_name":"stdout","time":28526.511119855,"data":"            \"/usr/bin/python3\",\n"}
+,{"stream_name":"stdout","time":28526.511122439,"data":"            \"/kaggle/working/latent_landmarks/scripts/run_e1b.py\",\n"}
+,{"stream_name":"stdout","time":28526.511124998,"data":"            \"--env\",\n"}
+,{"stream_name":"stdout","time":28526.511135858,"data":"            \"AntMaze\",\n"}
+,{"stream_name":"stdout","time":28526.511139841,"data":"            \"--load\",\n"}
+,{"stream_name":"stdout","time":28526.511143691,"data":"            \"/kaggle/working/latent_landmarks/checkpoint/l3p_AntMaze.pt\",\n"}
+,{"stream_name":"stdout","time":28526.511147894,"data":"            \"--seeds\",\n"}
+,{"stream_name":"stdout","time":28526.511156212,"data":"            \"0\",\n"}
+,{"stream_name":"stdout","time":28526.511160302,"data":"            \"1\",\n"}
+,{"stream_name":"stdout","time":28526.511164016,"data":"            \"2\",\n"}
+,{"stream_name":"stdout","time":28526.511168126,"data":"            \"--episodes\",\n"}
+,{"stream_name":"stdout","time":28526.511172301,"data":"            \"50\",\n"}
+,{"stream_name":"stdout","time":28526.511176278,"data":"            \"--calibrate-episodes\",\n"}
+,{"stream_name":"stdout","time":28526.511180431,"data":"            \"20\",\n"}
+,{"stream_name":"stdout","time":28526.511184249,"data":"            \"--out\",\n"}
+,{"stream_name":"stdout","time":28526.511188225,"data":"            \"/kaggle/working/e1_runs/antmaze/e1b_results.json\",\n"}
+,{"stream_name":"stdout","time":28526.511192625,"data":"            \"--plot\",\n"}
+,{"stream_name":"stdout","time":28526.51119663,"data":"            \"/kaggle/working/e1_runs/antmaze/e1b_curve.png\",\n"}
+,{"stream_name":"stdout","time":28526.511200578,"data":"            \"--sanity-tol\",\n"}
+,{"stream_name":"stdout","time":28526.511204808,"data":"            \"0.15\",\n"}
+,{"stream_name":"stdout","time":28526.51120879,"data":"            \"--sigma-hi\",\n"}
+,{"stream_name":"stdout","time":28526.51121279,"data":"            \"0\",\n"}
+,{"stream_name":"stdout","time":28526.511217075,"data":"            \"0.3\",\n"}
+,{"stream_name":"stdout","time":28526.511220979,"data":"            \"0.5\",\n"}
+,{"stream_name":"stdout","time":28526.51122491,"data":"            \"1.0\",\n"}
+,{"stream_name":"stdout","time":28526.511229021,"data":"            \"--mcts-n-simulations\",\n"}
+,{"stream_name":"stdout","time":28526.511232699,"data":"            \"120\"\n"}
+,{"stream_name":"stdout","time":28526.511238611,"data":"          ],\n"}
+,{"stream_name":"stdout","time":28526.511242516,"data":"          \"status\": \"ok\",\n"}
+,{"stream_name":"stdout","time":28526.511246867,"data":"          \"returncode\": 0,\n"}
+,{"stream_name":"stdout","time":28526.51125091,"data":"          \"seconds\": 20856.383031129837,\n"}
+,{"stream_name":"stdout","time":28526.511254863,"data":"          \"log\": \"/kaggle/working/e1_runs/antmaze/e1b.log\"\n"}
+,{"stream_name":"stdout","time":28526.511264535,"data":"        }\n"}
+,{"stream_name":"stdout","time":28526.511268446,"data":"      ],\n"}
+,{"stream_name":"stdout","time":28526.51127251,"data":"      \"status\": \"done\"\n"}
+,{"stream_name":"stdout","time":28526.511276686,"data":"    }\n"}
+,{"stream_name":"stdout","time":28526.511280368,"data":"  ],\n"}
+,{"stream_name":"stdout","time":28526.511283976,"data":"  \"started_at\": 1784913048.9645016,\n"}
+,{"stream_name":"stdout","time":28526.511287476,"data":"  \"finished_at\": 1784941535.329877\n"}
+,{"stream_name":"stdout","time":28526.51129102,"data":"}\n"}
+,{"stream_name":"stderr","time":28529.945831178,"data":"/usr/local/lib/python3.12/dist-packages/mistune.py:435: SyntaxWarning: invalid escape sequence '\\|'\n"}
+,{"stream_name":"stderr","time":28529.945870118,"data":"  cells[i][c] = re.sub('\\\\\\\\\\|', '|', cell)\n"}
+,{"stream_name":"stderr","time":28530.161283102,"data":"/usr/local/lib/python3.12/dist-packages/nbconvert/filters/filter_links.py:36: SyntaxWarning: invalid escape sequence '\\_'\n"}
+,{"stream_name":"stderr","time":28530.161336803,"data":"  text = re.sub(r'_', '\\_', text) # Escape underscores in display text\n"}
+,{"stream_name":"stderr","time":28530.994492087,"data":"[NbConvertApp] Converting notebook __notebook__.ipynb to notebook\n"}
+,{"stream_name":"stderr","time":28531.488307765,"data":"[NbConvertApp] Writing 164795 bytes to __notebook__.ipynb\n"}
+,{"stream_name":"stderr","time":28534.978083748,"data":"[NbConvertApp] Converting notebook __notebook__.ipynb to html\n"}
+,{"stream_name":"stderr","time":28536.286720293,"data":"[NbConvertApp] Support files will be in __results___files/\n"}
+,{"stream_name":"stderr","time":28536.286774236,"data":"[NbConvertApp] Making directory __results___files\n"}
+,{"stream_name":"stderr","time":28536.287388923,"data":"[NbConvertApp] Making directory __results___files\n"}
+,{"stream_name":"stderr","time":28536.287577758,"data":"[NbConvertApp] Making directory __results___files\n"}
+,{"stream_name":"stderr","time":28536.287872851,"data":"[NbConvertApp] Writing 321816 bytes to __results__.html\n"}
+]

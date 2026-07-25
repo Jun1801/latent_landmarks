@@ -1,0 +1,69 @@
+{
+  "env": "AntMaze",
+  "load": "checkpoint/l3p_AntMaze.pt",
+  "episodes": 5,
+  "calibrate_episodes": 3,
+  "min_success": 0.3,
+  "flat_policy": {
+    "mean": 0.0,
+    "successes": 0,
+    "n": 5
+  },
+  "soft_floyd_default": {
+    "d_max": 20.0,
+    "mean": 0.0,
+    "successes": 0,
+    "n": 5
+  },
+  "d_max_sweep": [
+    {
+      "d_max": 0.002455,
+      "success": 0.0,
+      "successes": 0,
+      "episodes": 3
+    },
+    {
+      "d_max": 0.348976,
+      "success": 0.0,
+      "successes": 0,
+      "episodes": 3
+    },
+    {
+      "d_max": 2.563398,
+      "success": 0.0,
+      "successes": 0,
+      "episodes": 3
+    },
+    {
+      "d_max": 6.402074,
+      "success": 0.0,
+      "successes": 0,
+      "episodes": 3
+    },
+    {
+      "d_max": 10.151786,
+      "success": 0.0,
+      "successes": 0,
+      "episodes": 3
+    },
+    {
+      "d_max": 12.946395,
+      "success": 0.0,
+      "successes": 0,
+      "episodes": 3
+    },
+    {
+      "d_max": 14.867355,
+      "success": 0.0,
+      "successes": 0,
+      "episodes": 3
+    }
+  ],
+  "soft_floyd_calibrated": {
+    "d_max": 0.002455,
+    "mean": 0.0,
+    "successes": 0,
+    "n": 5
+  },
+  "status": "NOT_READY"
+}

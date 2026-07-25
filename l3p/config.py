@@ -123,37 +123,38 @@ _PER_ENV = {
 ENV_SPECS = {
     "PointMaze": dict(
         family="PointMaze", gym_id=None, needs_mujoco=False,
-        train_horizon=200, test_horizon=500,
+        train_horizon=200, test_horizon=500, default_steps=500_000,
         note="Point mass in a hard maze. Runnable here in pure NumPy; the paper "
              "uses a MuJoCo point-in-maze. Test starts one end, goal the other.",
     ),
     "PointMazeMuJoCo": dict(
         family="PointMaze", gym_id="PointMaze_Large-v3", needs_mujoco=True,
-        train_horizon=200, test_horizon=500,
+        train_horizon=200, test_horizon=500, default_steps=1_600_000,
         note="Real MuJoCo point-in-maze (gymnasium-robotics PointMaze_Large) — the "
              "paper's PointMaze environment type, as opposed to the pure-NumPy proxy.",
     ),
     "AntMaze": dict(
         family="AntMaze", gym_id="AntMaze-v0", needs_mujoco=True,
-        train_horizon=200, test_horizon=500,
+        train_horizon=200, test_horizon=500, default_steps=3_000_000,
         note="MuJoCo Ant navigating a hard maze; grad-norm clip 15 (Appendix D). "
              "Test generalizes to the longest, unseen path.",
     ),
     "FetchPickAndPlace": dict(
         family="Fetch", gym_id="FetchPickAndPlace-v1", needs_mujoco=True,
-        train_horizon=50, test_horizon=50,
+        train_horizon=50, test_horizon=50, default_steps=1_000_000,
         note="Standard gym-robotics Fetch pick-and-place. Inputs normalized by "
              "running mean/std (Appendix D).",
     ),
     "BoxDistractorPickAndPlace": dict(
         family="Fetch", gym_id="FetchPickAndPlaceBoxDistractor-v1", needs_mujoco=True,
-        train_horizon=50, test_horizon=50, has_distractor=True,
+        train_horizon=50, test_horizon=50, default_steps=1_000_000, has_distractor=True,
         note="Pick-and-place with a box distractor in the middle of the table; "
              "the arm must pick/place the block while avoiding collision with the box.",
     ),
     "PlaceInsideBox": dict(
         family="Fetch", gym_id="FetchPlaceInsideBox-v1", needs_mujoco=True,
-        train_horizon=50, test_horizon=50, place_inside_box_ratio=0.2,
+        train_horizon=50, test_horizon=50, default_steps=1_000_000,
+        place_inside_box_ratio=0.2,
         note="Place the object inside a box at random locations. Curriculum: 80% "
              "regular pick-and-place goals, 20% inside-the-box goals (Section 5.3).",
     ),
@@ -202,6 +203,7 @@ def get_config(env_name: str = "PointMaze", **overrides) -> Config:
     base = replace(base,
                    max_episode_steps=spec["train_horizon"],
                    test_episode_steps=spec["test_horizon"],
+                   total_steps=spec.get("default_steps", base.total_steps),
                    has_distractor=spec.get("has_distractor", False),
                    place_inside_box_ratio=spec.get("place_inside_box_ratio", 0.2))
     if overrides:

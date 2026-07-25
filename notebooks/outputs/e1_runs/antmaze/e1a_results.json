@@ -1,0 +1,184 @@
+{
+  "meta": {
+    "load": "/kaggle/working/latent_landmarks/checkpoint/l3p_AntMaze.pt",
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "episodes": 50,
+    "env": "AntMaze",
+    "sigmas": [
+      0.0,
+      0.1,
+      0.3,
+      0.5
+    ],
+    "d_max": 0.002455,
+    "mcts_n_simulations": 200,
+    "mcts_rollout_horizon": 10,
+    "n_boot": 2000
+  },
+  "results": [
+    {
+      "sigma": 0.0,
+      "aggregate": {
+        "soft_floyd": {
+          "mean": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "n": 150
+        },
+        "naive_replan": {
+          "mean": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "n": 150
+        },
+        "mcts": {
+          "mean": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "n": 150
+        }
+      },
+      "per_seed": {
+        "0": {
+          "soft_floyd": 0.0,
+          "naive_replan": 0.0,
+          "mcts": 0.0
+        },
+        "1": {
+          "soft_floyd": 0.0,
+          "naive_replan": 0.0,
+          "mcts": 0.0
+        },
+        "2": {
+          "soft_floyd": 0.0,
+          "naive_replan": 0.0,
+          "mcts": 0.0
+        }
+      }
+    },
+    {
+      "sigma": 0.1,
+      "aggregate": {
+        "soft_floyd": {
+          "mean": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "n": 150
+        },
+        "naive_replan": {
+          "mean": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "n": 150
+        },
+        "mcts": {
+          "mean": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "n": 150
+        }
+      },
+      "per_seed": {
+        "0": {
+          "soft_floyd": 0.0,
+          "naive_replan": 0.0,
+          "mcts": 0.0
+        },
+        "1": {
+          "soft_floyd": 0.0,
+          "naive_replan": 0.0,
+          "mcts": 0.0
+        },
+        "2": {
+          "soft_floyd": 0.0,
+          "naive_replan": 0.0,
+          "mcts": 0.0
+        }
+      }
+    },
+    {
+      "sigma": 0.3,
+      "aggregate": {
+        "soft_floyd": {
+          "mean": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "n": 150
+        },
+        "naive_replan": {
+          "mean": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "n": 150
+        },
+        "mcts": {
+          "mean": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "n": 150
+        }
+      },
+      "per_seed": {
+        "0": {
+          "soft_floyd": 0.0,
+          "naive_replan": 0.0,
+          "mcts": 0.0
+        },
+        "1": {
+          "soft_floyd": 0.0,
+          "naive_replan": 0.0,
+          "mcts": 0.0
+        },
+        "2": {
+          "soft_floyd": 0.0,
+          "naive_replan": 0.0,
+          "mcts": 0.0
+        }
+      }
+    },
+    {
+      "sigma": 0.5,
+      "aggregate": {
+        "soft_floyd": {
+          "mean": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "n": 150
+        },
+        "naive_replan": {
+          "mean": 0.006666666666666667,
+          "ci_low": 0.0,
+          "ci_high": 0.02,
+          "n": 150
+        },
+        "mcts": {
+          "mean": 0.0,
+          "ci_low": 0.0,
+          "ci_high": 0.0,
+          "n": 150
+        }
+      },
+      "per_seed": {
+        "0": {
+          "soft_floyd": 0.0,
+          "naive_replan": 0.0,
+          "mcts": 0.0
+        },
+        "1": {
+          "soft_floyd": 0.0,
+          "naive_replan": 0.02,
+          "mcts": 0.0
+        },
+        "2": {
+          "soft_floyd": 0.0,
+          "naive_replan": 0.0,
+          "mcts": 0.0
+        }
+      }
+    }
+  ]
+}

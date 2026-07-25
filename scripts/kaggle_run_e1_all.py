@@ -81,6 +81,7 @@ SCRIPT = {
     "e1c": "scripts/run_e1c.py",
     "e1d": "scripts/run_e1d.py",
 }
+READINESS_SCRIPT = "scripts/check_checkpoint_readiness.py"
 
 
 def load_manifest(path: str | None) -> list[dict]:
@@ -158,6 +159,18 @@ def exp_args(exp: str, task: dict, ckpt: Path, out_dir: Path, cfg: dict) -> list
     raise ValueError(exp)
 
 
+def readiness_args(task: dict, ckpt: Path, out_dir: Path, args) -> list[str]:
+    return [
+        sys.executable, str(REPO / READINESS_SCRIPT),
+        "--env", task["env"],
+        "--load", str(ckpt),
+        "--episodes", str(args.preflight_episodes),
+        "--calibrate-episodes", str(args.preflight_calibrate_episodes),
+        "--min-success", str(args.min_baseline_success),
+        "--out", str(out_dir / "readiness.json"),
+    ]
+
+
 def run_command(cmd: list[str], log_path: Path) -> int:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
@@ -187,6 +200,14 @@ def main():
                    default=None, help="Override experiments for every task.")
     p.add_argument("--force-feedback", action="store_true",
                    help="Attempt E1c/E1d even on envs without built-in feedback support.")
+    p.add_argument("--require-ready", action="store_true",
+                   help="Run checkpoint readiness preflight before E1 and skip tasks below threshold.")
+    p.add_argument("--min-baseline-success", type=float, default=0.30,
+                   help="minimum calibrated clean Soft Floyd success for --require-ready")
+    p.add_argument("--preflight-episodes", type=int, default=10,
+                   help="final readiness eval episodes")
+    p.add_argument("--preflight-calibrate-episodes", type=int, default=5,
+                   help="episodes per d_max candidate during readiness calibration")
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
 
@@ -210,6 +231,25 @@ def main():
             print(f"\nSKIP {name}: {task_sum['reason']}", flush=True)
             continue
         task_sum["resolved_checkpoint"] = str(ckpt)
+        if args.require_ready:
+            cmd = readiness_args(task, ckpt, out_dir, args)
+            task_sum["readiness_cmd"] = cmd
+            if args.dry_run:
+                print("$ " + " ".join(shlex.quote(x) for x in cmd), flush=True)
+            else:
+                rc = run_command(cmd, out_dir / "readiness.log")
+                task_sum["readiness_returncode"] = rc
+                task_sum["readiness_log"] = str(out_dir / "readiness.log")
+                task_sum["readiness_json"] = str(out_dir / "readiness.json")
+                if rc != 0:
+                    task_sum["status"] = "skipped"
+                    task_sum["reason"] = (
+                        f"readiness preflight failed: calibrated clean baseline below "
+                        f"{args.min_baseline_success:.2f} or env/checkpoint invalid"
+                    )
+                    summary["tasks"].append(task_sum)
+                    print(f"SKIP {name}: {task_sum['reason']}", flush=True)
+                    continue
 
         experiments = args.experiments or task.get("experiments", ["e1a", "e1b", "e1c", "e1d"])
         print(f"\n=== {name} | env={env_name} | checkpoint={ckpt} | exps={experiments} ===", flush=True)

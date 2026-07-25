@@ -1,0 +1,87 @@
+{
+  "preset": "full",
+  "tasks": [
+    {
+      "name": "antmaze",
+      "env": "AntMaze",
+      "checkpoint": "checkpoint/l3p_AntMaze.pt",
+      "runs": [
+        {
+          "exp": "e1a",
+          "cmd": [
+            "/usr/bin/python3",
+            "/kaggle/working/latent_landmarks/scripts/run_e1a.py",
+            "--env",
+            "AntMaze",
+            "--load",
+            "/kaggle/working/latent_landmarks/checkpoint/l3p_AntMaze.pt",
+            "--seeds",
+            "0",
+            "1",
+            "2",
+            "--episodes",
+            "50",
+            "--calibrate-episodes",
+            "20",
+            "--out",
+            "/kaggle/working/e1_runs/antmaze/e1a_results.json",
+            "--plot",
+            "/kaggle/working/e1_runs/antmaze/e1a_curve.png",
+            "--sanity-tol",
+            "0.15",
+            "--sigmas",
+            "0",
+            "0.1",
+            "0.3",
+            "0.5",
+            "--mcts-n-simulations",
+            "200"
+          ],
+          "status": "ok",
+          "returncode": 0,
+          "seconds": 7629.979717254639,
+          "log": "/kaggle/working/e1_runs/antmaze/e1a.log"
+        },
+        {
+          "exp": "e1b",
+          "cmd": [
+            "/usr/bin/python3",
+            "/kaggle/working/latent_landmarks/scripts/run_e1b.py",
+            "--env",
+            "AntMaze",
+            "--load",
+            "/kaggle/working/latent_landmarks/checkpoint/l3p_AntMaze.pt",
+            "--seeds",
+            "0",
+            "1",
+            "2",
+            "--episodes",
+            "50",
+            "--calibrate-episodes",
+            "20",
+            "--out",
+            "/kaggle/working/e1_runs/antmaze/e1b_results.json",
+            "--plot",
+            "/kaggle/working/e1_runs/antmaze/e1b_curve.png",
+            "--sanity-tol",
+            "0.15",
+            "--sigma-hi",
+            "0",
+            "0.3",
+            "0.5",
+            "1.0",
+            "--mcts-n-simulations",
+            "120"
+          ],
+          "status": "ok",
+          "returncode": 0,
+          "seconds": 20856.383031129837,
+          "log": "/kaggle/working/e1_runs/antmaze/e1b.log"
+        }
+      ],
+      "status": "done"
+    }
+  ],
+  "started_at": 1784913048.9645016,
+  "finished_at": 1784941535.329877
+}

@@ -149,6 +149,13 @@ class GymGoalEnvWrapper:  # pragma: no cover - requires MuJoCo
                                   else self.cfg.max_episode_steps)
 
     def reset(self):
+        rng = getattr(self, "rng", None)
+        if rng is not None:
+            seed = int(rng.integers(0, 2**31 - 1))
+            try:
+                return self._unpack(self.env.reset(seed=seed))
+            except TypeError:
+                self.env.seed(seed)
         return self._unpack(self.env.reset())
 
     def step(self, action):
