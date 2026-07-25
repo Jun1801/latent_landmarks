@@ -16,8 +16,8 @@ L3P is env-agnostic, so no other module changes between environments.
 Two install paths (see docs/ENVIRONMENTS.md for the full infrastructure guide):
   * paper-faithful (Linux x86_64):  gym==0.13.1 + mujoco-py<2.1 + MuJoCo 2.0
   * modern (also macOS ARM):        mujoco>=3 + gymnasium-robotics
-The loader below tries gym first, then gymnasium, so either stack works once the
-corresponding env ids are registered.
+The loader below prefers gymnasium-robotics, then falls back to legacy gym, so
+either stack works once the corresponding env ids are registered.
 """
 
 from __future__ import annotations

@@ -209,6 +209,7 @@ def main():
             summary["tasks"].append(task_sum)
             print(f"\nSKIP {name}: {task_sum['reason']}", flush=True)
             continue
+        task_sum["resolved_checkpoint"] = str(ckpt)
 
         experiments = args.experiments or task.get("experiments", ["e1a", "e1b", "e1c", "e1d"])
         print(f"\n=== {name} | env={env_name} | checkpoint={ckpt} | exps={experiments} ===", flush=True)
