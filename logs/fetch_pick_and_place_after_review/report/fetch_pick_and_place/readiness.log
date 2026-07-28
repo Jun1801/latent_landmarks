@@ -1,0 +1,19 @@
+$ /opt/homebrew/opt/python@3.11/bin/python3.11 '/Users/mac/Documents/MCTS_VLA/Latent Lanmarks/scripts/check_checkpoint_readiness.py' --env FetchPickAndPlace --load '/Users/mac/Documents/MCTS_VLA/Latent Lanmarks/checkpoint/l3p_fetch.pt' --episodes 10 --calibrate-episodes 5 --min-success 0.3 --out logs/fetch_pick_and_place_after_review/report/fetch_pick_and_place/readiness.json
+
+AdroitHandRelocateDense-v1, AdroitHandHammerDense-v1, AdroitHandDoorDense-v1 environment's reward functions were updated in v1.2.1 without an environment version update. Therefore, use gymnasium-robotics==1.2.0 for v1 reproducibility or use v2 in gymnasium-robotics>=1.4.3. See https://github.com/Farama-Foundation/Gymnasium-Robotics/pull/220 for more details
+Checkpoint readiness: env=FetchPickAndPlace load=/Users/mac/Documents/MCTS_VLA/Latent Lanmarks/checkpoint/l3p_fetch.pt
+episodes=10 calibrate_episodes=5 min_success=0.30
+flat policy success: 0.60 (6/10)
+Soft Floyd default d_max=15: 0.30 (3/10)
+d_max calibration sweep:
+  d_max=0: 0.00 (0/5)
+  d_max=1e-06: 0.00 (0/5)
+  d_max=2e-06: 0.00 (0/5)
+  d_max=2.6e-05: 0.00 (0/5)
+  d_max=0.000279: 0.00 (0/5)
+  d_max=0.009311: 0.40 (2/5) <- chosen
+  d_max=0.341713: 0.40 (2/5)
+  d_max=15: 0.40 (2/5)
+Soft Floyd calibrated d_max=0.009311: 0.30 (3/10)
+READY: calibrated Soft Floyd 0.30 >= threshold 0.30
+Saved logs/fetch_pick_and_place_after_review/report/fetch_pick_and_place/readiness.json

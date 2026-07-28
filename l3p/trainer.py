@@ -271,7 +271,10 @@ class L3PTrainer:
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         torch.save(dict(agent=self.agent.state_dict(), ae=self.ae.state_dict(),
                         landmarks=self.landmarks.state_dict(),
-                        centroids_initialized=self.centroids_initialized), path)
+                        centroids_initialized=self.centroids_initialized,
+                        total_env_steps=self.total_env_steps,
+                        episodes_collected=self.episodes_collected,
+                        grad_step_count=self.grad_step_count), path)
 
     def load(self, path: str) -> None:
         # weights_only=False: the checkpoint stores numpy normalizer statistics.
@@ -285,3 +288,6 @@ class L3PTrainer:
             self.planner.landmarks = self.landmarks
         self.landmarks.load_state_dict(d["landmarks"])
         self.centroids_initialized = d["centroids_initialized"]
+        self.total_env_steps = int(d.get("total_env_steps", self.total_env_steps))
+        self.episodes_collected = int(d.get("episodes_collected", self.episodes_collected))
+        self.grad_step_count = int(d.get("grad_step_count", self.grad_step_count))

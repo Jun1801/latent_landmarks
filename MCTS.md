@@ -3,7 +3,7 @@
 > Mở rộng nghiên cứu cho L³P (*World Model as a Graph*, ICML 2021). Thay planner
 > Soft Floyd tất định bằng **MCTS trên graph landmark**, và đo xem MCTS có ra
 > quyết định **bền vững hơn khi ước lượng khoảng cách `V` bị nhiễu** hay không.
-> Tài liệu này tổng hợp *phương pháp*, *ba thí nghiệm E1a/E1b/E1c*, và **lý giải
+> Tài liệu này tổng hợp *phương pháp*, *bốn thí nghiệm E1a/E1b/E1c/E1d*, và **lý giải
 > vì sao chọn từng kỹ thuật**. Spec gốc: [`docs/SPEC_MCTS_Landmark_L3P.md`](docs/SPEC_MCTS_Landmark_L3P.md).
 
 ---
@@ -15,9 +15,10 @@
 | **E1a** | Loại-2 đồng nhất | MCTS + sample-rollout có bền hơn Soft Floyd? | ✅ Ở σ=0.3, MCTS **0.57** vs Floyd **0.31** (CI tách). Thắng nhờ *lookahead*. |
 | **E1b** | Loại-2 dị biệt (oracle) | Uncertainty bonus có đóng góp riêng? | ✅ **α (né rủi ro) thắng** (0.56 vs 0.19 ở σ=1.0); **β (thăm dò) vô ích**. |
 | **E1c** | Loại-1 (bias hệ thống) | MCTS phát hiện bias qua execution? | ✅ MCTS+feedback **0.82** vs Floyd **0.58** ở σ=0.3; **lookahead-một-mình (0.45) còn hại**. |
+| **E1d** | Loại-2 tại Nơi 1,2,3 | Còn bền khi execution cũng nhiễu? | MCTS giữ **1.00** ở σ=0.3 vs Floyd **0.88**; lưu ý no-feedback cũng **1.00**, nên chưa tách riêng lợi ích feedback. |
 
-Ba thí nghiệm phủ ba cơ chế robustness khác nhau, và mỗi cái tách được một biến
-gây nhiễu khác nhau (xem §7).
+E1a-E1c tách ba cơ chế robustness khác nhau; E1d stress-test trường hợp thực tế
+hơn khi cả planner, rollout và macro execution đều nhiễu (xem §7).
 
 ---
 
@@ -160,6 +161,10 @@ checkpoint này **nén ~10×** so với `D` (xem §6) → blend số-bước và
 đơn vị**. Dùng critic-`D` (chính xác, đúng scale bước env) làm substrate → bias là
 lỗi *duy nhất* được tiêm, và feedback sửa được **không lệch đơn vị**.
 
+**E1d dùng lại cùng substrate critic-`D`:** nhiễu Loại-2 được tiêm vào graph
+planner, rollout MCTS, và cả độ dài macro-step được thực thi. Vì realized cost vẫn
+là số bước env thật, feedback/recovery/loop guard có cùng đơn vị với cạnh graph.
+
 ---
 
 ## 6. Giao thức công bằng — và vì sao bắt buộc
@@ -246,18 +251,41 @@ gap nới rộng theo bias. **MCTS no-feedback (0.45) TỆ NHẤT** — plain lo
 sâu vào wormhole còn hại hơn Soft Floyd tĩnh. → Phần thắng đến từ **feedback**, KHÔNG
 phải lookahead. Đây là control quan trọng nhất của E1c.
 
+### E1d — noisy graph + noisy execution
+Loại-2 tại Nơi 1,2,3 · substrate critic-`D` · 2 seed × 30 eps (n=60) ·
+d_max=0.998 · 20 sims · rollout horizon=10 · graph_sigma_scale=1 ·
+exec_sigma_scale=10 · ρ=0.5, τ_reach=2, τ_progress=3, r_max=2 · so:
+Soft Floyd / MCTS no-feedback / MCTS+recovery-feedback. `scripts/run_e1d.py`.
+
+![E1d](logs/e1d_curve.png)
+
+| σ | Soft Floyd | MCTS no-feedback | MCTS + recovery/feedback |
+|---|---|---|---|
+| 0.0 | 0.87 [0.78,0.95] | 1.00 [1.00,1.00] | 1.00 [1.00,1.00] |
+| **0.3** | **0.88 [0.80,0.95]** | **1.00 [1.00,1.00]** | **1.00 [1.00,1.00]** |
+
+**Đọc:** khi cả graph và execution đều nhiễu, MCTS vẫn giữ success trần trên
+PointMaze NumPy. Tuy nhiên E1d **chưa tách riêng được lợi ích feedback**, vì
+MCTS no-feedback cũng đạt 1.00. Diễn giải đúng là: E1d xác nhận MCTS-over-landmarks
+không sụp dưới nhiễu Nơi 3 ở env này, nhưng PointMaze NumPy đang quá dễ/ceiling để
+chứng minh recovery/feedback là yếu tố quyết định. Nhánh feedback có hoạt động:
+ở σ=0.3 trung bình mỗi episode có ~179 macro replans, ~115 corrections, ~4.6 stuck
+edges bị blacklist. Latency MCTS trung bình: **4.96 s/episode**.
+
 ---
 
-## 8. Tổng hợp — ba cơ chế robustness
+## 8. Tổng hợp — cơ chế robustness
 
 | | Nhiễu | Cơ chế cứu | Kết luận |
 |---|---|---|---|
 | E1a | stochastic đồng nhất | **sample rollout** (lookahead) | MCTS > Soft Floyd ở cửa sổ nhiễu trung bình |
 | E1b | stochastic dị biệt (oracle) | **α né rủi ro** | biết uncertainty → *né* giúp, *thăm dò* không |
 | E1c | bias hệ thống | **execution feedback** | học từ thực thi → sửa bias; lookahead-một-mình hại |
+| E1d | stochastic ở planner+rollout+execution | **stress-test execution noise** | MCTS vẫn đạt trần, nhưng feedback chưa được tách do ceiling |
 
-Ba loại nhiễu đòi ba cơ chế khác nhau; MCTS-over-landmarks là framework duy nhất
-gộp được cả ba (Soft Floyd tất định không làm được cái nào ngoài trường hợp `V` sạch).
+Các kịch bản nhiễu đòi cơ chế khác nhau; MCTS-over-landmarks là framework duy nhất
+gộp được rollout sampling, risk-aware reward, và execution feedback trong cùng một
+planner (Soft Floyd tất định không làm được các cơ chế này ngoài trường hợp `V` sạch).
 
 ---
 
@@ -268,8 +296,11 @@ gộp được cả ba (Soft Floyd tất định không làm được cái nào 
 - **E1b/E1c dùng oracle-ish uncertainty:** E1b cho MCTS biết chính xác σ_ij; E1c
   feedback là thật (từ execution) nhưng trên substrate critic-`D`. Chưa test uncertainty
   *ước lượng qua ensemble* (spec Cách 2).
-- **E1c: τ_progress=3, τ_reach=2 CHƯA quét** (spec §4.1 bảo nên quét τ_progress).
-  Kết quả mạnh nhưng nên kiểm độ nhạy trước khi chốt claim.
+- **E1c/E1d: τ_progress=3, τ_reach=2 CHƯA quét** (spec §4.1 bảo nên quét
+  τ_progress). Kết quả mạnh nhưng nên kiểm độ nhạy trước khi chốt claim.
+- **E1d bị ceiling trên PointMaze NumPy:** cả MCTS no-feedback và MCTS+feedback đều
+  đạt 1.00, nên chỉ kết luận được "không sụp khi execution nhiễu", chưa kết luận
+  feedback tạo thêm lợi thế riêng ở E1d.
 - **σ đến từ chính ta inject**, không phải nhiễu tự nhiên của một world-model học thật.
 - Hyperparameter α/β (λ_risk=3, β_unc=1), ρ=0.5, r_max=2 đặt theo lý lẽ (§ trong
   code) nhưng phần lớn **chưa quét**.
@@ -284,8 +315,9 @@ python tests/test_modules.py                              # 25 unit test (bao g�
 python scripts/run_e1a.py --load checkpoint/l3p_pointmaze_full.pt --seeds 0 1 2 --episodes 50 --sigmas 0 0.1 0.3 0.5
 python scripts/run_e1b.py --load checkpoint/l3p_pointmaze_full.pt --seeds 0 1 --episodes 35 --sigma-hi 0 0.5 1.0 --frac-high 0.6 --mcts-n-simulations 100
 python scripts/run_e1c.py --load checkpoint/l3p_pointmaze_full.pt --seeds 0 1 --episodes 30 --sigmas 0 0.1 0.3 --mcts-n-simulations 80
+python scripts/run_e1d.py --env PointMaze --load checkpoint/l3p_pointmaze_full.pt --seeds 0 1 --episodes 30 --sigmas 0 0.3 --mcts-n-simulations 20 --mcts-rollout-horizon 10 --calibrate-episodes 20
 ```
-Kết quả (JSON + PNG) lưu ở `logs/e1{a,b,c}_*`. Mỗi run tự calibrate `d_max`, chạy
+Kết quả (JSON + PNG) lưu ở `logs/e1{a,b,c,d}_*`. Mỗi run tự calibrate `d_max`, chạy
 sanity σ=0, xuất mean±CI + đường cong shaded-band.
 
 ---
@@ -295,8 +327,8 @@ sanity σ=0, xuất mean±CI + đường cong shaded-band.
 | File | Vai trò |
 |---|---|
 | `l3p/planning/mcts_planner.py` | `LandmarkMCTS` (UCT/rollout/backprop + α/β bonus), `MCTSPlanner`, `UncertaintyMCTSPlanner` (E1b), `FeedbackMCTSPlanner` + `SoftFloydE1c` (E1c) |
-| `l3p/planning/noise.py` | `NoisyValueFn` (Loại-2 đồng nhất), `HeterogeneousNoise`+`build_sigma_matrix` (E1b), `BiasedValueFn`+`build_bias_matrix`+`CriticEdgeFn` (E1c), `dmax_candidates`, `bootstrap_ci`, `ValueOverrideAgent` |
+| `l3p/planning/noise.py` | `NoisyValueFn` (Loại-2 đồng nhất), `HeterogeneousNoise`+`build_sigma_matrix` (E1b), `BiasedValueFn`+`build_bias_matrix`+`CriticEdgeFn` (E1c/E1d), `dmax_candidates`, `bootstrap_ci`, `ValueOverrideAgent` |
 | `l3p/planning/baselines.py` | `NaiveReplanPlanner` (Baseline 2) |
 | `l3p/planning/{graph_search,planner}.py` | Soft Floyd + Algorithm 1 gốc (KHÔNG sửa) |
-| `scripts/run_e1{a,b,c}.py` | Harness thí nghiệm (calibrate d_max, paired eval, CI, plot) |
+| `scripts/run_e1{a,b,c,d}.py` | Harness thí nghiệm (calibrate d_max, paired eval, CI, plot); E1d thêm noisy macro execution + recovery/loop guard |
 | `tests/test_modules.py` | Unit test cho mọi thành phần mới |

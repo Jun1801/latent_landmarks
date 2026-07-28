@@ -149,6 +149,7 @@ class LandmarkMCTS:
         return lambda j: self.beta_unc * float(self.sigma[pi, j])
 
     def _rollout(self, start_idx: int, budget: int) -> float:
+        start_heuristic = float(self.heuristic[start_idx])
         cur = start_idx
         total = 0.0
         depth = 0
@@ -164,6 +165,14 @@ class LandmarkMCTS:
             depth += 1
         if cur != self.goal_idx:
             total += float(self.heuristic[cur])   # bootstrap: heuristic-to-go
+        if getattr(self.cfg, "mcts_cap_rollout_by_heuristic", False):
+            # Soft Floyd's value-to-go is the baseline heuristic used for
+            # sigma=0 fairness. On some high-dimensional goal envs, the raw V
+            # has near-zero landmark->goal wormholes that a hard rollout would
+            # exploit even though Soft Floyd assigns the node a much lower
+            # value. Cap optimistic rollouts so MCTS cannot rate a node better
+            # than the planner heuristic it is bootstrapping from.
+            total = min(total, start_heuristic)
         return total
 
     def search(self, d_s2c: np.ndarray, mask: Optional[np.ndarray] = None

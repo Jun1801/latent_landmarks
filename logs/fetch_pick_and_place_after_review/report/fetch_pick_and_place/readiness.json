@@ -1,0 +1,75 @@
+{
+  "env": "FetchPickAndPlace",
+  "load": "/Users/mac/Documents/MCTS_VLA/Latent Lanmarks/checkpoint/l3p_fetch.pt",
+  "episodes": 10,
+  "calibrate_episodes": 5,
+  "min_success": 0.3,
+  "flat_policy": {
+    "mean": 0.6,
+    "successes": 6,
+    "n": 10
+  },
+  "soft_floyd_default": {
+    "d_max": 15.0,
+    "mean": 0.3,
+    "successes": 3,
+    "n": 10
+  },
+  "d_max_sweep": [
+    {
+      "d_max": 0.0,
+      "success": 0.0,
+      "successes": 0,
+      "episodes": 5
+    },
+    {
+      "d_max": 1e-06,
+      "success": 0.0,
+      "successes": 0,
+      "episodes": 5
+    },
+    {
+      "d_max": 2e-06,
+      "success": 0.0,
+      "successes": 0,
+      "episodes": 5
+    },
+    {
+      "d_max": 2.6e-05,
+      "success": 0.0,
+      "successes": 0,
+      "episodes": 5
+    },
+    {
+      "d_max": 0.000279,
+      "success": 0.0,
+      "successes": 0,
+      "episodes": 5
+    },
+    {
+      "d_max": 0.009311,
+      "success": 0.4,
+      "successes": 2,
+      "episodes": 5
+    },
+    {
+      "d_max": 0.341713,
+      "success": 0.4,
+      "successes": 2,
+      "episodes": 5
+    },
+    {
+      "d_max": 15.0,
+      "success": 0.4,
+      "successes": 2,
+      "episodes": 5
+    }
+  ],
+  "soft_floyd_calibrated": {
+    "d_max": 0.009311,
+    "mean": 0.3,
+    "successes": 3,
+    "n": 10
+  },
+  "status": "READY"
+}

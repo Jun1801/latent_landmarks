@@ -45,6 +45,10 @@ def main():
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--workers", type=int, default=None)
     p.add_argument("--save", type=str, default=None)
+    p.add_argument("--resume", type=str, default=None,
+                   help="load an existing checkpoint before continuing training")
+    p.add_argument("--reset-counters", action="store_true",
+                   help="after --resume, reset step counters; useful for cross-env warm starts")
     p.add_argument("--log-file", type=str, default=None)
     p.add_argument("--save-every", type=int, default=0)
     p.add_argument("--eval-episodes", type=int, default=None)
@@ -73,6 +77,14 @@ def main():
     print(f"env ready: obs={venv.obs_dim} goal={venv.goal_dim} act={venv.act_dim} "
           f"workers={venv.n} horizon={venv.max_episode_steps}")
     trainer = L3PTrainer(venv, cfg)
+    if args.resume:
+        trainer.load(args.resume)
+        print(f"Resumed model state from {args.resume}")
+        if args.reset_counters:
+            trainer.total_env_steps = 0
+            trainer.episodes_collected = 0
+            trainer.grad_step_count = 0
+            print("Reset training counters after resume.")
     trainer.train(checkpoint_path=save if args.save_every else None,
                   checkpoint_every=args.save_every)
     trainer.save(save)

@@ -1,0 +1,21 @@
+$ /opt/homebrew/opt/python@3.11/bin/python3.11 '/Users/mac/Documents/MCTS_VLA/Latent Lanmarks/scripts/run_e1b.py' --env PointMazeMuJoCo --load '/Users/mac/Documents/MCTS_VLA/Latent Lanmarks/checkpoint/l3p_pointmaze_mujoco.pt' --seeds 0 1 --episodes 30 --calibrate-episodes 20 --out logs/pointmaze_mujoco_e1a_e1b_report/pointmaze_mujoco/e1b_results.json --plot logs/pointmaze_mujoco_e1a_e1b_report/pointmaze_mujoco/e1b_curve.png --sanity-tol 0.2 --sigma-hi 0 0.5 1.0 --mcts-n-simulations 100
+
+AdroitHandRelocateDense-v1, AdroitHandHammerDense-v1, AdroitHandDoorDense-v1 environment's reward functions were updated in v1.2.1 without an environment version update. Therefore, use gymnasium-robotics==1.2.0 for v1 reproducibility or use v2 in gymnasium-robotics>=1.4.3. See https://github.com/Farama-Foundation/Gymnasium-Robotics/pull/220 for more details
+E1b on PointMazeMuJoCo: uncertainty-bonus ablation (none / alpha / beta) under heterogeneous per-edge oracle uncertainty.
+d_max calibration (clean Soft Floyd, spec R3):
+    d_max=  4.213 -> 0.10   <- chosen
+    d_max=  8.368 -> 0.10
+    d_max= 12.491 -> 0.10
+    d_max= 15.272 -> 0.10
+    d_max= 18.649 -> 0.10
+    d_max= 21.436 -> 0.10
+    d_max= 23.971 -> 0.10
+Config: d_max=4.213  sims=100  frac_high=0.3  lambda_risk=3.0  beta_unc=1.0  seeds=[0, 1]  eps/seed=30
+sigma_hi=0.00  MCTS (β=0)=0.08[0.02,0.17]  MCTS+α (risk penalty)=0.08[0.02,0.15]  MCTS+β (UCT bonus)=0.08[0.02,0.15]
+  >> sigma_hi=0 sanity passed (variant spread=0.00 <= 0.2)
+sigma_hi=0.50  MCTS (β=0)=0.10[0.03,0.18]  MCTS+α (risk penalty)=0.13[0.05,0.22]  MCTS+β (UCT bonus)=0.12[0.05,0.20]
+sigma_hi=1.00  MCTS (β=0)=0.13[0.05,0.22]  MCTS+α (risk penalty)=0.12[0.05,0.20]  MCTS+β (UCT bonus)=0.15[0.07,0.23]
+
+MCTS latency: 9.78 s/episode (budget 100).
+Saved results to logs/pointmaze_mujoco_e1a_e1b_report/pointmaze_mujoco/e1b_results.json
+Saved plot to logs/pointmaze_mujoco_e1a_e1b_report/pointmaze_mujoco/e1b_curve.png

@@ -66,6 +66,7 @@ class Config:
     mcts_n_simulations: int = 200        # simulations per macro-step replan
     mcts_c_uct: float = 1.4              # UCT exploration constant (~sqrt(2))
     mcts_rollout_horizon: int = 10       # max additional macro-hops per rollout
+    mcts_cap_rollout_by_heuristic: bool = False  # optionally keep rollouts consistent with Soft-Floyd value-to-go
     mcts_seed: int = 0                   # rng stream for MCTS's own randomness
 
     # ---- E1b uncertainty bonus (docs/SPEC_MCTS_Landmark_L3P.md Sec 3) ----
@@ -113,6 +114,7 @@ _PER_ENV = {
         n_landmarks=80, n_warmup_trajs=6000, landmark_batch_size=150,
         d_max=15.0, random_landmarks_train=20, action_noise=0.1,
         max_episode_steps=50, grad_norm_clip=None,
+        mcts_cap_rollout_by_heuristic=True,
     ),
 }
 
@@ -139,6 +141,36 @@ ENV_SPECS = {
         note="MuJoCo Ant navigating a hard maze; grad-norm clip 15 (Appendix D). "
              "Test generalizes to the longest, unseen path.",
     ),
+    "AntMazeUMaze": dict(
+        family="AntMaze", gym_id="AntMaze_UMaze-v5", needs_mujoco=True,
+        train_horizon=200, test_horizon=500, default_steps=3_000_000,
+        note="Modern gymnasium-robotics Ant U-maze. Use this first as the "
+             "Ant locomotion/planning curriculum before medium or large mazes.",
+    ),
+    "AntMazeMedium": dict(
+        family="AntMaze", gym_id="AntMaze_Medium-v5", needs_mujoco=True,
+        train_horizon=200, test_horizon=500, default_steps=3_000_000,
+        note="Modern gymnasium-robotics Ant medium maze; this is the current "
+             "default backend used by canonical AntMaze.",
+    ),
+    "AntMazeLarge": dict(
+        family="AntMaze", gym_id="AntMaze_Large-v5", needs_mujoco=True,
+        train_horizon=200, test_horizon=500, default_steps=5_000_000,
+        note="Modern gymnasium-robotics Ant large maze. Run only after U-maze "
+             "and medium checkpoints pass readiness.",
+    ),
+    "AntMazeLargeDiverseG": dict(
+        family="AntMaze", gym_id="AntMaze_Large_Diverse_G-v5", needs_mujoco=True,
+        train_horizon=200, test_horizon=500, default_steps=5_000_000,
+        note="Large AntMaze with diverse goals and fixed reset; harder than "
+             "the fixed-goal large maze.",
+    ),
+    "AntMazeLargeDiverseGR": dict(
+        family="AntMaze", gym_id="AntMaze_Large_Diverse_GR-v5", needs_mujoco=True,
+        train_horizon=200, test_horizon=500, default_steps=5_000_000,
+        note="Large AntMaze with diverse goals and resets. Hardest supported "
+             "modern AntMaze variant.",
+    ),
     "FetchPickAndPlace": dict(
         family="Fetch", gym_id="FetchPickAndPlace-v1", needs_mujoco=True,
         train_horizon=50, test_horizon=50, default_steps=1_000_000,
@@ -163,6 +195,11 @@ ENV_SPECS = {
 _ALIASES = {
     "point": "PointMaze", "pointmaze": "PointMaze", "point-maze": "PointMaze",
     "ant": "AntMaze", "antmaze": "AntMaze", "ant-maze": "AntMaze",
+    "antumaze": "AntMazeUMaze", "antmazeumaze": "AntMazeUMaze",
+    "antmedium": "AntMazeMedium", "antmazemedium": "AntMazeMedium",
+    "antlarge": "AntMazeLarge", "antmazelarge": "AntMazeLarge",
+    "antlargedg": "AntMazeLargeDiverseG", "antmazelargediverseg": "AntMazeLargeDiverseG",
+    "antlargedgr": "AntMazeLargeDiverseGR", "antmazelargediversegr": "AntMazeLargeDiverseGR",
     "fetch": "FetchPickAndPlace", "pick": "FetchPickAndPlace",
     "fetchpickandplace": "FetchPickAndPlace",
     "distractor": "BoxDistractorPickAndPlace",

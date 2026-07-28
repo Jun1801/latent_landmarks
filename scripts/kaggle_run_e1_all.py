@@ -175,7 +175,9 @@ def run_command(cmd: list[str], log_path: Path) -> int:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
     env.setdefault("MPLCONFIGDIR", str(log_path.parent / "mplconfig"))
+    env.setdefault("XDG_CACHE_HOME", str(log_path.parent / ".cache"))
     Path(env["MPLCONFIGDIR"]).mkdir(parents=True, exist_ok=True)
+    Path(env["XDG_CACHE_HOME"]).mkdir(parents=True, exist_ok=True)
     with open(log_path, "w", buffering=1) as log:
         log.write("$ " + " ".join(shlex.quote(x) for x in cmd) + "\n\n")
         p = subprocess.Popen(cmd, cwd=REPO, env=env, stdout=subprocess.PIPE,
@@ -211,10 +213,19 @@ def main():
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
 
-    tasks = load_manifest(args.manifest)
+    all_tasks = load_manifest(args.manifest)
+    tasks = all_tasks
     if args.only:
         allowed = set(args.only)
-        tasks = [t for t in tasks if t["name"] in allowed]
+        tasks = [t for t in all_tasks if t["name"] in allowed]
+        missing = sorted(allowed - {t["name"] for t in tasks})
+        if missing:
+            available = ", ".join(t["name"] for t in all_tasks)
+            print(f"WARNING: --only ignored unknown task name(s): {missing}", file=sys.stderr)
+            print(f"Available task names: {available}", file=sys.stderr)
+        if not tasks:
+            print("ERROR: --only matched no tasks; nothing to run.", file=sys.stderr)
+            sys.exit(2)
     cfg = PRESETS[args.preset]
     args.output_root.mkdir(parents=True, exist_ok=True)
 

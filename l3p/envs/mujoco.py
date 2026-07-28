@@ -45,6 +45,11 @@ _GYMNASIUM_IDS = {
     "FetchPickAndPlace": "FetchPickAndPlace-v4",
     "PointMazeMuJoCo": "PointMaze_Large-v3",  # real point-in-maze (modern MuJoCo)
     "AntMaze": "AntMaze_Medium-v5",     # goal-conditioned Ant in a medium maze (tractable on CPU)
+    "AntMazeUMaze": "AntMaze_UMaze-v5",
+    "AntMazeMedium": "AntMaze_Medium-v5",
+    "AntMazeLarge": "AntMaze_Large-v5",
+    "AntMazeLargeDiverseG": "AntMaze_Large_Diverse_G-v5",
+    "AntMazeLargeDiverseGR": "AntMaze_Large_Diverse_GR-v5",
     # Box-Distractor / Place-Inside-Box are custom Fetch variants, built locally
     # (see l3p/envs/fetch_variants.py) rather than via a gym id.
     "BoxDistractorPickAndPlace": "__local_box_distractor__",
@@ -54,7 +59,7 @@ _GYMNASIUM_IDS = {
 # Maze envs need continuing_task=True + reset_target=False so each episode runs a
 # fixed horizon with a fixed goal (matches the fixed-length HER replay buffer).
 _MAZE_KWARGS = dict(continuing_task=True, reset_target=False)
-_MAZE_ENVS = {"AntMaze", "PointMazeMuJoCo"}
+_MAZE_FAMILIES = {"AntMaze", "PointMaze"}
 
 
 def _load_backend():
@@ -103,7 +108,7 @@ def make_mujoco_env(cfg, seed: int):  # pragma: no cover - requires MuJoCo
     # the longer test horizon; the collection loop caps training episodes at the
     # (shorter) train horizon itself.
     kwargs = dict(max_episode_steps=max(cfg.max_episode_steps, cfg.test_episode_steps))
-    if canonical in _MAZE_ENVS and kind == "gymnasium":
+    if spec.get("family") in _MAZE_FAMILIES and kind == "gymnasium":
         kwargs.update(_MAZE_KWARGS)
     env = backend.make(env_id, **kwargs)
     try:

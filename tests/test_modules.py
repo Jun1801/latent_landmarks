@@ -263,6 +263,44 @@ def test_mcts_matches_soft_floyd_at_sigma0():
     print(f"ok  test_mcts_matches_soft_floyd_at_sigma0 (mean_q={mean_q:.2f})")
 
 
+class _WormholeV:
+    """Raw V has an over-optimistic landmark->goal edge."""
+    def __call__(self, g1, g2):
+        out = torch.norm(g1 - g2, dim=-1)
+        # Edge 0 -> goal coordinate 10 looks free, like Fetch's V wormholes.
+        edge = (torch.isclose(g1[:, 0], torch.tensor(0., device=g1.device)) &
+                torch.isclose(g2[:, 0], torch.tensor(10., device=g2.device)))
+        return torch.where(edge, torch.zeros_like(out), out)
+
+
+def test_mcts_rollout_capped_by_soft_floyd_heuristic():
+    """Regression for Fetch: hard MCTS rollout must not rate a node better than
+    the Soft-Floyd heuristic it bootstraps from when raw V has near-zero
+    landmark->goal wormholes."""
+    cfg = get_config("PointMaze", d_max=20.0, mcts_n_simulations=20,
+                     mcts_cap_rollout_by_heuristic=True)
+    nodes_t = torch.tensor([[0.], [10.]])       # one landmark plus goal
+    d_c2g = np.array([-8.0, 0.0], dtype=np.float32)
+    mcts = LandmarkMCTS(n_landmarks=1, value_fn=_WormholeV(), nodes_t=nodes_t,
+                        d_c2g_heuristic=d_c2g, cfg=cfg, rng=np.random.default_rng(0))
+
+    assert mcts._rollout(0, budget=1) <= -8.0
+    d_s2c = np.array([0.0, -5.0], dtype=np.float32)
+    best_idx, stats = mcts.search(d_s2c)
+    assert best_idx == 1, stats
+    print("ok  test_mcts_rollout_capped_by_soft_floyd_heuristic")
+
+
+def test_mcts_rollout_cap_is_fetch_default_only():
+    """Fetch enables the rollout cap by default to guard against critic
+    landmark-goal wormholes; PointMaze keeps the uncapped behavior used by the
+    existing E1 reports unless a script opts in explicitly."""
+    assert get_config("PointMaze").mcts_cap_rollout_by_heuristic is False
+    assert get_config("PointMazeMuJoCo").mcts_cap_rollout_by_heuristic is False
+    assert get_config("FetchPickAndPlace").mcts_cap_rollout_by_heuristic is True
+    print("ok  test_mcts_rollout_cap_is_fetch_default_only")
+
+
 def test_mcts_respects_prev_landmark_mask():
     """The root must never select a masked (previous) landmark, even when it
     would otherwise trivially win."""
@@ -389,6 +427,18 @@ def test_dmax_candidates_track_v_scale():
     cands_scaled = dmax_candidates(v * 10.0, percentiles=(10, 50, 90))
     assert abs(cands_scaled[1] / cands[1] - 10.0) < 1e-3
     print("ok  test_dmax_candidates_track_v_scale")
+
+
+def test_dmax_candidates_keep_fallback_for_tiny_v():
+    """Fetch-style checkpoints can contain many near-zero V wormholes; calibration
+    must still test the environment default cutoff instead of only tiny values."""
+    v = np.array([[0.0, 0.0, 1e-9],
+                  [0.0, 0.0, 2e-9],
+                  [1e-9, 2e-9, 0.0]])
+    cands = dmax_candidates(v, percentiles=(50,), fallback=15.0)
+    assert 15.0 in cands, cands
+    assert cands == sorted(cands) and len(cands) == len(set(cands))
+    print("ok  test_dmax_candidates_keep_fallback_for_tiny_v")
 
 
 def test_bootstrap_ci():
@@ -604,11 +654,14 @@ ALL_TESTS = [
     test_noisy_value_zero_sigma_passthrough,
     test_noisy_value_matches_distribution,
     test_mcts_matches_soft_floyd_at_sigma0,
+    test_mcts_rollout_capped_by_soft_floyd_heuristic,
+    test_mcts_rollout_cap_is_fetch_default_only,
     test_mcts_respects_prev_landmark_mask,
     test_mcts_planner_interface_compatible,
     test_naive_replan_every_step,
     test_mcts_admissibility_cached_once_per_episode,
     test_dmax_candidates_track_v_scale,
+    test_dmax_candidates_keep_fallback_for_tiny_v,
     test_bootstrap_ci,
     test_build_sigma_matrix,
     test_heterogeneous_noise,

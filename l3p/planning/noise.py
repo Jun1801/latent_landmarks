@@ -41,20 +41,32 @@ class NoisyValueFn:
         return noisy.clamp_min(0.0)
 
 
-def dmax_candidates(value_matrix, percentiles=(5, 8, 11, 15, 20, 25, 30)) -> list:
+def dmax_candidates(value_matrix, percentiles=(5, 8, 11, 15, 20, 25, 30),
+                    fallback: Optional[float] = None) -> list:
     """Candidate `d_max` edge-cutoff values derived from the distribution of the
     graph's own pairwise V distances (docs/SPEC_MCTS_Landmark_L3P.md R3: d_max is
     very sensitive and must be tuned for the checkpoint's V-scale, not left at the
     paper's fixed default which assumes a different V magnitude).
 
-    Returns the given percentiles of the off-diagonal V values, deduplicated and
-    sorted. `value_matrix` is a square [m, m] array of V(i, j) distances.
+    Returns the given percentiles of positive off-diagonal V values,
+    deduplicated and sorted. `value_matrix` is a square [m, m] array of V(i, j)
+    distances. `fallback` should be the environment's configured d_max; it keeps
+    calibration from collapsing when a checkpoint has many near-zero V wormholes
+    (observed on Fetch).
     """
     v = np.asarray(value_matrix, dtype=np.float64)
     m = v.shape[0]
     off = v[~np.eye(m, dtype=bool)]
-    cands = np.percentile(off, list(percentiles))
-    return sorted(set(round(float(c), 6) for c in cands))
+    off = off[np.isfinite(off)]
+    positive = off[off > 1e-8]
+    source = positive if positive.size else off
+    vals = []
+    if source.size:
+        vals.extend(float(c) for c in np.percentile(source, list(percentiles)))
+    if fallback is not None and np.isfinite(fallback) and fallback > 0:
+        vals.append(float(fallback))
+    vals = [round(float(c), 6) for c in vals if np.isfinite(c) and c >= 0]
+    return sorted(set(vals)) or [0.0]
 
 
 def bootstrap_ci(outcomes, n_boot: int = 2000, alpha: float = 0.05, rng=None):

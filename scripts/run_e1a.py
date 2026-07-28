@@ -127,7 +127,7 @@ def calibrate_d_max(trainer, n_episodes, base_seed):
         gi = lg[:, None, :].expand(m, m, lg.shape[1]).reshape(m * m, -1)
         gj = lg[None, :, :].expand(m, m, lg.shape[1]).reshape(m * m, -1)
         V = trainer.agent.value(gi, gj).view(m, m).cpu().numpy()
-    candidates = dmax_candidates(V)
+    candidates = dmax_candidates(V, fallback=trainer.cfg.d_max)
 
     sweep, best = [], (candidates[0], -1.0)
     for dmax in candidates:

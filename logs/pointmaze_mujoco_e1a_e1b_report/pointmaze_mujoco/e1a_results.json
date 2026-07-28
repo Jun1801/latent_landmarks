@@ -1,0 +1,163 @@
+{
+  "meta": {
+    "load": "/Users/mac/Documents/MCTS_VLA/Latent Lanmarks/checkpoint/l3p_pointmaze_mujoco.pt",
+    "seeds": [
+      0,
+      1
+    ],
+    "episodes": 30,
+    "env": "PointMazeMuJoCo",
+    "sigmas": [
+      0.0,
+      0.1,
+      0.3,
+      0.5
+    ],
+    "d_max": 4.213058,
+    "mcts_n_simulations": 200,
+    "mcts_rollout_horizon": 10,
+    "n_boot": 2000
+  },
+  "results": [
+    {
+      "sigma": 0.0,
+      "aggregate": {
+        "soft_floyd": {
+          "mean": 0.15,
+          "ci_low": 0.06666666666666667,
+          "ci_high": 0.25,
+          "n": 60
+        },
+        "naive_replan": {
+          "mean": 0.08333333333333333,
+          "ci_low": 0.016666666666666666,
+          "ci_high": 0.15,
+          "n": 60
+        },
+        "mcts": {
+          "mean": 0.1,
+          "ci_low": 0.03333333333333333,
+          "ci_high": 0.18333333333333332,
+          "n": 60
+        }
+      },
+      "per_seed": {
+        "0": {
+          "soft_floyd": 0.1,
+          "naive_replan": 0.03333333333333333,
+          "mcts": 0.06666666666666667
+        },
+        "1": {
+          "soft_floyd": 0.2,
+          "naive_replan": 0.13333333333333333,
+          "mcts": 0.13333333333333333
+        }
+      }
+    },
+    {
+      "sigma": 0.1,
+      "aggregate": {
+        "soft_floyd": {
+          "mean": 0.13333333333333333,
+          "ci_low": 0.05,
+          "ci_high": 0.23333333333333334,
+          "n": 60
+        },
+        "naive_replan": {
+          "mean": 0.06666666666666667,
+          "ci_low": 0.016666666666666666,
+          "ci_high": 0.13333333333333333,
+          "n": 60
+        },
+        "mcts": {
+          "mean": 0.06666666666666667,
+          "ci_low": 0.016666666666666666,
+          "ci_high": 0.13333333333333333,
+          "n": 60
+        }
+      },
+      "per_seed": {
+        "0": {
+          "soft_floyd": 0.1,
+          "naive_replan": 0.03333333333333333,
+          "mcts": 0.06666666666666667
+        },
+        "1": {
+          "soft_floyd": 0.16666666666666666,
+          "naive_replan": 0.1,
+          "mcts": 0.06666666666666667
+        }
+      }
+    },
+    {
+      "sigma": 0.3,
+      "aggregate": {
+        "soft_floyd": {
+          "mean": 0.13333333333333333,
+          "ci_low": 0.05,
+          "ci_high": 0.23333333333333334,
+          "n": 60
+        },
+        "naive_replan": {
+          "mean": 0.06666666666666667,
+          "ci_low": 0.016666666666666666,
+          "ci_high": 0.13333333333333333,
+          "n": 60
+        },
+        "mcts": {
+          "mean": 0.13333333333333333,
+          "ci_low": 0.05,
+          "ci_high": 0.21666666666666667,
+          "n": 60
+        }
+      },
+      "per_seed": {
+        "0": {
+          "soft_floyd": 0.1,
+          "naive_replan": 0.03333333333333333,
+          "mcts": 0.1
+        },
+        "1": {
+          "soft_floyd": 0.16666666666666666,
+          "naive_replan": 0.1,
+          "mcts": 0.16666666666666666
+        }
+      }
+    },
+    {
+      "sigma": 0.5,
+      "aggregate": {
+        "soft_floyd": {
+          "mean": 0.11666666666666667,
+          "ci_low": 0.05,
+          "ci_high": 0.2,
+          "n": 60
+        },
+        "naive_replan": {
+          "mean": 0.08333333333333333,
+          "ci_low": 0.016666666666666666,
+          "ci_high": 0.15,
+          "n": 60
+        },
+        "mcts": {
+          "mean": 0.1,
+          "ci_low": 0.03333333333333333,
+          "ci_high": 0.18333333333333332,
+          "n": 60
+        }
+      },
+      "per_seed": {
+        "0": {
+          "soft_floyd": 0.1,
+          "naive_replan": 0.06666666666666667,
+          "mcts": 0.13333333333333333
+        },
+        "1": {
+          "soft_floyd": 0.13333333333333333,
+          "naive_replan": 0.1,
+          "mcts": 0.06666666666666667
+        }
+      }
+    }
+  ]
+}

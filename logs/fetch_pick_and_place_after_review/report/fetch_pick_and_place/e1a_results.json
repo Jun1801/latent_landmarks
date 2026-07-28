@@ -1,0 +1,163 @@
+{
+  "meta": {
+    "load": "/Users/mac/Documents/MCTS_VLA/Latent Lanmarks/checkpoint/l3p_fetch.pt",
+    "seeds": [
+      0,
+      1
+    ],
+    "episodes": 30,
+    "env": "FetchPickAndPlace",
+    "sigmas": [
+      0.0,
+      0.1,
+      0.3,
+      0.5
+    ],
+    "d_max": 0.341713,
+    "mcts_n_simulations": 200,
+    "mcts_rollout_horizon": 10,
+    "n_boot": 2000
+  },
+  "results": [
+    {
+      "sigma": 0.0,
+      "aggregate": {
+        "soft_floyd": {
+          "mean": 0.4166666666666667,
+          "ci_low": 0.2833333333333333,
+          "ci_high": 0.55,
+          "n": 60
+        },
+        "naive_replan": {
+          "mean": 0.4,
+          "ci_low": 0.2833333333333333,
+          "ci_high": 0.5166666666666667,
+          "n": 60
+        },
+        "mcts": {
+          "mean": 0.4166666666666667,
+          "ci_low": 0.3,
+          "ci_high": 0.55,
+          "n": 60
+        }
+      },
+      "per_seed": {
+        "0": {
+          "soft_floyd": 0.5333333333333333,
+          "naive_replan": 0.5,
+          "mcts": 0.5333333333333333
+        },
+        "1": {
+          "soft_floyd": 0.3,
+          "naive_replan": 0.3,
+          "mcts": 0.3
+        }
+      }
+    },
+    {
+      "sigma": 0.1,
+      "aggregate": {
+        "soft_floyd": {
+          "mean": 0.4166666666666667,
+          "ci_low": 0.2833333333333333,
+          "ci_high": 0.55,
+          "n": 60
+        },
+        "naive_replan": {
+          "mean": 0.4,
+          "ci_low": 0.2833333333333333,
+          "ci_high": 0.5166666666666667,
+          "n": 60
+        },
+        "mcts": {
+          "mean": 0.4166666666666667,
+          "ci_low": 0.3,
+          "ci_high": 0.55,
+          "n": 60
+        }
+      },
+      "per_seed": {
+        "0": {
+          "soft_floyd": 0.5333333333333333,
+          "naive_replan": 0.5,
+          "mcts": 0.5333333333333333
+        },
+        "1": {
+          "soft_floyd": 0.3,
+          "naive_replan": 0.3,
+          "mcts": 0.3
+        }
+      }
+    },
+    {
+      "sigma": 0.3,
+      "aggregate": {
+        "soft_floyd": {
+          "mean": 0.4166666666666667,
+          "ci_low": 0.2833333333333333,
+          "ci_high": 0.55,
+          "n": 60
+        },
+        "naive_replan": {
+          "mean": 0.4,
+          "ci_low": 0.2833333333333333,
+          "ci_high": 0.5166666666666667,
+          "n": 60
+        },
+        "mcts": {
+          "mean": 0.43333333333333335,
+          "ci_low": 0.31666666666666665,
+          "ci_high": 0.5666666666666667,
+          "n": 60
+        }
+      },
+      "per_seed": {
+        "0": {
+          "soft_floyd": 0.5333333333333333,
+          "naive_replan": 0.5,
+          "mcts": 0.5333333333333333
+        },
+        "1": {
+          "soft_floyd": 0.3,
+          "naive_replan": 0.3,
+          "mcts": 0.3333333333333333
+        }
+      }
+    },
+    {
+      "sigma": 0.5,
+      "aggregate": {
+        "soft_floyd": {
+          "mean": 0.4166666666666667,
+          "ci_low": 0.2833333333333333,
+          "ci_high": 0.55,
+          "n": 60
+        },
+        "naive_replan": {
+          "mean": 0.4,
+          "ci_low": 0.2833333333333333,
+          "ci_high": 0.5166666666666667,
+          "n": 60
+        },
+        "mcts": {
+          "mean": 0.43333333333333335,
+          "ci_low": 0.31666666666666665,
+          "ci_high": 0.5666666666666667,
+          "n": 60
+        }
+      },
+      "per_seed": {
+        "0": {
+          "soft_floyd": 0.5333333333333333,
+          "naive_replan": 0.5,
+          "mcts": 0.5333333333333333
+        },
+        "1": {
+          "soft_floyd": 0.3,
+          "naive_replan": 0.3,
+          "mcts": 0.3333333333333333
+        }
+      }
+    }
+  ]
+}

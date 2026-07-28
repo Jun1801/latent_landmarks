@@ -75,7 +75,7 @@ def d_edge_matrix(trainer):
 def calibrate_d_max(trainer, cfg, n_episodes, base_seed):
     """Tune d_max on the CLEAN-D Soft Floyd baseline (sigma=0), spec R3. Candidates
     are percentiles of the critic-D edge distribution (env-step scale)."""
-    cands = dmax_candidates(d_edge_matrix(trainer))
+    cands = dmax_candidates(d_edge_matrix(trainer), fallback=trainer.cfg.d_max)
     best, sweep = (cands[0], -1.0), []
     for dmax in cands:
         trainer.cfg.d_max = dmax

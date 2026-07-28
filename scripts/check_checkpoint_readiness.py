@@ -63,7 +63,7 @@ def value_dmax_candidates(trainer, percentiles: list[float]) -> list[float]:
         gi = goals[:, None, :].expand(m, m, goals.shape[1]).reshape(m * m, -1)
         gj = goals[None, :, :].expand(m, m, goals.shape[1]).reshape(m * m, -1)
         V = trainer.agent.value(gi, gj).view(m, m).cpu().numpy()
-    return dmax_candidates(V, percentiles=percentiles)
+    return dmax_candidates(V, percentiles=percentiles, fallback=trainer.cfg.d_max)
 
 
 def mean(xs: list[int]) -> float:

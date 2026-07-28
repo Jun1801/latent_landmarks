@@ -1,11 +1,12 @@
 {
   "meta": {
-    "load": "l3p_pointmaze_full.pt",
+    "env": "PointMaze",
+    "load": "checkpoint/l3p_pointmaze_full.pt",
     "seeds": [
       0,
       1
     ],
-    "episodes": 10,
+    "episodes": 30,
     "sigmas": [
       0.0,
       0.3
@@ -17,7 +18,7 @@
     "tau_progress": 3.0,
     "r_max": 2,
     "d_max": 0.998185,
-    "mcts_n_simulations": 10,
+    "mcts_n_simulations": 20,
     "mcts_rollout_horizon": 10
   },
   "results": [
@@ -25,21 +26,21 @@
       "sigma": 0.0,
       "aggregate": {
         "soft_floyd": {
-          "mean": 0.85,
-          "ci_low": 0.7,
-          "ci_high": 1.0,
-          "n": 20,
+          "mean": 0.8666666666666667,
+          "ci_low": 0.7833333333333333,
+          "ci_high": 0.95,
+          "n": 60,
           "stats": {}
         },
         "mcts_nofb": {
           "mean": 1.0,
           "ci_low": 1.0,
           "ci_high": 1.0,
-          "n": 20,
+          "n": 60,
           "stats": {
             "blacklisted": 0.0,
             "corrections": 0.0,
-            "macros": 171.8,
+            "macros": 345.45,
             "progressed": 0.0,
             "reached": 0.0,
             "stuck": 0.0
@@ -49,25 +50,25 @@
           "mean": 1.0,
           "ci_low": 1.0,
           "ci_high": 1.0,
-          "n": 20,
+          "n": 60,
           "stats": {
-            "blacklisted": 0.65,
-            "corrections": 145.2,
-            "macros": 169.55,
-            "progressed": 0.35,
-            "reached": 144.2,
-            "stuck": 0.65
+            "blacklisted": 0.1,
+            "corrections": 222.23333333333332,
+            "macros": 330.28333333333336,
+            "progressed": 0.11666666666666667,
+            "reached": 222.01666666666668,
+            "stuck": 0.1
           }
         }
       },
       "per_seed": {
         "0": {
-          "soft_floyd": 0.8,
+          "soft_floyd": 0.7666666666666667,
           "mcts_nofb": 1.0,
           "mcts_fb": 1.0
         },
         "1": {
-          "soft_floyd": 0.9,
+          "soft_floyd": 0.9666666666666667,
           "mcts_nofb": 1.0,
           "mcts_fb": 1.0
         }
@@ -77,21 +78,21 @@
       "sigma": 0.3,
       "aggregate": {
         "soft_floyd": {
-          "mean": 0.8,
-          "ci_low": 0.6,
+          "mean": 0.8833333333333333,
+          "ci_low": 0.8,
           "ci_high": 0.95,
-          "n": 20,
+          "n": 60,
           "stats": {}
         },
         "mcts_nofb": {
           "mean": 1.0,
           "ci_low": 1.0,
           "ci_high": 1.0,
-          "n": 20,
+          "n": 60,
           "stats": {
             "blacklisted": 0.0,
             "corrections": 0.0,
-            "macros": 140.35,
+            "macros": 195.06666666666666,
             "progressed": 0.0,
             "reached": 0.0,
             "stuck": 0.0
@@ -101,25 +102,25 @@
           "mean": 1.0,
           "ci_low": 1.0,
           "ci_high": 1.0,
-          "n": 20,
+          "n": 60,
           "stats": {
-            "blacklisted": 8.15,
-            "corrections": 96.05,
-            "macros": 114.7,
-            "progressed": 5.1,
-            "reached": 82.8,
-            "stuck": 8.15
+            "blacklisted": 4.6,
+            "corrections": 114.75,
+            "macros": 179.25,
+            "progressed": 1.2833333333333334,
+            "reached": 108.86666666666666,
+            "stuck": 4.6
           }
         }
       },
       "per_seed": {
         "0": {
-          "soft_floyd": 0.8,
+          "soft_floyd": 0.8333333333333334,
           "mcts_nofb": 1.0,
           "mcts_fb": 1.0
         },
         "1": {
-          "soft_floyd": 0.8,
+          "soft_floyd": 0.9333333333333333,
           "mcts_nofb": 1.0,
           "mcts_fb": 1.0
         }

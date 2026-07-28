@@ -344,7 +344,7 @@ def evaluate_one(trainer, planner, episode_seed):
 
 
 def calibrate_d_max(trainer, n_episodes, base_seed):
-    candidates = dmax_candidates(d_edge_matrix(trainer))
+    candidates = dmax_candidates(d_edge_matrix(trainer), fallback=trainer.cfg.d_max)
     best, sweep = (candidates[0], -1.0), []
     for dmax in candidates:
         trainer.cfg.d_max = dmax
@@ -388,8 +388,10 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--env", default="PointMaze", choices=list_envs())
     p.add_argument("--load", type=str, default="checkpoint/l3p_pointmaze_full.pt")
-    p.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
-    p.add_argument("--episodes", type=int, default=50)
+    p.add_argument("--seeds", type=int, nargs="+", default=[0, 1],
+                   help="report default: two paired seeds")
+    p.add_argument("--episodes", type=int, default=30,
+                   help="eval episodes per (branch, sigma, seed)")
     p.add_argument("--sigmas", type=float, nargs="+", default=[0.0, 0.3])
     p.add_argument("--graph-sigma-scale", type=float, default=1.0,
                    help="graph-D noise std = sigma * this scale")
@@ -401,7 +403,8 @@ def main():
     p.add_argument("--r-max", type=int, default=2)
     p.add_argument("--sanity-tol", type=float, default=0.2)
     p.add_argument("--n-boot", type=int, default=2000)
-    p.add_argument("--mcts-n-simulations", type=int, default=200)
+    p.add_argument("--mcts-n-simulations", type=int, default=20,
+                   help="report default; E1d feedback replans are expensive")
     p.add_argument("--mcts-rollout-horizon", type=int, default=10)
     p.add_argument("--d-max", type=float, default=None)
     p.add_argument("--calibrate-episodes", type=int, default=20)

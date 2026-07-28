@@ -1,0 +1,22 @@
+$ /opt/homebrew/opt/python@3.11/bin/python3.11 '/Users/mac/Documents/MCTS_VLA/Latent Lanmarks/scripts/run_e1b.py' --env FetchPickAndPlace --load '/Users/mac/Documents/MCTS_VLA/Latent Lanmarks/checkpoint/l3p_fetch.pt' --seeds 0 1 --episodes 30 --calibrate-episodes 20 --out logs/fetch_pick_and_place_after_review/report/fetch_pick_and_place/e1b_results.json --plot logs/fetch_pick_and_place_after_review/report/fetch_pick_and_place/e1b_curve.png --sanity-tol 0.2 --sigma-hi 0 0.5 1.0 --mcts-n-simulations 100
+
+AdroitHandRelocateDense-v1, AdroitHandHammerDense-v1, AdroitHandDoorDense-v1 environment's reward functions were updated in v1.2.1 without an environment version update. Therefore, use gymnasium-robotics==1.2.0 for v1 reproducibility or use v2 in gymnasium-robotics>=1.4.3. See https://github.com/Farama-Foundation/Gymnasium-Robotics/pull/220 for more details
+E1b on FetchPickAndPlace: uncertainty-bonus ablation (none / alpha / beta) under heterogeneous per-edge oracle uncertainty.
+d_max calibration (clean Soft Floyd, spec R3):
+    d_max=  0.000 -> 0.00
+    d_max=  0.000 -> 0.00
+    d_max=  0.000 -> 0.00
+    d_max=  0.000 -> 0.00
+    d_max=  0.000 -> 0.00
+    d_max=  0.009 -> 0.40
+    d_max=  0.342 -> 0.50   <- chosen
+    d_max= 15.000 -> 0.50
+Config: d_max=0.342  sims=100  frac_high=0.3  lambda_risk=3.0  beta_unc=1.0  seeds=[0, 1]  eps/seed=30
+sigma_hi=0.00  MCTS (β=0)=0.42[0.28,0.55]  MCTS+α (risk penalty)=0.42[0.30,0.53]  MCTS+β (UCT bonus)=0.42[0.30,0.55]
+  >> sigma_hi=0 sanity passed (variant spread=0.00 <= 0.2)
+sigma_hi=0.50  MCTS (β=0)=0.43[0.32,0.57]  MCTS+α (risk penalty)=0.45[0.33,0.58]  MCTS+β (UCT bonus)=0.43[0.32,0.57]
+sigma_hi=1.00  MCTS (β=0)=0.43[0.32,0.57]  MCTS+α (risk penalty)=0.50[0.38,0.63]  MCTS+β (UCT bonus)=0.43[0.32,0.57]
+
+MCTS latency: 2.31 s/episode (budget 100).
+Saved results to logs/fetch_pick_and_place_after_review/report/fetch_pick_and_place/e1b_results.json
+Saved plot to logs/fetch_pick_and_place_after_review/report/fetch_pick_and_place/e1b_curve.png

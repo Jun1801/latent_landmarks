@@ -23,9 +23,9 @@
             "--calibrate-episodes",
             "20",
             "--out",
-            "/Users/mac/Documents/MCTS_VLA/Latent Lanmarks/logs/kaggle_e1_runs/pointmaze_mujoco/e1a_results.json",
+            "logs/pointmaze_mujoco_e1a_e1b_report/pointmaze_mujoco/e1a_results.json",
             "--plot",
-            "/Users/mac/Documents/MCTS_VLA/Latent Lanmarks/logs/kaggle_e1_runs/pointmaze_mujoco/e1a_curve.png",
+            "logs/pointmaze_mujoco_e1a_e1b_report/pointmaze_mujoco/e1a_curve.png",
             "--sanity-tol",
             "0.2",
             "--sigmas",
@@ -36,7 +36,10 @@
             "--mcts-n-simulations",
             "200"
           ],
-          "status": "dry-run"
+          "status": "ok",
+          "returncode": 0,
+          "seconds": 2863.662167072296,
+          "log": "logs/pointmaze_mujoco_e1a_e1b_report/pointmaze_mujoco/e1a.log"
         },
         {
           "exp": "e1b",
@@ -55,9 +58,9 @@
             "--calibrate-episodes",
             "20",
             "--out",
-            "/Users/mac/Documents/MCTS_VLA/Latent Lanmarks/logs/kaggle_e1_runs/pointmaze_mujoco/e1b_results.json",
+            "logs/pointmaze_mujoco_e1a_e1b_report/pointmaze_mujoco/e1b_results.json",
             "--plot",
-            "/Users/mac/Documents/MCTS_VLA/Latent Lanmarks/logs/kaggle_e1_runs/pointmaze_mujoco/e1b_curve.png",
+            "logs/pointmaze_mujoco_e1a_e1b_report/pointmaze_mujoco/e1b_curve.png",
             "--sanity-tol",
             "0.2",
             "--sigma-hi",
@@ -67,13 +70,16 @@
             "--mcts-n-simulations",
             "100"
           ],
-          "status": "dry-run"
+          "status": "ok",
+          "returncode": 0,
+          "seconds": 5294.354863882065,
+          "log": "logs/pointmaze_mujoco_e1a_e1b_report/pointmaze_mujoco/e1b.log"
         }
       ],
       "resolved_checkpoint": "/Users/mac/Documents/MCTS_VLA/Latent Lanmarks/checkpoint/l3p_pointmaze_mujoco.pt",
       "status": "done"
     }
   ],
-  "started_at": 1785162208.906404,
-  "finished_at": 1785162208.919669
+  "started_at": 1785162269.7105,
+  "finished_at": 1785170427.7330828
 }
