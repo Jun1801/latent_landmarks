@@ -1,0 +1,14 @@
+$ /usr/bin/python3 /kaggle/working/latent_landmarks/scripts/run_e1b.py --env FetchPickAndPlace --load /kaggle/working/latent_landmarks/checkpoint/l3p_fetch.pt --seeds 0 1 --episodes 30 --calibrate-episodes 20 --out /kaggle/working/e1_runs/fetch_pick_and_place/e1b_results.json --plot /kaggle/working/e1_runs/fetch_pick_and_place/e1b_curve.png --sanity-tol 0.2 --sigma-hi 0 0.5 1.0 --mcts-n-simulations 100
+
+E1b on FetchPickAndPlace: uncertainty-bonus ablation (none / alpha / beta) under heterogeneous per-edge oracle uncertainty.
+d_max calibration (clean Soft Floyd, spec R3):
+    d_max=  0.000 -> 0.00   <- chosen
+Config: d_max=0.000  sims=100  frac_high=0.3  lambda_risk=3.0  beta_unc=1.0  seeds=[0, 1]  eps/seed=30
+sigma_hi=0.00  MCTS (β=0)=0.13[0.05,0.22]  MCTS+α (risk penalty)=0.13[0.05,0.22]  MCTS+β (UCT bonus)=0.13[0.05,0.23]
+  >> sigma_hi=0 sanity passed (variant spread=0.00 <= 0.2)
+sigma_hi=0.50  MCTS (β=0)=0.05[0.00,0.12]  MCTS+α (risk penalty)=0.32[0.20,0.43]  MCTS+β (UCT bonus)=0.05[0.00,0.12]
+sigma_hi=1.00  MCTS (β=0)=0.05[0.00,0.12]  MCTS+α (risk penalty)=0.52[0.38,0.65]  MCTS+β (UCT bonus)=0.05[0.00,0.12]
+
+MCTS latency: 24.94 s/episode (budget 100).
+Saved results to /kaggle/working/e1_runs/fetch_pick_and_place/e1b_results.json
+Saved plot to /kaggle/working/e1_runs/fetch_pick_and_place/e1b_curve.png

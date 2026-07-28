@@ -1,0 +1,18 @@
+$ /usr/bin/python3 /kaggle/working/latent_landmarks/scripts/run_e1a.py --env FetchPickAndPlace --load /kaggle/working/latent_landmarks/checkpoint/l3p_fetch.pt --seeds 0 1 --episodes 30 --calibrate-episodes 20 --out /kaggle/working/e1_runs/fetch_pick_and_place/e1a_results.json --plot /kaggle/working/e1_runs/fetch_pick_and_place/e1a_curve.png --sanity-tol 1.0 --sigmas 0 0.1 0.3 0.5 --mcts-n-simulations 200
+
+E1a on FetchPickAndPlace. Caveat (spec risk R2): short/easy envs can have thin planning headroom; MuJoCo envs require gymnasium-robotics/mujoco.
+d_max calibration (noise-free Soft Floyd, spec R3):
+    d_max=  0.000 -> floyd success 0.00   <- chosen
+
+*** WARNING: even the best-tuned Soft Floyd baseline is near 0. E1a results would be meaningless; retrain / pick a better checkpoint (spec Sec 8 KB3).
+
+Config: d_max=0.000  mcts_n_simulations=200  mcts_rollout_horizon=10  seeds=[0, 1]  episodes/seed=30
+sigma=0.00  Soft Floyd=0.05 [0.00,0.12]  Naive re-plan=0.05 [0.00,0.12]  MCTS=0.40 [0.28,0.52]
+  >> sigma=0 sanity check passed (|mcts-floyd|=0.35 <= 1.00)
+sigma=0.10  Soft Floyd=0.05 [0.00,0.12]  Naive re-plan=0.05 [0.00,0.12]  MCTS=0.05 [0.00,0.12]
+sigma=0.30  Soft Floyd=0.05 [0.00,0.12]  Naive re-plan=0.05 [0.00,0.12]  MCTS=0.05 [0.00,0.12]
+sigma=0.50  Soft Floyd=0.05 [0.00,0.12]  Naive re-plan=0.05 [0.00,0.12]  MCTS=0.05 [0.00,0.12]
+
+MCTS latency: 35.76 s/episode (budget 200 sims).
+Saved results to /kaggle/working/e1_runs/fetch_pick_and_place/e1a_results.json
+Saved plot to /kaggle/working/e1_runs/fetch_pick_and_place/e1a_curve.png
