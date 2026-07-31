@@ -19,12 +19,26 @@ apt-get install -y -qq wget unzip git build-essential gcc patchelf \
     libopenmpi-dev openmpi-bin >/dev/null
 
 echo "== [2/6] miniconda + python 3.7.4 env =="
-if [ ! -d /opt/conda ]; then
+if [ ! -x /opt/conda/bin/conda ]; then
     wget -q https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/mc.sh
     bash /tmp/mc.sh -b -p /opt/conda
 fi
 export PATH=/opt/conda/bin:$PATH
-conda create -y -n l3p python=3.7.4 >/dev/null 2>&1 || echo "  env l3p exists"
+# Newer conda refuses defaults/anaconda channels until the ToS is accepted --
+# this is the usual reason `conda create` fails silently on modern Kaggle images.
+conda tos accept --override-channels --channel defaults >/dev/null 2>&1 || true
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main >/dev/null 2>&1 || true
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r >/dev/null 2>&1 || true
+# Create the env ONLY if it is not already a VALID conda env. A bare directory
+# (left by an interrupted create) is not valid -> conda-meta/history must exist.
+if conda env list | awk '{print $1}' | grep -qx l3p \
+        && [ -f /opt/conda/envs/l3p/conda-meta/history ]; then
+    echo "  env l3p already valid -- reusing"
+else
+    echo "  (re)creating env l3p (python 3.7.4)"
+    rm -rf /opt/conda/envs/l3p                 # clear any partial/broken dir
+    conda create -y -n l3p python=3.7.4        # errors now surface (no silent ||)
+fi
 
 echo "== [3/6] MuJoCo 2.0 binaries + free key =="
 mkdir -p "$HOME/.mujoco"
