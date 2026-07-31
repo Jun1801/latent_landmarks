@@ -57,6 +57,9 @@ conda run -n l3p pip install -q --no-cache-dir torch==1.5.1+cu101 \
     -f https://download.pytorch.org/whl/torch_stable.html
 conda run -n l3p pip install -q --no-cache-dir tensorflow==1.13.1
 conda run -n l3p pip install -q --no-cache-dir "cython<3" gym==0.13.1 mpi4py==3.0.3
+# paper repo (goal_env/plane.py) imports cv2; headless build avoids libGL on the
+# server and stays compatible with the pinned numpy 1.19 on py3.7.
+conda run -n l3p pip install -q --no-cache-dir opencv-python-headless==4.5.5.64
 # mujoco_py 2.0.2.13 is a pre-PEP517 sdist: modern pip aborts its wheel build
 # with "cannot fall back to setuptools without 'wheel'". Use a 2019-era pip that
 # builds via legacy setup.py, against the env's own setuptools/wheel/Cython.
