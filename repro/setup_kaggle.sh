@@ -56,6 +56,10 @@ conda run -n l3p pip install -q --no-cache-dir numpy==1.19.5 pandas==1.1.1
 conda run -n l3p pip install -q --no-cache-dir torch==1.5.1+cu101 \
     -f https://download.pytorch.org/whl/torch_stable.html
 conda run -n l3p pip install -q --no-cache-dir tensorflow==1.13.1
+# TF 1.13.1's loose protobuf pin pulls a >=3.20 wheel whose C++ descriptors
+# reject TF 1.13's generated _pb2 files ("Descriptors cannot not be created
+# directly"). Force a compatible protobuf back down.
+conda run -n l3p pip install -q --no-cache-dir "protobuf==3.19.6"
 conda run -n l3p pip install -q --no-cache-dir "cython<3" gym==0.13.1 mpi4py==3.0.3
 # paper repo (goal_env/plane.py) imports cv2; headless build avoids libGL on the
 # server and stays compatible with the pinned numpy 1.19 on py3.7.
