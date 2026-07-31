@@ -57,7 +57,11 @@ conda run -n l3p pip install -q --no-cache-dir torch==1.5.1+cu101 \
     -f https://download.pytorch.org/whl/torch_stable.html
 conda run -n l3p pip install -q --no-cache-dir tensorflow==1.13.1
 conda run -n l3p pip install -q --no-cache-dir "cython<3" gym==0.13.1 mpi4py==3.0.3
-conda run -n l3p pip install -q --no-cache-dir mujoco_py==2.0.2.13
+# mujoco_py 2.0.2.13 is a pre-PEP517 sdist: modern pip aborts its wheel build
+# with "cannot fall back to setuptools without 'wheel'". Use a 2019-era pip that
+# builds via legacy setup.py, against the env's own setuptools/wheel/Cython.
+conda run -n l3p pip install -q --no-cache-dir "pip<21" "setuptools<66" wheel
+conda run -n l3p pip install -q --no-cache-dir --no-build-isolation --no-use-pep517 mujoco_py==2.0.2.13
 
 echo "== [5/6] clone paper repo =="
 cd /kaggle/working 2>/dev/null || cd "$HOME"
