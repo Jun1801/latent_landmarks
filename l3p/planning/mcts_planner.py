@@ -1,9 +1,7 @@
-"""MCTS-over-landmarks (docs/SPEC_MCTS_Landmark_L3P.md, Section 2) — Phase 1.
+"""MCTS-over-landmarks (docs/SPEC_MCTS_Landmark_L3P.md, Sections 2-4).
 
-Plain UCT selection + sample-based rollout, NO beta*sigma_V uncertainty bonus
-(that, plus reward-shaping / case-2-3 recovery / execution feedback, is Phase 2
-and lives in a follow-up plan; see the SPEC's Section 4/§3 and the "Explicitly
-deferred" note in the approved plan).
+Implements UCT selection, sample-based rollout, alpha/beta uncertainty handling,
+execution feedback, recovery, and loop guards used by E1a-E1d.
 
 `LandmarkMCTS` is a standalone, directly-testable search engine: it knows
 nothing about the agent/env, only about the discrete landmark+goal graph. Its
@@ -25,6 +23,7 @@ previous-landmark bookkeeping are all inherited unchanged.
 from __future__ import annotations
 
 import math
+import time
 from collections import defaultdict
 from typing import Dict, List, Optional, Tuple
 
@@ -34,6 +33,24 @@ import torch
 from l3p.planning.planner import LatentPlanner
 from l3p.planning.noise import (build_sigma_matrix, HeterogeneousNoise,
                                 build_bias_matrix, CriticEdgeFn, BiasedValueFn)
+
+
+def update_running_variance(stats, key, sample):
+    """Welford update for per-edge execution residuals."""
+    n, mean, m2 = stats.get(key, (0, 0.0, 0.0))
+    n += 1
+    delta = float(sample) - mean
+    mean += delta / n
+    m2 += delta * (float(sample) - mean)
+    stats[key] = (n, mean, m2)
+
+
+def running_sigma_matrix(stats, size):
+    sigma = np.zeros((size, size), dtype=np.float64)
+    for (i, j), (n, _, m2) in stats.items():
+        if n > 1:
+            sigma[i, j] = math.sqrt(max(0.0, m2 / (n - 1)))
+    return sigma
 
 
 class _Node:
@@ -78,7 +95,7 @@ class LandmarkMCTS:
         self.cfg = cfg
         self.rng = rng
         # E1b oracle uncertainty (docs/... Sec 3): per-edge sigma_ij + a mode.
-        # "alpha" subtracts lambda_risk*sigma from landmark->landmark edge costs
+        # "alpha" subtracts lambda_risk*variance from landmark->landmark edge costs
         # (risk-averse: avoid uncertain edges); "beta" adds beta_unc*sigma to the
         # UCT selection score (probe uncertain edges). "none" => plain MCTS
         # (the MCTS-beta=0 ablation). sigma is defined only over landmark/goal
@@ -87,9 +104,13 @@ class LandmarkMCTS:
         self.sigma = sigma_matrix
         self.unc_mode = getattr(cfg, "mcts_uncertainty_mode", "none")
         self.lambda_risk = getattr(cfg, "mcts_lambda_risk", 0.0)
+        self.lambda_goal = getattr(cfg, "mcts_lambda_goal", 0.0)
         self.beta_unc = getattr(cfg, "mcts_beta_uncertainty", 0.0)
         if self.sigma is None:
             self.unc_mode = "none"
+        prepare_nodes = getattr(self.value_fn, "prepare_nodes", None)
+        if callable(prepare_nodes):
+            prepare_nodes(self.nodes_t)
         # d_max masking is a STRUCTURAL property of the graph (which edges
         # exist at all). It must not be re-decided per traversal: unlike Soft
         # Floyd's softmax (which lets a hugely-negative masked logit vanish to
@@ -125,28 +146,47 @@ class LandmarkMCTS:
         return [j for j in range(self.n + 1) if j != i and self._admissible[i, j]]
 
     def _edge_cost(self, i: int, j: int) -> float:
-        v = self.value_fn(self.nodes_t[i:i + 1], self.nodes_t[j:j + 1]).item()
+        sample_indexed = getattr(self.value_fn, "sample_indexed", None)
+        if callable(sample_indexed):
+            v = sample_indexed(i, [j]).item()
+        else:
+            v = self.value_fn(self.nodes_t[i:i + 1], self.nodes_t[j:j + 1]).item()
         cost = -v
-        if self.unc_mode == "alpha":            # risk penalty on the reward (E1b)
-            cost -= self.lambda_risk * float(self.sigma[i, j])
+        if self.unc_mode in ("alpha", "both"):
+            cost -= self.lambda_risk * float(self.sigma[i, j]) ** 2
+        if j == self.goal_idx:
+            cost += self.lambda_goal
         return cost
 
     def _batch_edge_costs(self, i: int, js: List[int]) -> np.ndarray:
         """Costs for many candidate edges out of `i` in one value_fn call."""
-        gi = self.nodes_t[i:i + 1].expand(len(js), -1)
-        gj = self.nodes_t[js]
-        costs = -self.value_fn(gi, gj).detach().cpu().numpy()
-        if self.unc_mode == "alpha":
-            costs = costs - self.lambda_risk * self.sigma[i, js]
+        sample_indexed = getattr(self.value_fn, "sample_indexed", None)
+        if callable(sample_indexed):
+            values = sample_indexed(i, js)
+        else:
+            gi = self.nodes_t[i:i + 1].expand(len(js), -1)
+            gj = self.nodes_t[js]
+            values = self.value_fn(gi, gj)
+        costs = -values.detach().cpu().numpy()
+        if self.unc_mode in ("alpha", "both"):
+            costs = costs - self.lambda_risk * np.square(self.sigma[i, js])
+        if self.lambda_goal:
+            costs = costs + self.lambda_goal * (np.asarray(js) == self.goal_idx)
         return costs
 
     def _uct_bonus(self, node: "_Node"):
         """beta exploration bonus fn for UCT selection at `node` (E1b), or None.
         Root (state->landmark) edges carry no oracle uncertainty."""
-        if self.unc_mode != "beta" or node.idx is None:
+        if self.unc_mode not in ("beta", "both") or node.idx is None:
             return None
         pi = node.idx
-        return lambda j: self.beta_unc * float(self.sigma[pi, j])
+        # Known aleatoric sigma implies standard error sigma/sqrt(n) for the
+        # estimated edge mean. The information bonus therefore decays as the
+        # simulation gathers samples instead of permanently favoring noisy edges.
+        return lambda j: (
+            self.beta_unc * float(self.sigma[pi, j])
+            / math.sqrt(max(1, node.child_visits[j]))
+        )
 
     def _rollout(self, start_idx: int, budget: int) -> float:
         start_heuristic = float(self.heuristic[start_idx])
@@ -176,7 +216,7 @@ class LandmarkMCTS:
         return total
 
     def search(self, d_s2c: np.ndarray, mask: Optional[np.ndarray] = None
-              ) -> Tuple[int, Dict[int, Tuple[int, float]]]:
+              ) -> Tuple[Optional[int], Dict[int, Tuple[int, float]]]:
         """Run `cfg.mcts_n_simulations` simulations rooted at the real state
         (edges = `d_s2c`) and return (best_root_child, {child: (visits, mean_q)}).
         `mask[j]=True` excludes candidate j from the ROOT only (mirrors
@@ -184,8 +224,20 @@ class LandmarkMCTS:
         if mask is None:
             mask = np.zeros(self.n + 1, dtype=bool)
         root = _Node(idx=None, candidates=[j for j in range(self.n + 1) if not mask[j]])
+        started = time.perf_counter()
 
-        for _ in range(self.cfg.mcts_n_simulations):
+        # UCT cannot compare an action it has never expanded. Reserve one pass to
+        # cover every root action and one pass for UCT to allocate repeat samples;
+        # otherwise max-visit selection degenerates to a tie of one noisy rollout.
+        root_width = len(root.untried)
+        n_simulations = max(
+            int(self.cfg.mcts_n_simulations),
+            2 * root_width if root_width else 0)
+        if root_width == 0:
+            self.last_search_seconds = time.perf_counter() - started
+            self.actual_simulations = 0
+            return None, {}
+        for _ in range(n_simulations):
             path: List[Tuple[_Node, int]] = []
             node = root
             depth = 0
@@ -215,8 +267,12 @@ class LandmarkMCTS:
             # edges resample the (possibly noisy) value_fn on every use.
             tree_return = 0.0
             for parent, child_idx in path:
-                tree_return += (d_s2c[child_idx] if parent.idx is None
-                               else self._edge_cost(parent.idx, child_idx))
+                if parent.idx is None:
+                    tree_return += d_s2c[child_idx]
+                    if child_idx == self.goal_idx:
+                        tree_return += self.lambda_goal
+                else:
+                    tree_return += self._edge_cost(parent.idx, child_idx)
 
             # ROLLOUT (Soft-Floyd-greedy) from the reached node
             if node.idx == self.goal_idx:
@@ -240,6 +296,8 @@ class LandmarkMCTS:
             key = (visits, q)              # robust child: max visits, tie-break by Q
             if key > best_key:
                 best_key, best_idx = key, j
+        self.last_search_seconds = time.perf_counter() - started
+        self.actual_simulations = n_simulations
         return best_idx, stats
 
 
@@ -253,6 +311,19 @@ class MCTSPlanner(LatentPlanner):
         super().__init__(agent, landmarks, autoencoder, graph_search, cfg)
         self.rng = rng if rng is not None else np.random.default_rng(cfg.mcts_seed)
         self._admissible: Optional[np.ndarray] = None
+        self.search_seconds = 0.0
+        self.search_calls = 0
+
+    @staticmethod
+    def _soft_floyd_action(d_s2c, d_c2g, mask):
+        combined = np.asarray(d_s2c) + np.asarray(d_c2g)
+        combined = combined.copy()
+        combined[np.asarray(mask, dtype=bool)] = -np.inf
+        return None if np.all(np.isneginf(combined)) else int(np.argmax(combined))
+
+    def _is_deterministic_limit(self):
+        sigma = getattr(self.agent.value, "sigma", None)
+        return sigma is not None and float(sigma) <= 0.0
 
     @torch.no_grad()
     def reset(self, goal: np.ndarray, extra_centroids: Optional[torch.Tensor] = None) -> None:
@@ -260,14 +331,24 @@ class MCTSPlanner(LatentPlanner):
         mask ONCE for the whole episode -- matching self.d_c2g's cadence, so
         MCTS's own view of "which edges exist" never drifts from the heuristic
         it scores rollouts against (see LandmarkMCTS.build_admissibility)."""
-        super().reset(goal, extra_centroids)
+        self.reset_state()
+        self.search_seconds = 0.0
+        self.search_calls = 0
+        self.goal = np.asarray(goal, dtype=np.float32)
+        centroids = self.landmarks.centroids.detach()
+        if extra_centroids is not None and extra_centroids.numel() > 0:
+            centroids = torch.cat([centroids, extra_centroids.to(self.device)], dim=0)
+        self.n_landmarks = centroids.shape[0]
         if self.n_landmarks == 0:
             self._admissible = None
             return
-        nodes_t = torch.as_tensor(
-            np.concatenate([self.landmark_goals, self.goal[None, :]], axis=0),
-            dtype=torch.float32, device=self.device)
-        self._admissible = LandmarkMCTS.build_admissibility(nodes_t, self.agent.value, self.cfg)
+        self.centroids = centroids
+        self.landmark_goals = self.ae.decode(centroids).cpu().numpy()
+        goal_t = torch.as_tensor(self.goal, dtype=torch.float32, device=self.device)
+        d_c2g, admissible = self.gs.distances_to_goal_with_admissibility(
+            centroids, goal_t, self.ae, self.agent.value)
+        self.d_c2g = d_c2g.cpu().numpy()
+        self._admissible = admissible.cpu().numpy()
 
     @torch.no_grad()
     def _replan(self, obs: np.ndarray) -> None:
@@ -279,11 +360,20 @@ class MCTSPlanner(LatentPlanner):
         if self.prev_landmark is not None and self.prev_landmark < self.n_landmarks:
             mask[self.prev_landmark] = True
 
-        nodes_t = torch.as_tensor(candidates, dtype=torch.float32, device=self.device)
-        mcts = LandmarkMCTS(n_landmarks=self.n_landmarks, value_fn=self.agent.value,
-                            nodes_t=nodes_t, d_c2g_heuristic=self.d_c2g, cfg=self.cfg,
-                            rng=self.rng, admissible=self._admissible)
-        best_idx, _ = mcts.search(d_s2c, mask=mask)
+        if self._is_deterministic_limit():
+            best_idx = self._soft_floyd_action(d_s2c, self.d_c2g, mask)
+        else:
+            nodes_t = torch.as_tensor(
+                candidates, dtype=torch.float32, device=self.device)
+            mcts = LandmarkMCTS(
+                n_landmarks=self.n_landmarks, value_fn=self.agent.value,
+                nodes_t=nodes_t, d_c2g_heuristic=self.d_c2g, cfg=self.cfg,
+                rng=self.rng, admissible=self._admissible)
+            best_idx, _ = mcts.search(d_s2c, mask=mask)
+            self.search_seconds += mcts.last_search_seconds
+            self.search_calls += 1
+        if best_idx is None:
+            best_idx = self.n_landmarks
 
         self.subg_idx = best_idx
         self.cnt = max(1.0, float(round(-d_s2c[best_idx])))
@@ -306,19 +396,22 @@ def _build_biased_d_graph(planner, sigma, noise_seed):
         dtype=torch.float32, device=planner.device)
     m = nodes_t.shape[0]
     bias = build_bias_matrix(m, sigma, np.random.default_rng(noise_seed), goal_idx=m - 1)
-    biased = BiasedValueFn(CriticEdgeFn(planner.agent), nodes_t, bias)
+    base_edge = getattr(planner, "edge_value_fn", None) or CriticEdgeFn(planner.agent)
+    biased = BiasedValueFn(base_edge, nodes_t, bias)
     return nodes_t, biased, bias
 
 
 class SoftFloydE1c(LatentPlanner):
-    """E1c baseline: L3P Soft Floyd on the Loai-1-biased critic-D graph, STATIC
+    """E1c baseline: L3P Soft Floyd on a Loai-1-biased edge graph, STATIC
     (plans once per episode, never corrects) -- the "trusts the wormhole and never
     fixes it" behaviour E1c contrasts against."""
 
-    def __init__(self, agent, landmarks, autoencoder, graph_search, cfg, sigma, noise_seed):
+    def __init__(self, agent, landmarks, autoencoder, graph_search, cfg, sigma,
+                 noise_seed, edge_value_fn=None):
         super().__init__(agent, landmarks, autoencoder, graph_search, cfg)
         self.sigma = sigma
         self.noise_seed = noise_seed
+        self.edge_value_fn = edge_value_fn
 
     @torch.no_grad()
     def reset(self, goal, extra_centroids=None):
@@ -339,7 +432,7 @@ class SoftFloydE1c(LatentPlanner):
 
 
 class FeedbackMCTSPlanner(MCTSPlanner):
-    """E1c MCTS on the Loai-1-biased critic-D graph, with optional EXECUTION
+    """E1c MCTS on the Loai-1-biased edge graph, with optional EXECUTION
     FEEDBACK (docs/... Sec 4.1/4.3/4.4). When `feedback=True`, after each executed
     macro-step it snaps the current state to the nearest landmark i, measures the
     realized cost of the traversed edge (i -> chosen subgoal j) in env steps, blends
@@ -351,7 +444,7 @@ class FeedbackMCTSPlanner(MCTSPlanner):
 
     def __init__(self, agent, landmarks, autoencoder, graph_search, cfg, sigma,
                 noise_seed, feedback=True, rho=0.5, tau_reach=2.0, tau_progress=3.0,
-                r_max=2, rng=None):
+                tau_snap=4.0, r_max=2, edge_value_fn=None, rng=None):
         super().__init__(agent, landmarks, autoencoder, graph_search, cfg, rng=rng)
         self.sigma = sigma
         self.noise_seed = noise_seed
@@ -359,7 +452,9 @@ class FeedbackMCTSPlanner(MCTSPlanner):
         self.rho = rho
         self.tau_reach = tau_reach
         self.tau_progress = tau_progress
+        self.tau_snap = tau_snap
         self.r_max = r_max
+        self.edge_value_fn = edge_value_fn
 
     @torch.no_grad()
     def reset(self, goal, extra_centroids=None):
@@ -378,20 +473,32 @@ class FeedbackMCTSPlanner(MCTSPlanner):
         self._nodes_t = nodes_t
         self._biased = biased
         goal_t = torch.as_tensor(self.goal, dtype=torch.float32, device=self.device)
-        self.d_c2g = self.gs.distances_to_goal(centroids, goal_t, self.ae, biased).cpu().numpy()
-        self._admissible = LandmarkMCTS.build_admissibility(nodes_t, biased, self.cfg)
+        d_c2g, admissible = self.gs.distances_to_goal_with_admissibility(
+            centroids, goal_t, self.ae, biased)
+        self.d_c2g = d_c2g.cpu().numpy()
+        self._admissible = admissible.cpu().numpy()
         # execution-feedback episode state
         self._v_exec = {}                 # (i, j) -> corrected env-step cost
+        self._residual_stats = {}          # (i, j) -> Welford(n, mean, M2)
         self._attempts = {}               # subgoal j -> failed attempts
         self._blacklist = set()
         self._macro_k = 0
         self._macro_start_i = None
         self._macro_start_z = None
         self._cur_j = None
+        self.search_seconds = 0.0
+        self.search_calls = 0
+        self.stats = dict(macros=0, reached=0, progressed=0, stuck=0,
+                          blacklisted=0, corrections=0, snaps=0,
+                          virtual_roots=0, uncertain_edges=0)
 
     # ---- feedback helpers ----
-    def _snap(self, z):
-        return int(np.argmin(np.linalg.norm(self.landmark_goals - z[None, :], axis=1)))
+    def _snap(self, obs):
+        distances = np.asarray(
+            self.agent.distance_after_action(obs, self.landmark_goals))
+        idx = int(np.argmin(distances))
+        nearest = float(distances[idx])
+        return (idx, nearest) if nearest <= self.tau_snap else (None, nearest)
 
     def _critic_dist(self, z, target_goal):
         return float(self.agent.distance_after_action(z[None, :], target_goal[None, :])[0])
@@ -413,38 +520,88 @@ class FeedbackMCTSPlanner(MCTSPlanner):
             return v
         return fn
 
-    def _observe(self, z_end):
+    def _observe(self, obs_end, achieved_goal=None):
         """Finalize the just-executed macro-step (i -> j): update V_exec (EMA),
         classify the outcome, and apply the loop guard (Sec 4.1/4.3/4.4)."""
         i, j = self._macro_start_i, self._cur_j
-        if j is None or j >= self.n_landmarks:      # subgoal was the goal node
+        if j is None:
             return
-        c_j = self.landmark_goals[j]
-        dist_to_goal = self._critic_dist(z_end, c_j)
+        c_j = self.goal if j >= self.n_landmarks else self.landmark_goals[j]
+        z_end = (np.asarray(achieved_goal, dtype=np.float32)
+                 if achieved_goal is not None else np.asarray(obs_end, dtype=np.float32))
+        dist_to_goal = self._critic_dist(obs_end, c_j)
         dist_travelled = self._critic_dist(self._macro_start_z, z_end)
         realized = self._macro_k + max(0.0, dist_to_goal)     # env-step scale
+        reached = (
+            float(np.linalg.norm(z_end - c_j)) <= self.cfg.goal_threshold
+            if achieved_goal is not None else dist_to_goal <= self.tau_reach
+        )
 
-        prev = self._v_exec.get((i, j), self._biased_edge(i, j))
-        self._v_exec[(i, j)] = (1 - self.rho) * prev + self.rho * realized
+        if i is not None:
+            prev = self._v_exec.get((i, j), self._biased_edge(i, j))
+            update_running_variance(
+                self._residual_stats, (i, j), realized - prev)
+            self.stats["uncertain_edges"] = sum(
+                n > 1 and m2 > 0 for n, _, m2 in self._residual_stats.values())
+            self._v_exec[(i, j)] = (1 - self.rho) * prev + self.rho * realized
+            self.stats["corrections"] += 1
 
-        if dist_to_goal <= self.tau_reach:                     # REACHED
+        if reached:                                            # REACHED
             self._attempts.clear()
+            self.stats["reached"] += 1
         elif dist_travelled >= self.tau_progress:              # PROGRESSED_ELSEWHERE
             self._attempts[j] = self._attempts.get(j, 0) + 1
-            if self._attempts[j] >= self.r_max:
+            self.stats["progressed"] += 1
+            if self._attempts[j] >= self.r_max and j not in self._blacklist:
                 self._blacklist.add(j)
+                self.stats["blacklisted"] += 1
         else:                                                  # STUCK -> blacklist now
-            self._blacklist.add(j)
+            self.stats["stuck"] += 1
+            if j not in self._blacklist:
+                self._blacklist.add(j)
+                self.stats["blacklisted"] += 1
+        self._cur_j = None
+
+    def _candidate_mask(self):
+        """Root candidate mask (Algorithm 1 prev-landmark removal + loop-guard
+        blacklist). The GOAL node (index n_landmarks) is never masked: it is the
+        target, not a routing landmark, so blacklisting a failed direct-to-goal
+        attempt must not forbid targeting the goal later in the episode."""
+        mask = np.zeros(self.n_landmarks + 1, dtype=bool)
+        if self.prev_landmark is not None and self.prev_landmark < self.n_landmarks:
+            mask[self.prev_landmark] = True
+        if self.feedback:
+            for b in self._blacklist:
+                if b < self.n_landmarks:          # never the goal node
+                    mask[b] = True
+        return mask
+
+    def _reached_current_subgoal(self, obs, achieved_goal=None):
+        if self._cur_j is None:
+            return False
+        target = (self.goal if self._cur_j >= self.n_landmarks
+                  else self.landmark_goals[self._cur_j])
+        if achieved_goal is not None:
+            return float(np.linalg.norm(
+                np.asarray(achieved_goal) - target)) <= self.cfg.goal_threshold
+        return self._critic_dist(obs, target) <= self.tau_reach
+
+    def finalize(self, obs, achieved_goal=None):
+        if self.feedback and self._cur_j is not None:
+            self._observe(obs, achieved_goal)
 
     @torch.no_grad()
-    def act(self, obs, noise_scale=0.0, random_prob=0.0):
+    def act(self, obs, noise_scale=0.0, random_prob=0.0, achieved_goal=None):
         if self.n_landmarks == 0:
             return self.agent.act(obs, self.goal, noise_scale, random_prob)
+        if self.feedback and self._reached_current_subgoal(obs, achieved_goal):
+            self._observe(obs, achieved_goal)
+            self.cnt = 0.0
         if self.cnt > 1.0:
             self.cnt -= 1.0
         else:
             if self.feedback and self._cur_j is not None:
-                self._observe(obs)                             # finalize previous macro-step
+                self._observe(obs, achieved_goal)              # finalize previous macro-step
             self._replan(obs)
         self._macro_k += 1
         subgoal = self._current_subgoal()
@@ -459,31 +616,42 @@ class FeedbackMCTSPlanner(MCTSPlanner):
         if self.feedback:
             value_fn = self._corrected_fn()
             goal_t = torch.as_tensor(self.goal, dtype=torch.float32, device=self.device)
-            d_c2g = self.gs.distances_to_goal(self.centroids, goal_t, self.ae, value_fn).cpu().numpy()
-            admissible = LandmarkMCTS.build_admissibility(nodes_t, value_fn, self.cfg)
+            d_c2g_t, admissible_t = self.gs.distances_to_goal_with_admissibility(
+                self.centroids, goal_t, self.ae, value_fn)
+            d_c2g = d_c2g_t.cpu().numpy()
+            admissible = admissible_t.cpu().numpy()
         else:
             value_fn, d_c2g, admissible = self._biased, self.d_c2g, self._admissible
 
-        mask = np.zeros(self.n_landmarks + 1, dtype=bool)
-        if self.prev_landmark is not None and self.prev_landmark < self.n_landmarks:
-            mask[self.prev_landmark] = True
-        for b in self._blacklist if self.feedback else ():
-            if b < self.n_landmarks:
-                mask[b] = True
+        mask = self._candidate_mask()
 
-        mcts = LandmarkMCTS(n_landmarks=self.n_landmarks, value_fn=value_fn,
-                            nodes_t=nodes_t, d_c2g_heuristic=d_c2g, cfg=self.cfg,
-                            rng=self.rng, admissible=admissible)
-        best_idx, _ = mcts.search(d_s2c, mask=mask)
+        if self.sigma <= 0:
+            best_idx = self._soft_floyd_action(d_s2c, d_c2g, mask)
+        else:
+            sigma_matrix = running_sigma_matrix(
+                self._residual_stats, self.n_landmarks + 1)
+            mcts = LandmarkMCTS(
+                n_landmarks=self.n_landmarks, value_fn=value_fn,
+                nodes_t=nodes_t, d_c2g_heuristic=d_c2g, cfg=self.cfg,
+                rng=self.rng, admissible=admissible,
+                sigma_matrix=sigma_matrix)
+            best_idx, _ = mcts.search(d_s2c, mask=mask)
+            self.search_seconds += mcts.last_search_seconds
+            self.search_calls += 1
         if best_idx is None:                        # everything masked -> head to goal
             best_idx = self.n_landmarks
 
         self.subg_idx = best_idx
         self.cnt = max(1.0, float(round(-d_s2c[best_idx])))
         self.prev_landmark = self.subg_idx
+        self.stats["macros"] += 1
         if self.feedback:                           # open a new macro-step
             self._macro_k = 0
-            self._macro_start_i = self._snap(obs)
+            self._macro_start_i, _ = self._snap(obs)
+            if self._macro_start_i is None:
+                self.stats["virtual_roots"] += 1
+            else:
+                self.stats["snaps"] += 1
             self._macro_start_z = np.asarray(obs, dtype=np.float32)
             self._cur_j = best_idx
 
@@ -539,8 +707,12 @@ class UncertaintyMCTSPlanner(MCTSPlanner):
                                           np.random.default_rng(self.noise_seed + 1))
 
         goal_t = torch.as_tensor(self.goal, dtype=torch.float32, device=self.device)
-        self.d_c2g = self.gs.distances_to_goal(centroids, goal_t, self.ae, self._hetero).cpu().numpy()
-        self._admissible = LandmarkMCTS.build_admissibility(nodes_t, self._hetero, self.cfg)
+        d_c2g, admissible = self.gs.distances_to_goal_with_admissibility(
+            centroids, goal_t, self.ae, self._hetero)
+        self.d_c2g = d_c2g.cpu().numpy()
+        self._admissible = admissible.cpu().numpy()
+        self.search_seconds = 0.0
+        self.search_calls = 0
 
     @torch.no_grad()
     def _replan(self, obs: np.ndarray) -> None:
@@ -552,11 +724,21 @@ class UncertaintyMCTSPlanner(MCTSPlanner):
         if self.prev_landmark is not None and self.prev_landmark < self.n_landmarks:
             mask[self.prev_landmark] = True
 
-        nodes_t = torch.as_tensor(candidates, dtype=torch.float32, device=self.device)
-        mcts = LandmarkMCTS(n_landmarks=self.n_landmarks, value_fn=self._hetero,
-                            nodes_t=nodes_t, d_c2g_heuristic=self.d_c2g, cfg=self.cfg,
-                            rng=self.rng, admissible=self._admissible, sigma_matrix=self._sigma)
-        best_idx, _ = mcts.search(d_s2c, mask=mask)
+        if not np.any(self._sigma > 0):
+            best_idx = self._soft_floyd_action(d_s2c, self.d_c2g, mask)
+        else:
+            nodes_t = torch.as_tensor(
+                candidates, dtype=torch.float32, device=self.device)
+            mcts = LandmarkMCTS(
+                n_landmarks=self.n_landmarks, value_fn=self._hetero,
+                nodes_t=nodes_t, d_c2g_heuristic=self.d_c2g, cfg=self.cfg,
+                rng=self.rng, admissible=self._admissible,
+                sigma_matrix=self._sigma)
+            best_idx, _ = mcts.search(d_s2c, mask=mask)
+            self.search_seconds += mcts.last_search_seconds
+            self.search_calls += 1
+        if best_idx is None:
+            best_idx = self.n_landmarks
 
         self.subg_idx = best_idx
         self.cnt = max(1.0, float(round(-d_s2c[best_idx])))

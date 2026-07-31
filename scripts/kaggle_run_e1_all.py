@@ -3,9 +3,9 @@
 
 The runner is intentionally conservative:
   * It looks for checkpoints in the repo and under /kaggle/input.
-  * It runs E1a/E1b on any configured env/checkpoint.
-  * It runs E1c/E1d only for envs where goal coordinates can be used as states
-    (currently PointMaze). Other envs are skipped unless --force-feedback is set.
+  * It runs E1a-E1d on any goal-conditioned env/checkpoint. Feedback uses critic-D
+    on PointMaze and goal-to-goal V on environments whose observation is larger
+    than the achieved-goal vector.
   * It continues after a failed task and writes a summary JSON.
 
 Example Kaggle cell:
@@ -35,17 +35,15 @@ DEFAULT_OUTPUT_ROOT = (Path("/kaggle/working/e1_runs")
                        if Path("/kaggle/working").exists()
                        else REPO / "logs" / "kaggle_e1_runs")
 
-FEEDBACK_SAFE_ENVS = {"PointMaze"}
-
 DEFAULT_TASKS = [
     dict(name="pointmaze_numpy", env="PointMaze", checkpoint="checkpoint/l3p_pointmaze_full.pt",
          experiments=["e1a", "e1b", "e1c", "e1d"]),
     dict(name="pointmaze_mujoco", env="PointMazeMuJoCo", checkpoint="checkpoint/l3p_pointmaze_mujoco.pt",
-         experiments=["e1a", "e1b"]),
+         experiments=["e1a", "e1b", "e1c", "e1d"]),
     dict(name="fetch_pick_and_place", env="FetchPickAndPlace", checkpoint="checkpoint/l3p_fetch.pt",
-         experiments=["e1a", "e1b"]),
+         experiments=["e1a", "e1b", "e1c", "e1d"]),
     dict(name="antmaze", env="AntMaze", checkpoint="checkpoint/l3p_AntMaze.pt",
-         experiments=["e1a", "e1b"]),
+         experiments=["e1a", "e1b", "e1c", "e1d"]),
 ]
 
 PRESETS = {
@@ -60,16 +58,16 @@ PRESETS = {
     # Close to current report settings while still reasonable for hosted notebooks.
     "report": dict(
         seeds=["0", "1"], episodes="30", calibrate_episodes="20",
-        sanity_tol="0.2",
-        e1a_sims="200", e1b_sims="100", e1c_sims="80", e1d_sims="20",
+        sanity_tol="0.1",
+        e1a_sims="200", e1b_sims="100", e1c_sims="80", e1d_sims="80",
         e1a_sigmas=["0", "0.1", "0.3", "0.5"], e1b_sigma_hi=["0", "0.5", "1.0"],
         e1c_sigmas=["0", "0.1", "0.3"], e1d_sigmas=["0", "0.3"],
     ),
     # Longer confirmation; use this when Kaggle runtime budget is enough.
     "full": dict(
         seeds=["0", "1", "2"], episodes="50", calibrate_episodes="20",
-        sanity_tol="0.15",
-        e1a_sims="200", e1b_sims="120", e1c_sims="120", e1d_sims="80",
+        sanity_tol="0.1",
+        e1a_sims="200", e1b_sims="120", e1c_sims="120", e1d_sims="120",
         e1a_sigmas=["0", "0.1", "0.3", "0.5"], e1b_sigma_hi=["0", "0.3", "0.5", "1.0"],
         e1c_sigmas=["0", "0.1", "0.3"], e1d_sigmas=["0", "0.3"],
     ),
@@ -113,15 +111,7 @@ def find_checkpoint(name: str, input_root: Path) -> Path | None:
 
 
 def should_run_exp(task: dict, exp: str, force_feedback: bool) -> tuple[bool, str]:
-    if exp not in {"e1c", "e1d"}:
-        return True, ""
-    env = task["env"]
-    if force_feedback or env in FEEDBACK_SAFE_ENVS:
-        return True, ""
-    return False, (
-        f"{exp} skipped for {env}: feedback/recovery currently needs obs_dim == goal_dim "
-        "or an env-specific goal->observation lifting adapter."
-    )
+    return True, ""
 
 
 def exp_args(exp: str, task: dict, ckpt: Path, out_dir: Path, cfg: dict) -> list[str]:
@@ -201,7 +191,7 @@ def main():
     p.add_argument("--experiments", nargs="+", choices=["e1a", "e1b", "e1c", "e1d"],
                    default=None, help="Override experiments for every task.")
     p.add_argument("--force-feedback", action="store_true",
-                   help="Attempt E1c/E1d even on envs without built-in feedback support.")
+                   help="Deprecated compatibility flag; feedback now supports all goal envs.")
     p.add_argument("--require-ready", action="store_true",
                    help="Run checkpoint readiness preflight before E1 and skip tasks below threshold.")
     p.add_argument("--min-baseline-success", type=float, default=0.30,

@@ -51,6 +51,8 @@ class L3PTrainer:
     def __init__(self, vec_env, cfg):
         self.env = vec_env
         self.cfg = cfg
+        if hasattr(vec_env.envs[0], "goal_threshold"):
+            self.cfg.goal_threshold = vec_env.envs[0].goal_threshold
         self.device = torch.device(cfg.device)
         self.rng = np.random.default_rng(cfg.seed)
         torch.manual_seed(cfg.seed)
@@ -114,8 +116,10 @@ class L3PTrainer:
             if random_actions:
                 a = self.rng.uniform(-env.max_action, env.max_action, size=self.env.act_dim)
             elif planning:
-                a = self.planner.act(obs_dict["observation"], self.cfg.action_noise,
-                                     self.cfg.random_action_prob)
+                a = self.planner.act(
+                    obs_dict["observation"], self.cfg.action_noise,
+                    self.cfg.random_action_prob,
+                    achieved_goal=obs_dict["achieved_goal"])
             else:
                 a = self.agent.act(obs_dict["observation"], goal, self.cfg.action_noise,
                                    self.cfg.random_action_prob)
@@ -223,11 +227,18 @@ class L3PTrainer:
             # 200 train / 500 test for the mazes — Section 5.2 / Figure 5).
             for _ in range(self.cfg.test_episode_steps):
                 if planning:
-                    a = planner.act(obs_dict["observation"])
+                    a = planner.act(
+                        obs_dict["observation"],
+                        achieved_goal=obs_dict["achieved_goal"])
                 else:
                     a = self.agent.act(obs_dict["observation"], goal)
                 obs_dict, reward, done, info = env.step(a)
                 success = max(success, _episode_success(info, reward))
+                if success > 0 or bool(done):
+                    break
+            if planning and hasattr(planner, "finalize"):
+                planner.finalize(
+                    obs_dict["observation"], obs_dict["achieved_goal"])
             successes += int(success > 0)
         self.env.set_eval(False)
         return successes / n_episodes

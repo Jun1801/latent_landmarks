@@ -1,7 +1,8 @@
 """Noise injection for the MCTS-over-landmarks experiments
 (docs/SPEC_MCTS_Landmark_L3P.md, Section 5).
 
-Only "Loại 2" (execution-stochasticity) noise is implemented here:
+The module implements both Loại 2 stochastic noise and Loại 1 fixed edge bias.
+Loại 2 follows:
 
     V_actual(ci, cj) = V_true(ci, cj) + eta,   eta ~ N(0, sigma^2)
 
@@ -26,19 +27,45 @@ import numpy as np
 import torch
 
 
+CALIBRATION_SEED_OFFSET = 10_000_019
+
+
+def calibration_seed(report_seed: int) -> int:
+    """Return a deterministic seed namespace disjoint from reporting episodes."""
+    return int(report_seed) + CALIBRATION_SEED_OFFSET
+
+
 class NoisyValueFn:
     def __init__(self, value_fn, sigma: float, rng: np.random.Generator):
         self.value_fn = value_fn
         self.sigma = sigma
         self.rng = rng
+        self._base_matrix = None
 
     def __call__(self, g1: torch.Tensor, g2: torch.Tensor) -> torch.Tensor:
         v = self.value_fn(g1, g2)
         if self.sigma <= 0:
             return v
         eta = self.rng.normal(0.0, self.sigma, size=tuple(v.shape))
-        noisy = v + torch.as_tensor(eta, dtype=v.dtype, device=v.device)
-        return noisy.clamp_min(0.0)
+        return v + torch.as_tensor(eta, dtype=v.dtype, device=v.device)
+
+    @torch.no_grad()
+    def prepare_nodes(self, nodes: torch.Tensor) -> None:
+        """Cache deterministic V_true for a fixed MCTS landmark node set."""
+        m, dim = nodes.shape
+        g1 = nodes[:, None, :].expand(m, m, dim).reshape(m * m, dim)
+        g2 = nodes[None, :, :].expand(m, m, dim).reshape(m * m, dim)
+        self._base_matrix = self.value_fn(g1, g2).reshape(m, m).detach()
+
+    def sample_indexed(self, i: int, js) -> torch.Tensor:
+        """Read cached V_true edges and resample Loai-2 noise per traversal."""
+        if self._base_matrix is None:
+            raise RuntimeError("prepare_nodes must be called before sample_indexed")
+        v = self._base_matrix[i, js]
+        if self.sigma <= 0:
+            return v
+        eta = self.rng.normal(0.0, self.sigma, size=tuple(v.shape))
+        return v + torch.as_tensor(eta, dtype=v.dtype, device=v.device)
 
 
 def dmax_candidates(value_matrix, percentiles=(5, 8, 11, 15, 20, 25, 30),
@@ -84,24 +111,47 @@ def bootstrap_ci(outcomes, n_boot: int = 2000, alpha: float = 0.05, rng=None):
     return float(x.mean()), float(lo), float(hi)
 
 
+def hierarchical_bootstrap_ci(groups, n_boot: int = 2000, alpha: float = 0.05,
+                              rng=None):
+    """Bootstrap a mean while preserving between-seed variation.
+
+    `groups` is one binary-outcome sequence per reporting seed. Each replicate
+    samples seeds with replacement, then episodes within each selected seed.
+    """
+    arrays = [np.asarray(g, dtype=np.float64) for g in groups if len(g)]
+    if not arrays:
+        return 0.0, 0.0, 0.0
+    rng = rng if rng is not None else np.random.default_rng(0)
+    observed = float(np.concatenate(arrays).mean())
+    means = np.empty(n_boot, dtype=np.float64)
+    for b in range(n_boot):
+        chosen = rng.integers(0, len(arrays), size=len(arrays))
+        samples = []
+        for idx in chosen:
+            group = arrays[int(idx)]
+            samples.append(group[rng.integers(0, group.size, size=group.size)])
+        means[b] = np.concatenate(samples).mean()
+    lo, hi = np.percentile(
+        means, [100 * alpha / 2, 100 * (1 - alpha / 2)])
+    return observed, float(lo), float(hi)
+
+
 def build_sigma_matrix(m: int, frac_high: float, sigma_lo: float, sigma_hi: float,
                        rng: np.random.Generator, goal_idx: Optional[int] = None) -> np.ndarray:
     """Heterogeneous per-edge oracle uncertainty for E1b (docs/... Sec 3, Cach 1):
-    a symmetric [m, m] matrix where a random `frac_high` of the unordered
-    landmark-landmark edges get sigma_hi and the rest sigma_lo. The high-sigma
+    a directed [m, m] matrix where a random `frac_high` of the ordered graph
+    edges get sigma_hi and the rest sigma_lo. The high-sigma
     edges are assigned INDEPENDENTLY of V (a short-looking edge can be secretly
-    unreliable) -- that decorrelation is what makes knowing sigma useful. The
-    goal node's edges (if `goal_idx` given) are kept at sigma_lo (goal
-    reachability is treated as reliably estimated). Diagonal is 0."""
+    unreliable) -- that decorrelation is what makes knowing sigma useful.
+    Goal edges participate like every other graph edge. Diagonal is 0."""
     sig = np.full((m, m), sigma_lo, dtype=np.float64)
-    pairs = [(i, j) for i in range(m) for j in range(i + 1, m)
-             if goal_idx is None or (i != goal_idx and j != goal_idx)]
+    pairs = [(i, j) for i in range(m) for j in range(m) if i != j]
     k = int(round(frac_high * len(pairs)))
     if k > 0 and pairs:
         chosen = rng.choice(len(pairs), size=min(k, len(pairs)), replace=False)
         for c in chosen:
             i, j = pairs[c]
-            sig[i, j] = sig[j, i] = sigma_hi
+            sig[i, j] = sigma_hi
     np.fill_diagonal(sig, 0.0)
     return sig
 
@@ -120,6 +170,7 @@ class HeterogeneousNoise:
         self.nodes = nodes_t                       # [m, gdim]
         self.sigma = np.asarray(sigma_matrix, dtype=np.float64)
         self.rng = rng
+        self._base_matrix = None
 
     def _idx(self, g: torch.Tensor) -> np.ndarray:
         return torch.cdist(g, self.nodes).argmin(dim=1).cpu().numpy()
@@ -130,26 +181,41 @@ class HeterogeneousNoise:
         if not np.any(s > 0):
             return v
         eta = self.rng.normal(0.0, s)                          # N(0, s_k)
-        noisy = v + torch.as_tensor(eta.reshape(v.shape), dtype=v.dtype, device=v.device)
-        return noisy.clamp_min(0.0)
+        return v + torch.as_tensor(eta.reshape(v.shape), dtype=v.dtype, device=v.device)
 
     def sigma_of(self, i: int, j: int) -> float:
         return float(self.sigma[i, j])
 
+    @torch.no_grad()
+    def prepare_nodes(self, nodes: torch.Tensor) -> None:
+        m, dim = nodes.shape
+        g1 = nodes[:, None, :].expand(m, m, dim).reshape(m * m, dim)
+        g2 = nodes[None, :, :].expand(m, m, dim).reshape(m * m, dim)
+        self._base_matrix = self.value_fn(g1, g2).reshape(m, m).detach()
+
+    def sample_indexed(self, i: int, js) -> torch.Tensor:
+        if self._base_matrix is None:
+            raise RuntimeError("prepare_nodes must be called before sample_indexed")
+        v = self._base_matrix[i, js]
+        s = np.asarray(self.sigma[i, js])
+        if not np.any(s > 0):
+            return v
+        eta = self.rng.normal(0.0, s, size=tuple(v.shape))
+        return v + torch.as_tensor(eta, dtype=v.dtype, device=v.device)
+
 
 def build_bias_matrix(m: int, sigma: float, rng: np.random.Generator,
                       goal_idx: Optional[int] = None) -> np.ndarray:
-    """Loai-1 estimation bias for E1c (docs/... Sec 5.1): a symmetric [m, m]
-    matrix of multiplicative biases b_ij ~ N(0, sigma^2), one per landmark-
+    """Loai-1 estimation bias for E1c (docs/... Sec 5.1): a directed [m, m]
+    matrix of multiplicative biases b_ij ~ N(0, sigma^2), one per directed
     landmark edge, sampled ONCE (fixed for the episode). Edges with b_ij < 0
-    look shorter than they are -- the "wormhole" traps. Goal-node edges (if
-    `goal_idx` given) and the diagonal are left unbiased (0)."""
+    look shorter than they are -- the "wormhole" traps. Goal-node edges are
+    biased by the same process; only the diagonal stays zero."""
     b = np.zeros((m, m), dtype=np.float64)
     for i in range(m):
-        for j in range(i + 1, m):
-            if goal_idx is not None and (i == goal_idx or j == goal_idx):
-                continue
-            b[i, j] = b[j, i] = rng.normal(0.0, sigma)
+        for j in range(m):
+            if i != j:
+                b[i, j] = rng.normal(0.0, sigma)
     return b
 
 
@@ -176,12 +242,14 @@ class BiasedValueFn:
     """Loai-1 noise (E1c): V_obs(i,j) = V_true(i,j) * (1 + b_ij) with a per-episode
     FIXED bias matrix (NOT resampled) -- a systematic mis-estimate that averaging
     over rollout samples cannot remove, so only execution feedback can correct it.
-    Nearest-node index lookup like HeterogeneousNoise. Clamped >= 0."""
+    Nearest-node index lookup follows `HeterogeneousNoise`; the exact
+    multiplicative formula is preserved without boundary clipping."""
 
     def __init__(self, value_fn, nodes_t: torch.Tensor, bias_matrix: np.ndarray):
         self.value_fn = value_fn
         self.nodes = nodes_t
         self.bias = np.asarray(bias_matrix, dtype=np.float64)
+        self._base_matrix = None
 
     def _idx(self, g: torch.Tensor) -> np.ndarray:
         return torch.cdist(g, self.nodes).argmin(dim=1).cpu().numpy()
@@ -190,7 +258,22 @@ class BiasedValueFn:
         v = self.value_fn(g1, g2)
         b = self.bias[self._idx(g1), self._idx(g2)]
         factor = torch.as_tensor((1.0 + b).reshape(v.shape), dtype=v.dtype, device=v.device)
-        return (v * factor).clamp_min(0.0)
+        return v * factor
+
+    @torch.no_grad()
+    def prepare_nodes(self, nodes: torch.Tensor) -> None:
+        m, dim = nodes.shape
+        g1 = nodes[:, None, :].expand(m, m, dim).reshape(m * m, dim)
+        g2 = nodes[None, :, :].expand(m, m, dim).reshape(m * m, dim)
+        self._base_matrix = self.value_fn(g1, g2).reshape(m, m).detach()
+
+    def sample_indexed(self, i: int, js) -> torch.Tensor:
+        if self._base_matrix is None:
+            raise RuntimeError("prepare_nodes must be called before sample_indexed")
+        v = self._base_matrix[i, js]
+        factor = torch.as_tensor(
+            1.0 + np.asarray(self.bias[i, js]), dtype=v.dtype, device=v.device)
+        return v * factor
 
 
 class ValueOverrideAgent:

@@ -1,0 +1,75 @@
+{
+  "env": "PointMaze",
+  "load": "checkpoint/l3p_pointmaze_full.pt",
+  "episodes": 10,
+  "calibrate_episodes": 5,
+  "min_success": 0.3,
+  "flat_policy": {
+    "mean": 0.8,
+    "successes": 8,
+    "n": 10
+  },
+  "soft_floyd_default": {
+    "d_max": 20.0,
+    "mean": 0.0,
+    "successes": 0,
+    "n": 10
+  },
+  "d_max_sweep": [
+    {
+      "d_max": 0.680012,
+      "success": 1.0,
+      "successes": 5,
+      "episodes": 5
+    },
+    {
+      "d_max": 0.748054,
+      "success": 1.0,
+      "successes": 5,
+      "episodes": 5
+    },
+    {
+      "d_max": 0.803839,
+      "success": 1.0,
+      "successes": 5,
+      "episodes": 5
+    },
+    {
+      "d_max": 0.880614,
+      "success": 1.0,
+      "successes": 5,
+      "episodes": 5
+    },
+    {
+      "d_max": 0.945234,
+      "success": 1.0,
+      "successes": 5,
+      "episodes": 5
+    },
+    {
+      "d_max": 0.999783,
+      "success": 0.0,
+      "successes": 0,
+      "episodes": 5
+    },
+    {
+      "d_max": 1.07898,
+      "success": 0.0,
+      "successes": 0,
+      "episodes": 5
+    },
+    {
+      "d_max": 20.0,
+      "success": 0.0,
+      "successes": 0,
+      "episodes": 5
+    }
+  ],
+  "soft_floyd_calibrated": {
+    "d_max": 0.680012,
+    "mean": 0.9,
+    "successes": 9,
+    "n": 10
+  },
+  "status": "READY"
+}

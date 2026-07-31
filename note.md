@@ -1,0 +1,3 @@
+- negative samples: phải thực sự có motivation
+- Những cái điểm theo trục thời gian: t, t+k, t+k+1 -> Physical 
+- 

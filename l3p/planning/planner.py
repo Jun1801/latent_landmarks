@@ -92,7 +92,9 @@ class LatentPlanner:
         return self.landmark_goals[self.subg_idx]
 
     @torch.no_grad()
-    def act(self, obs: np.ndarray, noise_scale: float = 0.0, random_prob: float = 0.0) -> np.ndarray:
+    def act(self, obs: np.ndarray, noise_scale: float = 0.0,
+            random_prob: float = 0.0,
+            achieved_goal: Optional[np.ndarray] = None) -> np.ndarray:
         """Return the low-level action for the current state under the plan."""
         if self.n_landmarks == 0:            # no graph yet -> direct goal reaching
             return self.agent.act(obs, self.goal, noise_scale, random_prob)

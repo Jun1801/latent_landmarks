@@ -1,0 +1,493 @@
+\documentclass[aspectratio=169,10pt]{beamer}
+
+% Compile on Overleaf with XeLaTeX.
+\usepackage{fontspec}
+\IfFontExistsTF{Noto Sans}{
+  \setmainfont{Noto Sans}
+  \setsansfont{Noto Sans}
+}{
+  \setmainfont{TeX Gyre Heros}
+  \setsansfont{TeX Gyre Heros}
+}
+\IfFontExistsTF{Noto Sans Mono}{
+  \setmonofont{Noto Sans Mono}
+}{
+  \setmonofont{Latin Modern Mono}
+}
+
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{xcolor}
+\usetikzlibrary{positioning}
+\pgfplotsset{compat=1.18}
+
+\usetheme{Boadilla}
+\usecolortheme{default}
+\definecolor{Primary}{HTML}{174A5B}
+\definecolor{Secondary}{HTML}{C14924}
+\definecolor{Success}{HTML}{2E7D32}
+\definecolor{Warning}{HTML}{A65F00}
+\definecolor{Light}{HTML}{EEF3F5}
+\definecolor{LegacyBg}{HTML}{FFF3CD}
+\definecolor{LegacyFg}{HTML}{6B4E00}
+
+\setbeamercolor{structure}{fg=Primary}
+\setbeamercolor{frametitle}{fg=white,bg=Primary}
+\setbeamercolor{title}{fg=white}
+\setbeamercolor{titlelike}{bg=Primary}
+\setbeamercolor{block title}{fg=white,bg=Primary}
+\setbeamercolor{block body}{bg=Light}
+\setbeamercolor{alerted text}{fg=Secondary}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+\setbeamertemplate{itemize item}{\color{Secondary}$\blacktriangleright$}
+\setbeamertemplate{itemize subitem}{\color{Primary}$\bullet$}
+
+\newcommand{\StudentName}{Tên sinh viên}
+\newcommand{\AdvisorName}{Tên giảng viên hướng dẫn}
+\newcommand{\ReportWeek}{22--28/07/2026}
+\newcommand{\code}[1]{\texttt{\small #1}}
+\newcommand{\resultbanner}{%
+  \begin{beamercolorbox}[rounded=true,sep=0.6ex,wd=\textwidth]{legacy}
+    \color{LegacyFg}\scriptsize
+    \textbf{Corrected run 29/07/2026:} protocol sau correctness review,
+    raw outcomes và hierarchical-bootstrap CI đã được lưu.
+  \end{beamercolorbox}\vspace{0.5em}
+}
+\setbeamercolor{legacy}{bg=LegacyBg,fg=LegacyFg}
+
+\title{MCTS-over-Landmarks dưới bất định}
+\subtitle{Báo cáo phương pháp, thí nghiệm E1 và tiến độ tuần}
+\author{\StudentName}
+\institute{GVHD: \AdvisorName}
+\date{\ReportWeek}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{Công việc đã thực hiện trong tuần}
+  \begin{enumerate}
+    \item Hoàn thiện MCTS ở tầng landmark: UCT, expansion, rollout và backpropagation.
+    \item Xây dựng bốn protocol E1a--E1d để tách các nguồn robustness.
+    \item Bổ sung uncertainty reward, execution feedback, recovery và loop guard.
+    \item Chạy lại đầy đủ E1a--E1d trên PointMaze và phân tích các ablation.
+    \item Review lại implementation theo SPEC; sửa lỗi fairness/correctness và thêm
+          \alert{47 unit tests}.
+  \end{enumerate}
+
+  \begin{block}{Trạng thái hiện tại}
+    E1a đạt tín hiệu robustness so với graph tĩnh. E1b chưa đủ bằng chứng;
+    E1c/E1d cho thấy feedback/recovery hiện over-correct và cần tune.
+  \end{block}
+\end{frame}
+
+\begin{frame}{Câu hỏi nghiên cứu}
+  \begin{block}{Giả thuyết}
+    Khi khoảng cách landmark $V(c_i,c_j)$ bị nhiễu, MCTS có ra quyết định
+    bền vững hơn Soft Floyd nhờ sample rollout, uncertainty-aware search và
+    execution feedback hay không?
+  \end{block}
+
+  \vspace{0.5em}
+  \begin{columns}[T]
+    \column{0.48\textwidth}
+      \textbf{Baseline: Soft Floyd}
+      \begin{itemize}
+        \item Xây graph từ một quan sát $V_{\mathrm{obs}}$.
+        \item Tính đường đi mềm một lần.
+        \item Không học lại từ execution.
+      \end{itemize}
+    \column{0.48\textwidth}
+      \textbf{Đề xuất: MCTS-over-Landmarks}
+      \begin{itemize}
+        \item Sample nhiều khả năng của cạnh.
+        \item Cân bằng exploration/exploitation.
+        \item Có thể sửa graph sau khi thực thi.
+      \end{itemize}
+  \end{columns}
+
+  \vspace{0.4em}
+  \centering
+  \alert{Tiêu chí bắt buộc: tại $\sigma=0$ các nhánh phải trùng nhau;
+  khi $\sigma$ tăng, MCTS degrade chậm hơn.}
+\end{frame}
+
+\begin{frame}{Kiến trúc phân tầng giữ nguyên từ L3P}
+  \centering
+  \begin{tikzpicture}[
+      node distance=0.75cm,
+      box/.style={draw=Primary,thick,rounded corners=2pt,
+                  minimum width=12.5cm,minimum height=1.35cm,align=left},
+      arrow/.style={->,thick,Secondary}
+    ]
+    \node[box,fill=Light] (high) {
+      \textbf{Tầng cao: MCTS / Soft Floyd}\\
+      State = landmark hoặc virtual root;\quad Action = landmark tiếp theo;\quad
+      Model = $V(c_i,c_j)$
+    };
+    \node[box,fill=white,below=of high] (low) {
+      \textbf{Tầng thấp: policy $\pi$ đã học bằng HER}\\
+      Nhận subgoal $f_D(c_j)$ và sinh continuous action trong $K$ env steps
+    };
+    \draw[arrow] (high) -- node[right]{subgoal} (low);
+  \end{tikzpicture}
+
+  \vspace{0.8em}
+  \begin{itemize}
+    \item MCTS chỉ plan ở macro level, không search từng continuous action.
+    \item Temporal abstraction giảm bài toán horizon 500 thành graph khoảng
+          $N=50$ landmarks.
+    \item $d_{\max}$ chỉ giữ các edge local đủ tin cậy; đường dài được ghép multi-hop.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{MCTS trên graph landmark}
+  \begin{columns}[T]
+    \column{0.54\textwidth}
+      \begin{enumerate}
+        \item \textbf{Selection:}
+        \[
+          a^*=\arg\max_j\left[
+          Q(s,j)+c\sqrt{\frac{\ln N(s)}{N(s,j)}}
+          +\beta\frac{\sigma_{sj}}{\sqrt{N(s,j)}}\right]
+        \]
+        \item \textbf{Expansion:} thêm một cạnh admissible chưa thử.
+        \item \textbf{Simulation:} rollout Soft-Floyd-greedy tới goal hoặc hết horizon;
+              resample $V$ mỗi lần dùng.
+        \item \textbf{Backpropagation:} backup tổng reward lên đường đã duyệt.
+      \end{enumerate}
+    \column{0.42\textwidth}
+      \begin{block}{Root thực}
+        Root là observation hiện tại. Cạnh root dùng critic
+        $D(s,\pi(s,c),c)$; graph landmark dùng $V(c_i,c_j)$.
+      \end{block}
+      \begin{block}{Action cuối}
+        Chọn robust child theo visit count, tie-break bằng $Q$, tránh chọn nhánh
+        chỉ tốt do một noise sample may mắn.
+      \end{block}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Uncertainty và execution feedback}
+  \begin{columns}[T]
+    \column{0.48\textwidth}
+      \textbf{Reward macro-step}
+      \[
+        R_{ij}=-V_{ij}
+        +\lambda_{\mathrm{goal}}\mathbf{1}[j=g]
+        -\lambda_{\mathrm{risk}}\sigma_{ij}^{2}
+      \]
+      \begin{itemize}
+        \item $\alpha$: phạt variance trong reward, tức \textbf{né rủi ro}.
+        \item $\beta$: bonus trong UCT, tức \textbf{thăm dò cạnh bất định}.
+      \end{itemize}
+    \column{0.48\textwidth}
+      \textbf{Feedback sau một macro-step}
+      \[
+        \widehat V^{\,\mathrm{exec}}_{ij}\leftarrow
+        (1-\rho)\widehat V^{\,\mathrm{exec}}_{ij}
+        +\rho\,C^{\mathrm{realized}}_{ij}
+      \]
+      \begin{itemize}
+        \item REACHED: tiếp tục plan.
+        \item PROGRESSED ELSEWHERE: SNAP hoặc virtual root.
+        \item STUCK: blacklist ngay; lỗi lặp quá $R_{\max}$ cũng blacklist.
+      \end{itemize}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Hai loại noise và ba vị trí inject}
+  \small
+  \begin{tabularx}{\textwidth}{@{}lXX@{}}
+    \toprule
+      & \textbf{Loại 2: stochastic} & \textbf{Loại 1: bias cố định} \\
+    \midrule
+    Công thức
+      & $V_{\mathrm{sample}}=V_{\mathrm{true}}+\eta$,
+        $\eta\sim\mathcal N(0,\sigma^2)$
+      & $V_{\mathrm{obs}}=V_{\mathrm{true}}(1+b_{ij})$,
+        $b_{ij}\sim\mathcal N(0,\sigma^2)$ \\
+    Sampling
+      & Mỗi lần edge được dùng
+      & Một lần/edge/episode \\
+    Cơ chế kỳ vọng
+      & Rollout trung bình hóa noise
+      & Feedback phát hiện và sửa ``wormhole'' \\
+    \bottomrule
+  \end{tabularx}
+
+  \vspace{0.9em}
+  \begin{enumerate}
+    \item \textbf{Nơi 1:} graph mà planner quan sát, $V_{\mathrm{obs}}$.
+    \item \textbf{Nơi 2:} edge sample trong MCTS rollout.
+    \item \textbf{Nơi 3:} execution thật trước \code{env.step()}.
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}{Ma trận thí nghiệm E1}
+  \scriptsize
+  \begin{tabularx}{\textwidth}{@{}lccccX@{}}
+    \toprule
+    \textbf{Exp.} & \textbf{Noise} & \textbf{Inject} & \textbf{$\sigma$}
+      & \textbf{So sánh} & \textbf{Câu hỏi} \\
+    \midrule
+    E1a & Loại 2 đồng nhất & 1,2 & 0--0.5
+      & Floyd / replan / MCTS
+      & Sample rollout có robust hơn? \\
+    E1b & Loại 2 dị biệt & 1,2 & 0--1.0
+      & none / $\alpha$ / $\beta$
+      & Uncertainty bonus đóng góp riêng không? \\
+    E1c & Loại 1 cố định & 1,2 & 0--0.3
+      & Floyd / no-fb / feedback
+      & Có phát hiện bias từ execution không? \\
+    E1d & Loại 2 & 1,2,3 & 0--0.3
+      & Floyd / no-fb / feedback
+      & Còn bền khi execution thật cũng nhiễu? \\
+    \bottomrule
+  \end{tabularx}
+
+  \vspace{0.8em}
+  \begin{block}{Fairness protocol}
+    Tune $d_{\max}$ trên clean Soft Floyd rồi khóa cho mọi nhánh; paired
+    start/goal/noise seed; calibration seed tách reporting seed; báo cáo mean và
+    95\% hierarchical bootstrap CI; abort nếu sanity $\sigma=0$ không đạt.
+  \end{block}
+\end{frame}
+
+\begin{frame}{Thiết lập chạy sơ bộ}
+  \begin{columns}[T]
+    \column{0.48\textwidth}
+      \textbf{Environment và model}
+      \begin{itemize}
+        \item PointMaze-Hard, NumPy thuần.
+        \item Test horizon: 500 env steps.
+        \item Checkpoint train 500k steps.
+        \item 50 landmarks, embedding dimension 16.
+        \item Actor/critic: 3 tầng, 256 hidden units.
+      \end{itemize}
+    \column{0.48\textwidth}
+      \textbf{Đặc tính phát hiện khi debug}
+      \begin{itemize}
+        \item $d_{\max}$ cực nhạy theo scale checkpoint.
+        \item $V$ và critic $D$ cần cùng đơn vị với feedback.
+        \item E1c/E1d dùng critic-$D$ trên PointMaze.
+        \item PointMaze có planning headroom mỏng và dễ ceiling.
+      \end{itemize}
+  \end{columns}
+
+  \begin{alertblock}{Lưu ý}
+    Các bảng sau dùng corrected protocol, cùng checkpoint và paired seeds.
+    Chỉ E1a hiện hỗ trợ một claim tích cực; E1b--E1d được báo cáo như kết quả âm.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{E1a: sample rollout dưới noise zero-mean}
+  \resultbanner
+  \small
+  \begin{tabular}{@{}ccccc@{}}
+    \toprule
+    $\sigma$ & Soft Floyd & Naive & Fresh $V_{\rm obs}$ & MCTS \\
+    \midrule
+    0.0 & 0.93 & 0.93 & 0.93 & 0.93 \\
+    0.1 & 0.95 & 0.94 & 0.99 & 0.92 \\
+    \textbf{0.3} & \textbf{0.29} & \textbf{0.24} & \textbf{0.97} & \textbf{0.65} \\
+    0.5 & 0.03 & 0.03 & 0.01 & 0.07 \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{0.8em}
+  \begin{block}{Diễn giải}
+    MCTS tốt hơn static Floyd ở $\sigma=0.3$, nhưng fresh-graph replan đạt 0.97.
+    Do baseline này rebuild toàn graph mỗi bước và chưa compute-matched, kết luận
+    hiện tại chỉ là \textbf{MCTS robust hơn graph tĩnh}.
+  \end{block}
+  \scriptsize 95\% CI: Floyd $[0.18,0.40]$; fresh $[0.93,0.99]$;
+  MCTS $[0.54,0.75]$.
+\end{frame}
+
+\begin{frame}{E1b: uncertainty là risk hay information?}
+  \resultbanner
+  \small
+  \begin{tabular}{@{}cccc@{}}
+    \toprule
+    $\sigma_{\mathrm{hi}}$ & MCTS none & MCTS+$\alpha$ & MCTS+$\beta$ \\
+    \midrule
+    0.0 & 0.90 & 0.90 & 0.90 \\
+    0.5 & 0.19 & 0.27 & 0.19 \\
+    \textbf{1.0} & \textbf{0.03} & \textbf{0.03} & \textbf{0.03} \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{0.8em}
+  \begin{block}{Diễn giải}
+    $\alpha$ có tín hiệu +0.08 tại 0.5 nhưng CI chồng lấn; tại 1.0 cả ba về sàn.
+    $\beta$ trùng no-bonus. E1b \textbf{chưa đạt acceptance}; cần sweep
+    $\lambda_{\mathrm{risk}}$ trên calibration seeds.
+  \end{block}
+  \scriptsize 95\% CI tại 0.5: none $[0.10,0.29]$;
+  $\alpha$ $[0.17,0.39]$; $\beta$ $[0.10,0.29]$.
+\end{frame}
+
+\begin{frame}{E1c: sửa bias hệ thống bằng execution feedback}
+  \resultbanner
+  \small
+  \begin{tabular}{@{}cccc@{}}
+    \toprule
+    $\sigma_{\mathrm{bias}}$ & Soft Floyd & MCTS no-feedback & MCTS+feedback \\
+    \midrule
+    0.0 & 0.87 & 0.87 & 0.87 \\
+    0.1 & 0.83 & 0.68 & 0.57 \\
+    \textbf{0.3} & \textbf{0.52} & \textbf{0.30} & \textbf{0.43} \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{0.8em}
+  \begin{block}{Diễn giải}
+    Feedback phục hồi +0.13 so với no-feedback tại 0.3, nhưng vẫn dưới Floyd;
+    tại 0.1 còn làm xấu hơn. Trung bình có 64--98 correction/episode:
+    treatment đang \textbf{over-trigger}.
+  \end{block}
+  \scriptsize 95\% CI tại 0.3: Floyd $[0.35,0.68]$;
+  no-feedback $[0.13,0.48]$; feedback $[0.28,0.60]$.
+\end{frame}
+
+\begin{frame}{E1d: graph và execution cùng nhiễu}
+  \resultbanner
+  \small
+  \begin{tabular}{@{}cccc@{}}
+    \toprule
+    $\sigma$ & Soft Floyd & MCTS no-feedback & MCTS+recovery/feedback \\
+    \midrule
+    0.0 & 0.87 & 0.87 & 0.87 \\
+    \textbf{0.3} & \textbf{0.90} & \textbf{0.97} & \textbf{0.33} \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{0.8em}
+  \begin{block}{Diễn giải}
+    MCTS no-feedback không sụp, nhưng recovery/feedback giảm success 0.64.
+    Trung bình 28.7 correction, 12.8 STUCK và 15.8 blacklist/episode.
+    Kết quả được lặp lại với raw outcomes khớp chính xác.
+  \end{block}
+
+  \begin{alertblock}{Finding}
+    Loop guard hiện quá nhạy. Cần tune $\tau_{\mathrm{progress}},\rho,R_{\max}$
+    trên calibration seeds trước khi chạy report lại.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Tổng hợp tín hiệu từ bốn thí nghiệm}
+  \resultbanner
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[
+      ybar,
+      width=13.2cm,
+      height=5.0cm,
+      ymin=0,ymax=1.08,
+      ylabel={Success rate},
+      symbolic x coords={E1a@0.3,E1b@0.5,E1c@0.3,E1d@0.3},
+      xtick=data,
+      bar width=8pt,
+      enlarge x limits=0.16,
+      legend style={at={(0.5,-0.23)},anchor=north,legend columns=3},
+      nodes near coords,
+      nodes near coords style={font=\tiny},
+      tick label style={font=\scriptsize},
+      label style={font=\small}
+    ]
+      \addplot[fill=gray!55,draw=gray!80]
+        coordinates {(E1a@0.3,0.29) (E1b@0.5,0.19)
+                     (E1c@0.3,0.52) (E1d@0.3,0.90)};
+      \addplot[fill=Warning!65,draw=Warning]
+        coordinates {(E1a@0.3,0.97) (E1b@0.5,0.19)
+                     (E1c@0.3,0.30) (E1d@0.3,0.97)};
+      \addplot[fill=Success!65,draw=Success]
+        coordinates {(E1a@0.3,0.65) (E1b@0.5,0.27)
+                     (E1c@0.3,0.43) (E1d@0.3,0.33)};
+      \legend{Tham chiếu,Ablation/control,Treatment}
+    \end{axis}
+  \end{tikzpicture}
+\end{frame}
+
+\begin{frame}{Correctness review và các lỗi đã sửa}
+  \small
+  \begin{columns}[T]
+    \column{0.49\textwidth}
+      \textbf{Search và uncertainty}
+      \begin{itemize}
+        \item Heuristic và mask dùng cùng một $V_{\mathrm{obs}}$.
+        \item Mỗi root action được thử trước khi so visit count.
+        \item Reward terminal và variance penalty đúng công thức.
+        \item $\beta\sigma/\sqrt{N}$ giảm theo số sample.
+        \item Gaussian noise không còn clipping bias.
+      \end{itemize}
+    \column{0.49\textwidth}
+      \textbf{Execution và protocol}
+      \begin{itemize}
+        \item SNAP có $\tau_{\mathrm{snap}}$; hỗ trợ virtual root.
+        \item Dùng \code{achieved\_goal} cho Fetch/AntMaze.
+        \item E1d inject actuator noise tại action boundary.
+        \item Eval dừng đúng tại terminal/success.
+        \item Cache $V_{\mathrm{true}}$ cố định, vẫn resample noise mỗi traversal.
+        \item Calibration/report dùng seed namespace riêng.
+        \item $\sigma=0$ là strict deterministic control.
+      \end{itemize}
+  \end{columns}
+
+  \vspace{0.4em}
+  \centering
+  \color{Success}\textbf{47/47 unit tests pass; E1a--E1d sanity tại $\sigma=0$ hợp lệ.}
+\end{frame}
+
+\begin{frame}{Hạn chế và cách diễn giải hiện tại}
+  \begin{itemize}
+    \item Kết quả mới chỉ tập trung ở một checkpoint PointMaze; môi trường dễ gây
+          floor/ceiling và planning headroom mỏng.
+    \item E1a fresh-graph baseline chưa compute-matched theo latency/model queries.
+    \item E1b dùng oracle $\sigma_{ij}$; chưa phải uncertainty học từ model ensemble.
+    \item Hyperparameter $\lambda_{\mathrm{risk}},\beta,\rho,\tau_{\mathrm{progress}}$
+          và $R_{\max}$ chưa được sensitivity sweep đầy đủ.
+    \item AntMaze checkpoint hiện chưa đạt clean baseline đủ cao; không thể dùng
+          success 0 để đánh giá planner.
+  \end{itemize}
+
+  \begin{block}{Kết luận có thể nói ở thời điểm này}
+    Claim được hỗ trợ hiện tại: MCTS sample rollout hơn static Floyd ở noise trung
+    bình. E1b chưa đủ bằng chứng; E1c/E1d không đạt acceptance với setting hiện tại.
+  \end{block}
+\end{frame}
+
+\begin{frame}{Kế hoạch tiếp theo}
+  \begin{enumerate}
+    \item Sweep $\tau_{\mathrm{progress}},\rho,R_{\max}$ bằng calibration seeds;
+          khóa config rồi mới chạy report seeds.
+    \item Kiểm tra readiness: clean Soft Floyd baseline phải đạt tối thiểu 0.3,
+          ưu tiên cao hơn trước khi chạy sweep tốn thời gian.
+    \item Retrain/evaluate AntMaze theo curriculum U-Maze $\rightarrow$ Medium;
+          chỉ chạy E1 khi checkpoint nền đủ mạnh.
+    \item Chạy Fetch Pick-and-Place để kiểm chứng GoalEnv có
+          \code{obs\_dim != goal\_dim}.
+    \item Sweep $\lambda_{\mathrm{risk}}$ và simulation budget;
+          báo cáo hiệu quả theo cả success và search latency.
+  \end{enumerate}
+
+  \vfill
+  \centering
+  \textbf{Mục tiêu tuần tới: sửa failure E1c/E1d mà không tune trên report seeds,
+  đồng thời có một environment ngoài PointMaze vượt readiness gate.}
+\end{frame}
+
+\begin{frame}[plain]
+  \centering
+  \Huge Cảm ơn thầy\\[0.6em]
+  \large Câu hỏi và góp ý
+\end{frame}
+
+\end{document}

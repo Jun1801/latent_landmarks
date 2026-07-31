@@ -6,7 +6,7 @@ Compares three MCTS variants under the SAME heterogeneous per-edge oracle
 uncertainty (Sec 3, Cach 1 -- some landmark-landmark edges are secretly noisier,
 decorrelated from V; MCTS is told the true sigma_ij):
   * "none"  -- plain MCTS = the MCTS-beta=0 ablation (Phase 1 planner).
-  * "alpha" -- risk penalty in the reward: edge cost -= lambda_risk * sigma
+  * "alpha" -- risk penalty in the reward: edge cost -= lambda_risk * sigma^2
                (avoid uncertain edges).
   * "beta"  -- exploration bonus in UCT: score += beta_unc * sigma
                (probe uncertain edges to pin down their value).
@@ -36,7 +36,6 @@ import argparse
 import json
 import os
 import sys
-import time
 from dataclasses import replace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -47,7 +46,8 @@ import torch
 from l3p.config import get_config, list_envs
 from l3p.envs import make_vec_env
 from l3p.planning.mcts_planner import UncertaintyMCTSPlanner
-from l3p.planning.noise import dmax_candidates, bootstrap_ci
+from l3p.planning.noise import (dmax_candidates, hierarchical_bootstrap_ci,
+                                calibration_seed)
 from l3p.planning.planner import LatentPlanner
 from l3p.trainer import L3PTrainer
 
@@ -100,9 +100,8 @@ def run_point(trainer, base_cfg, sigma_hi, variant, args, base_seed):
             frac_high=args.frac_high, sigma_hi=sigma_hi, sigma_lo=args.sigma_lo,
             noise_seed=es, rng=np.random.default_rng(es + 1))
         trainer.env.envs[0].rng = np.random.default_rng(es)
-        t0 = time.time()
         s = trainer.evaluate(1, planner=planner)
-        t_tot += time.time() - t0
+        t_tot += float(getattr(planner, "search_seconds", 0.0))
         outcomes.append(int(s > 0))
     return outcomes, t_tot
 
@@ -115,6 +114,10 @@ def main():
     p.add_argument("--episodes", type=int, default=40)
     p.add_argument("--sigma-hi", type=float, nargs="+", default=[0.0, 0.3, 0.5],
                    help="magnitude of the unreliable edges (independent variable)")
+    p.add_argument("--allow-missing-zero", action="store_true",
+                   help="allow a point-only continuation without prepending sigma_hi=0")
+    p.add_argument("--resume", action="store_true",
+                   help="resume completed noise points from --out")
     p.add_argument("--frac-high", type=float, default=0.3,
                    help="fraction of landmark-landmark edges that are unreliable")
     p.add_argument("--sigma-lo", type=float, default=0.0, help="sigma of the reliable edges")
@@ -131,7 +134,7 @@ def main():
     p.add_argument("--plot", type=str, default="logs/e1b_curve.png")
     args = p.parse_args()
 
-    if 0.0 not in args.sigma_hi:
+    if 0.0 not in args.sigma_hi and not args.allow_missing_zero:
         args.sigma_hi = [0.0] + list(args.sigma_hi)
 
     print(f"E1b on {args.env}: uncertainty-bonus ablation (none / alpha / beta) "
@@ -147,37 +150,64 @@ def main():
         print("ERROR: checkpoint has no initialized landmark centroids.", file=sys.stderr)
         sys.exit(1)
 
-    if args.d_max is not None:
+    results, resume_dmax = [], None
+    if args.resume and os.path.exists(args.out):
+        with open(args.out) as f:
+            previous = json.load(f)
+        results = previous.get("results", [])
+        resume_dmax = previous.get("meta", {}).get("d_max")
+        print(f"Resuming {len(results)} completed noise points from {args.out}.")
+
+    if resume_dmax is not None:
+        trainer.cfg.d_max = float(resume_dmax)
+        print(f"Reusing resumed d_max={trainer.cfg.d_max}.")
+    elif args.d_max is not None:
         trainer.cfg.d_max = args.d_max
         print(f"Using fixed d_max={args.d_max}.")
     else:
-        best, sweep = calibrate_d_max(trainer, args.calibrate_episodes, args.seeds[0])
+        best, sweep = calibrate_d_max(
+            trainer, args.calibrate_episodes, calibration_seed(args.seeds[0]))
         print("d_max calibration (clean Soft Floyd, spec R3):")
         for dmax, sr in sweep:
             print(f"    d_max={dmax:7.3f} -> {sr:.2f}" + ("   <- chosen" if dmax == best else ""))
     base_cfg = replace(trainer.cfg)   # carries the calibrated d_max + mcts budget
-    print(f"Config: d_max={base_cfg.d_max:.3f}  sims={base_cfg.mcts_n_simulations}  "
+    effective_floor = 2 * (trainer.landmarks.centroids.shape[0] + 1)
+    print(f"Config: d_max={base_cfg.d_max:.3f}  requested_sims={base_cfg.mcts_n_simulations}  "
+          f"effective_sims>=max(requested,{effective_floor})  "
           f"frac_high={args.frac_high}  lambda_risk={args.lambda_risk}  beta_unc={args.beta_unc}  "
           f"seeds={args.seeds}  eps/seed={args.episodes}")
 
-    results, mcts_t, mcts_n = [], 0.0, 0
+    mcts_t, mcts_n = 0.0, 0
+    completed = {float(r["sigma_hi"]) for r in results}
     for sigma_hi in args.sigma_hi:
+        if float(sigma_hi) in completed:
+            print(f"Skipping completed sigma_hi={sigma_hi:.2f}.", flush=True)
+            continue
         pooled = {v: [] for v in VARIANTS}
+        grouped = {v: [] for v in VARIANTS}
         per_seed = {}
+        per_episode = {}
         for seed in args.seeds:
             per_seed[seed] = {}
+            per_episode[seed] = {}
             for v in VARIANTS:
                 out, t = run_point(trainer, base_cfg, sigma_hi, v, args, seed)
                 pooled[v].extend(out)
+                grouped[v].append(out)
                 per_seed[seed][v] = float(np.mean(out))
+                per_episode[seed][v] = out
                 mcts_t += t
                 mcts_n += args.episodes
+                print(f"  done sigma_hi={sigma_hi:.2f} seed={seed} {LABELS[v]}: "
+                      f"mean={per_seed[seed][v]:.2f} time={t:.1f}s", flush=True)
         agg = {}
         rng = np.random.default_rng(args.seeds[0])
         for v in VARIANTS:
-            mean, lo, hi = bootstrap_ci(pooled[v], n_boot=args.n_boot, rng=rng)
+            mean, lo, hi = hierarchical_bootstrap_ci(
+                grouped[v], n_boot=args.n_boot, rng=rng)
             agg[v] = dict(mean=mean, ci_low=lo, ci_high=hi, n=len(pooled[v]))
-        results.append(dict(sigma_hi=sigma_hi, aggregate=agg, per_seed=per_seed))
+        results.append(dict(sigma_hi=sigma_hi, aggregate=agg, per_seed=per_seed,
+                            per_episode=per_episode))
         print(f"sigma_hi={sigma_hi:.2f}  " + "  ".join(
             f"{LABELS[v]}={agg[v]['mean']:.2f}[{agg[v]['ci_low']:.2f},{agg[v]['ci_high']:.2f}]"
             for v in VARIANTS), flush=True)
@@ -191,22 +221,29 @@ def main():
                 _save(args.out, results, args, base_cfg)
                 sys.exit(1)
             print(f"  >> sigma_hi=0 sanity passed (variant spread={spread:.2f} <= {args.sanity_tol})")
+        _save(args.out, results, args, base_cfg)
+        _plot(args.plot, results)
+        print(f"  checkpointed {len(results)}/{len(args.sigma_hi)} noise points", flush=True)
 
     print(f"\nMCTS latency: {mcts_t / max(1, mcts_n):.2f} s/episode (budget {base_cfg.mcts_n_simulations}).")
-    _save(args.out, results, args, base_cfg)
     print(f"Saved results to {args.out}")
-    _plot(args.plot, results)
+    if results:
+        _plot(args.plot, results)
 
 
 def _save(path, results, args, base_cfg):
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    with open(path, "w") as f:
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
         json.dump(dict(meta=dict(env=args.env, load=args.load, seeds=args.seeds, episodes=args.episodes,
                                  sigma_hi=args.sigma_hi, frac_high=args.frac_high,
                                  sigma_lo=args.sigma_lo, lambda_risk=args.lambda_risk,
                                  beta_unc=args.beta_unc, d_max=base_cfg.d_max,
-                                 mcts_n_simulations=base_cfg.mcts_n_simulations),
+                                 mcts_n_simulations=base_cfg.mcts_n_simulations,
+                                 mcts_root_coverage_floor=2 * (
+                                     base_cfg.n_landmarks + 1)),
                        results=results), f, indent=2)
+    os.replace(tmp, path)
 
 
 def _plot(path, results):

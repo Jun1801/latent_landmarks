@@ -131,6 +131,8 @@ class GymGoalEnvWrapper:  # pragma: no cover - requires MuJoCo
         self.act_dim = env.action_space.shape[0]
         self.max_action = float(env.action_space.high[0])
         self.max_episode_steps = cfg.max_episode_steps
+        self.goal_threshold = float(
+            getattr(env.unwrapped, "distance_threshold", cfg.goal_threshold))
         self.eval_mode = False
         # Different envs use different sparse-reward conventions: Fetch gives
         # {-1 (fail), 0 (success)} while the gymnasium maze envs give

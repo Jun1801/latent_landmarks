@@ -5,11 +5,13 @@ Sections 5-8, 10 -- Phase 1 scope: Loai-2 noise, Noi 1&2 only, no beta*sigma_V
 uncertainty bonus.)
 
 Loads a trained PointMaze-Hard checkpoint and, for each sigma in the sweep,
-evaluates THREE planners (spec Sec 7's mandatory baselines for E1a):
+evaluates FOUR planners (spec Sec 7's mandatory baselines for E1a):
   * "soft_floyd"   -- the existing LatentPlanner (Algorithm 1), unmodified.
   * "naive_replan" -- Baseline 2 (L3P Fig. 8): re-plans via the same Algorithm-1
-    formula but every step, no K-step commitment. Separates "MCTS wins because it
-    re-plans more often" from "MCTS wins because of the tree-search machinery".
+     formula but every step, no K-step commitment. Separates "MCTS wins because it
+     re-plans more often" from "MCTS wins because of the tree-search machinery".
+  * "fresh_graph_replan" -- Baseline 3: Soft Floyd re-plans every step with a new
+    V_obs draw, isolating model refresh from MCTS tree search.
   * "mcts"         -- MCTSPlanner (UCT + sample-based rollout). Note: in Phase 1
     (no uncertainty bonus) this IS the "MCTS-beta=0" ablation of E1b.
 
@@ -24,16 +26,15 @@ FAIRNESS (the whole point of E1a):
   2. Paired episodes: for a given (seed, sigma), all three planners are scored on
      the SAME start/goal pairs -- the env RNG is reseeded identically before each
      planner's turn on each episode (spec Sec 5.2).
-  3. Same noisy V_obs seed per episode across planners (best-effort: each planner
-     calls value_fn a different number of times, so only the STARTING draw is
-     synchronized -- Soft Floyd/Naive build their graph from one batched draw;
-     MCTS additionally samples per simulation).
+  3. The first noisy graph observation is exactly shared across planners. MCTS's
+     heuristic and admissibility mask are derived from that same matrix; only its
+     rollout/tree edges draw additional samples at Nơi 2.
   4. Fixed MCTS budget (mcts_n_simulations / rollout_horizon) across all sigma and
      seeds; reported below with per-episode MCTS latency (spec Sec 10 metric).
 
 STATISTICS (spec Sec 10): runs multiple seeds and reports, per (sigma, planner),
-the mean success rate with a percentile bootstrap CI over the pooled per-episode
-outcomes. The sigma=0 sanity check (acceptance criterion #1: MCTS ~= Soft Floyd)
+the mean success rate with a hierarchical bootstrap CI over seeds and episodes.
+The sigma=0 sanity check (acceptance criterion #1: MCTS ~= Soft Floyd)
 is evaluated on the aggregate and aborts early (before the costly sigma>0 sweep)
 if it fails.
 
@@ -51,7 +52,6 @@ import argparse
 import json
 import os
 import sys
-import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -60,15 +60,20 @@ import torch
 
 from l3p.config import get_config, list_envs
 from l3p.envs import make_vec_env
-from l3p.planning.baselines import NaiveReplanPlanner
+from l3p.planning.baselines import NaiveReplanPlanner, FreshGraphReplanPlanner
 from l3p.planning.mcts_planner import MCTSPlanner
 from l3p.planning.noise import (NoisyValueFn, ValueOverrideAgent, dmax_candidates,
-                                bootstrap_ci)
+                                hierarchical_bootstrap_ci, calibration_seed)
 from l3p.planning.planner import LatentPlanner
 from l3p.trainer import L3PTrainer
 
-PLANNER_NAMES = ["soft_floyd", "naive_replan", "mcts"]
-PLANNER_LABELS = {"soft_floyd": "Soft Floyd", "naive_replan": "Naive re-plan", "mcts": "MCTS"}
+PLANNER_NAMES = ["soft_floyd", "naive_replan", "fresh_graph_replan", "mcts"]
+PLANNER_LABELS = {
+    "soft_floyd": "Soft Floyd",
+    "naive_replan": "Naive re-plan",
+    "fresh_graph_replan": "Soft Floyd + fresh V_obs",
+    "mcts": "MCTS",
+}
 
 
 def make_planner(name, trainer, noisy_agent, episode_seed):
@@ -78,6 +83,10 @@ def make_planner(name, trainer, noisy_agent, episode_seed):
     if name == "naive_replan":
         return NaiveReplanPlanner(noisy_agent, trainer.landmarks, trainer.ae,
                                   trainer.graph_search, trainer.cfg)
+    if name == "fresh_graph_replan":
+        return FreshGraphReplanPlanner(
+            noisy_agent, trainer.landmarks, trainer.ae,
+            trainer.graph_search, trainer.cfg)
     return MCTSPlanner(noisy_agent, trainer.landmarks, trainer.ae,
                        trainer.graph_search, trainer.cfg,
                        rng=np.random.default_rng(episode_seed + 1))
@@ -96,10 +105,9 @@ def run_sigma_sweep(trainer, sigma, n_episodes, base_seed):
             noisy_agent = ValueOverrideAgent(trainer.agent, noisy_value)
             planner = make_planner(name, trainer, noisy_agent, episode_seed)
             trainer.env.envs[0].rng = np.random.default_rng(episode_seed)
-            t0 = time.time()
             s = trainer.evaluate(1, planner=planner)
             if name == "mcts":
-                mcts_time += time.time() - t0
+                mcts_time += float(getattr(planner, "search_seconds", 0.0))
                 mcts_eps += 1
             outcomes[name].append(int(s > 0))
     return outcomes, (mcts_time / max(1, mcts_eps))
@@ -140,13 +148,16 @@ def calibrate_d_max(trainer, n_episodes, base_seed):
     return best[0], sweep
 
 
-def aggregate(pooled, n_boot, alpha, seed):
-    """pooled: {name: [0/1,...]} pooled across seeds -> {name: (mean, lo, hi, n)}."""
+def aggregate(grouped, n_boot, alpha, seed):
+    """grouped: {name: [[seed-0 outcomes], ...]}."""
     rng = np.random.default_rng(seed)
     out = {}
     for name in PLANNER_NAMES:
-        mean, lo, hi = bootstrap_ci(pooled[name], n_boot=n_boot, alpha=alpha, rng=rng)
-        out[name] = dict(mean=mean, ci_low=lo, ci_high=hi, n=len(pooled[name]))
+        mean, lo, hi = hierarchical_bootstrap_ci(
+            grouped[name], n_boot=n_boot, alpha=alpha, rng=rng)
+        out[name] = dict(
+            mean=mean, ci_low=lo, ci_high=hi,
+            n=sum(len(x) for x in grouped[name]))
     return out
 
 
@@ -158,6 +169,10 @@ def main():
                    help="reporting seeds; pooled for mean +/- bootstrap CI (spec Sec 10)")
     p.add_argument("--episodes", type=int, default=50, help="eval episodes per (planner, sigma, seed)")
     p.add_argument("--sigmas", type=float, nargs="+", default=[0.0, 0.1, 0.3, 0.5])
+    p.add_argument("--allow-missing-zero", action="store_true",
+                   help="allow a point-only continuation without prepending sigma=0")
+    p.add_argument("--resume", action="store_true",
+                   help="resume completed noise points from --out")
     p.add_argument("--sanity-tol", type=float, default=0.15,
                    help="max allowed |mean_mcts - mean_floyd| at sigma=0 before aborting")
     p.add_argument("--n-boot", type=int, default=2000, help="bootstrap resamples for the CI")
@@ -173,7 +188,7 @@ def main():
                    help="episodes used to calibrate d_max on the noise-free Soft Floyd baseline")
     args = p.parse_args()
 
-    if 0.0 not in args.sigmas:
+    if 0.0 not in args.sigmas and not args.allow_missing_zero:
         args.sigmas = [0.0] + list(args.sigmas)
 
     print(f"E1a on {args.env}. Caveat (spec risk R2): short/easy envs can have "
@@ -193,12 +208,24 @@ def main():
               "train longer before running E1a.", file=sys.stderr)
         sys.exit(1)
 
+    results, resume_dmax = [], None
+    if args.resume and os.path.exists(args.out):
+        with open(args.out) as f:
+            previous = json.load(f)
+        results = previous.get("results", [])
+        resume_dmax = previous.get("meta", {}).get("d_max")
+        print(f"Resuming {len(results)} completed noise points from {args.out}.")
+
     # ---- fairness step 1: calibrate d_max ONCE, fix for all seeds ----
-    if args.d_max is not None:
+    if resume_dmax is not None:
+        trainer.cfg.d_max = float(resume_dmax)
+        print(f"Reusing resumed d_max={trainer.cfg.d_max}.")
+    elif args.d_max is not None:
         trainer.cfg.d_max = args.d_max
         print(f"Using fixed d_max={args.d_max} (calibration skipped).")
     else:
-        best_dmax, sweep = calibrate_d_max(trainer, args.calibrate_episodes, base_seed=args.seeds[0])
+        best_dmax, sweep = calibrate_d_max(
+            trainer, args.calibrate_episodes, base_seed=calibration_seed(args.seeds[0]))
         print("d_max calibration (noise-free Soft Floyd, spec R3):")
         for dmax, sr in sweep:
             print(f"    d_max={dmax:7.3f} -> floyd success {sr:.2f}"
@@ -207,25 +234,38 @@ def main():
             print("\n*** WARNING: even the best-tuned Soft Floyd baseline is near 0. E1a "
                   "results would be meaningless; retrain / pick a better checkpoint "
                   "(spec Sec 8 KB3).\n", file=sys.stderr)
-    print(f"Config: d_max={trainer.cfg.d_max:.3f}  mcts_n_simulations={trainer.cfg.mcts_n_simulations}  "
+    effective_floor = 2 * (trainer.landmarks.centroids.shape[0] + 1)
+    print(f"Config: d_max={trainer.cfg.d_max:.3f}  requested_sims={trainer.cfg.mcts_n_simulations}  "
+          f"effective_sims>=max(requested,{effective_floor})  "
           f"mcts_rollout_horizon={trainer.cfg.mcts_rollout_horizon}  "
           f"seeds={args.seeds}  episodes/seed={args.episodes}")
 
     # ---- run: sigma outer, seed inner (so sigma=0 finishes first for early sanity abort) ----
-    results = []
     total_mcts_time, total_mcts_calls = 0.0, 0
+    completed = {float(r["sigma"]) for r in results}
     for sigma in args.sigmas:
-        pooled = {name: [] for name in PLANNER_NAMES}
+        if float(sigma) in completed:
+            print(f"Skipping completed sigma={sigma:.2f}.", flush=True)
+            continue
+        grouped = {name: [] for name in PLANNER_NAMES}
         per_seed = {}
+        per_episode = {}
         for seed in args.seeds:
             outcomes, mcts_lat = run_sigma_sweep(trainer, sigma, args.episodes, base_seed=seed)
             per_seed[seed] = {name: float(np.mean(outcomes[name])) for name in PLANNER_NAMES}
+            per_episode[seed] = outcomes
             for name in PLANNER_NAMES:
-                pooled[name].extend(outcomes[name])
+                grouped[name].append(outcomes[name])
             total_mcts_time += mcts_lat * args.episodes
             total_mcts_calls += args.episodes
-        agg = aggregate(pooled, args.n_boot, 0.05, args.seeds[0])
-        results.append(dict(sigma=sigma, aggregate=agg, per_seed=per_seed))
+            seed_summary = "  ".join(
+                f"{PLANNER_LABELS[name]}={per_seed[seed][name]:.2f}"
+                for name in PLANNER_NAMES)
+            print(f"  done sigma={sigma:.2f} seed={seed}: {seed_summary}",
+                  flush=True)
+        agg = aggregate(grouped, args.n_boot, 0.05, args.seeds[0])
+        results.append(dict(sigma=sigma, aggregate=agg, per_seed=per_seed,
+                            per_episode=per_episode))
         line = f"sigma={sigma:.2f}  " + "  ".join(
             f"{PLANNER_LABELS[n]}={agg[n]['mean']:.2f} [{agg[n]['ci_low']:.2f},{agg[n]['ci_high']:.2f}]"
             for n in PLANNER_NAMES)
@@ -240,24 +280,30 @@ def main():
                 _save(args.out, results, args, trainer)
                 sys.exit(1)
             print(f"  >> sigma=0 sanity check passed (|mcts-floyd|={gap:.2f} <= {args.sanity_tol:.2f})")
+        _save(args.out, results, args, trainer)
+        _plot(args.plot, results)
+        print(f"  checkpointed {len(results)}/{len(args.sigmas)} noise points", flush=True)
 
     print(f"\nMCTS latency: {total_mcts_time / max(1, total_mcts_calls):.2f} s/episode "
           f"(budget {trainer.cfg.mcts_n_simulations} sims).")
-    _save(args.out, results, args, trainer)
     print(f"Saved results to {args.out}")
-    _plot(args.plot, results)
+    if results:
+        _plot(args.plot, results)
 
 
 def _save(path, results, args, trainer):
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    with open(path, "w") as f:
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
         json.dump(dict(
             meta=dict(load=args.load, seeds=args.seeds, episodes=args.episodes,
                       env=args.env, sigmas=args.sigmas, d_max=trainer.cfg.d_max,
                       mcts_n_simulations=trainer.cfg.mcts_n_simulations,
+                      mcts_root_coverage_floor=2 * (trainer.landmarks.centroids.shape[0] + 1),
                       mcts_rollout_horizon=trainer.cfg.mcts_rollout_horizon,
                       n_boot=args.n_boot),
             results=results), f, indent=2)
+    os.replace(tmp, path)
 
 
 def _plot(path, results):

@@ -74,8 +74,14 @@ class Config:
     # reward (avoid uncertain edges); "beta" = exploration bonus in UCT (probe
     # uncertain edges). NB: distinct from `beta` above (the soft-Floyd temperature).
     mcts_uncertainty_mode: str = "none"
-    mcts_lambda_risk: float = 1.0        # alpha: reward penalty weight on edge uncertainty
+    mcts_lambda_goal: float = 0.0        # optional terminal reward; zero preserves shortest-path equivalence
+    mcts_lambda_risk: float = 1.0        # alpha: reward penalty weight on edge variance
     mcts_beta_uncertainty: float = 1.0   # beta: UCT exploration-bonus weight on edge uncertainty
+    mcts_feedback_rho: float = 0.5
+    mcts_tau_reach: Optional[float] = None     # None => 0.25*d_max in E1c/E1d
+    mcts_tau_progress: Optional[float] = None  # None => 0.5*d_max
+    mcts_tau_snap: Optional[float] = None      # None => d_max
+    mcts_r_max: int = 2
 
     # ---- training loop (Algorithm 3) ----
     total_steps: int = 2_000_000
@@ -114,7 +120,6 @@ _PER_ENV = {
         n_landmarks=80, n_warmup_trajs=6000, landmark_batch_size=150,
         d_max=15.0, random_landmarks_train=20, action_noise=0.1,
         max_episode_steps=50, grad_norm_clip=None,
-        mcts_cap_rollout_by_heuristic=True,
     ),
 }
 

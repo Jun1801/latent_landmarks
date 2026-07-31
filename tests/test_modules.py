@@ -20,11 +20,19 @@ from l3p.planning.graph_search import GraphSearch
 from l3p.planning.planner import LatentPlanner
 from l3p.planning.noise import (NoisyValueFn, ValueOverrideAgent, dmax_candidates,
                                  bootstrap_ci, build_sigma_matrix, HeterogeneousNoise,
-                                 build_bias_matrix, CriticEdgeFn, BiasedValueFn)
+                                 build_bias_matrix, CriticEdgeFn, BiasedValueFn,
+                                 calibration_seed, hierarchical_bootstrap_ci)
 from l3p.planning.mcts_planner import (LandmarkMCTS, MCTSPlanner, _Node,
-                                        FeedbackMCTSPlanner, SoftFloydE1c)
-from l3p.planning.baselines import NaiveReplanPlanner
+                                        FeedbackMCTSPlanner, SoftFloydE1c,
+                                        update_running_variance,
+                                        running_sigma_matrix)
+from l3p.planning.baselines import NaiveReplanPlanner, FreshGraphReplanPlanner
+from scripts.run_e1c import make_branch as make_e1c_branch
+from scripts.run_e1d import (apply_execution_noise,
+                             evaluate_one as evaluate_e1d_one,
+                             make_branch as make_e1d_branch)
 from l3p.losses import ae_losses
+from l3p.trainer import L3PTrainer
 
 
 def test_q_from_distance():
@@ -211,6 +219,53 @@ def test_planner_commitment_and_masking():
     print("ok  test_planner_commitment_and_masking")
 
 
+def test_evaluate_stops_after_success():
+    class Env:
+        def __init__(self):
+            self.steps = 0
+        def reset(self):
+            self.steps = 0
+            return {
+                "observation": np.zeros(2, dtype=np.float32),
+                "achieved_goal": np.zeros(2, dtype=np.float32),
+                "desired_goal": np.ones(2, dtype=np.float32),
+            }
+        def step(self, action):
+            self.steps += 1
+            obs = {
+                "observation": np.zeros(2, dtype=np.float32),
+                "achieved_goal": np.zeros(2, dtype=np.float32),
+                "desired_goal": np.ones(2, dtype=np.float32),
+            }
+            return obs, -1.0, False, {"is_success": float(self.steps == 3)}
+
+    class VecEnv:
+        def __init__(self):
+            self.envs = [Env()]
+        def set_eval(self, enabled):
+            self.eval_enabled = enabled
+
+    class Planner:
+        def reset(self, goal):
+            self.finalized = False
+        def act(self, obs, achieved_goal=None):
+            return np.zeros(1, dtype=np.float32)
+        def finalize(self, obs, achieved_goal):
+            self.finalized = True
+
+    trainer = L3PTrainer.__new__(L3PTrainer)
+    trainer.env = VecEnv()
+    trainer.cfg = get_config("PointMaze", test_episode_steps=20)
+    trainer.centroids_initialized = True
+    planner = Planner()
+    success = trainer.evaluate(1, planner=planner)
+    assert success == 1.0
+    assert trainer.env.envs[0].steps == 3
+    assert planner.finalized
+    assert trainer.env.eval_enabled is False
+    print("ok  test_evaluate_stops_after_success")
+
+
 def test_noisy_value_zero_sigma_passthrough():
     """sigma=0 must be an exact passthrough (bitwise) -- this is what makes the
     MCTS-vs-Soft-Floyd sigma=0 sanity check exact, not just approximate."""
@@ -233,6 +288,91 @@ def test_noisy_value_matches_distribution():
     assert abs(samples.mean() - 5.0) < 0.1, samples.mean()
     assert abs(samples.std() - 0.5) < 0.1, samples.std()
     print(f"ok  test_noisy_value_matches_distribution (mean={samples.mean():.2f}, std={samples.std():.2f})")
+
+
+def test_noisy_value_remains_zero_mean_near_zero():
+    """Gaussian injection must not become positively biased near distance zero."""
+    class SmallV:
+        def __call__(self, g1, g2):
+            return torch.full((g1.shape[0],), 0.1, device=g1.device)
+
+    noisy = NoisyValueFn(SmallV(), sigma=0.5, rng=np.random.default_rng(0))
+    g = torch.zeros(1, 1)
+    samples = torch.stack([noisy(g, g) for _ in range(10000)]).numpy().ravel()
+    assert abs(samples.mean() - 0.1) < 0.02, samples.mean()
+    assert (samples < 0).any(), "an unclipped Gaussian must retain its negative tail"
+    print("ok  test_noisy_value_remains_zero_mean_near_zero")
+
+
+def test_mcts_indexed_noise_caches_clean_values_but_resamples_noise():
+    """MCTS may cache deterministic V_true, but each edge traversal must still
+    receive an independent Loai-2 sample."""
+    class CountingV:
+        def __init__(self):
+            self.calls = 0
+        def __call__(self, g1, g2):
+            self.calls += 1
+            return torch.norm(g1 - g2, dim=-1)
+
+    base = CountingV()
+    noisy = NoisyValueFn(base, sigma=0.5, rng=np.random.default_rng(0))
+    nodes = torch.tensor([[0.0], [2.0], [5.0]])
+    noisy.prepare_nodes(nodes)
+    first = noisy.sample_indexed(0, [1, 2])
+    second = noisy.sample_indexed(0, [1, 2])
+    assert base.calls == 1
+    assert not torch.equal(first, second)
+    samples = torch.stack(
+        [noisy.sample_indexed(0, [2])[0] for _ in range(3000)]).numpy()
+    assert abs(samples.mean() - 5.0) < 0.1
+    assert abs(samples.std() - 0.5) < 0.1
+    assert base.calls == 1
+    print("ok  test_mcts_indexed_noise_caches_clean_values_but_resamples_noise")
+
+
+def test_mcts_uses_indexed_value_cache():
+    class CountingV:
+        def __init__(self):
+            self.calls = 0
+        def __call__(self, g1, g2):
+            self.calls += 1
+            return torch.norm(g1 - g2, dim=-1)
+
+    base = CountingV()
+    noisy = NoisyValueFn(base, sigma=0.2, rng=np.random.default_rng(0))
+    nodes = torch.tensor([[0.0], [1.0], [2.0]])
+    cfg = get_config(
+        "PointMaze", d_max=10.0, mcts_n_simulations=30,
+        mcts_rollout_horizon=4)
+    mcts = LandmarkMCTS(
+        n_landmarks=2, value_fn=noisy, nodes_t=nodes,
+        d_c2g_heuristic=np.array([-2.0, -1.0, 0.0]), cfg=cfg,
+        rng=np.random.default_rng(1))
+    calls_after_prepare = base.calls
+    mcts.search(np.array([-1.0, -1.0, -2.0]))
+    assert calls_after_prepare == 2  # admissibility observation + clean cache
+    assert base.calls == calls_after_prepare
+    print("ok  test_mcts_uses_indexed_value_cache")
+
+
+def test_graph_heuristic_and_admissibility_share_one_observation():
+    """A stochastic graph must be queried once for both Floyd and MCTS masking."""
+    class CountingV:
+        def __init__(self):
+            self.calls = 0
+        def __call__(self, g1, g2):
+            self.calls += 1
+            return torch.norm(g1 - g2, dim=-1)
+
+    cfg = get_config("PointMaze", d_max=1.5)
+    gs, value = GraphSearch(cfg), CountingV()
+    centroids = torch.tensor([[0.], [1.], [2.]])
+    d_c2g, admissible = gs.distances_to_goal_with_admissibility(
+        centroids, torch.tensor([3.]), _IdentityAE(), value)
+    assert value.calls == 1
+    assert d_c2g.shape == (4,) and admissible.shape == (4, 4)
+    assert admissible[0, 1] and not admissible[0, 2]
+    print("ok  test_graph_heuristic_and_admissibility_share_one_observation")
 
 
 def test_mcts_matches_soft_floyd_at_sigma0():
@@ -263,6 +403,50 @@ def test_mcts_matches_soft_floyd_at_sigma0():
     print(f"ok  test_mcts_matches_soft_floyd_at_sigma0 (mean_q={mean_q:.2f})")
 
 
+def test_mcts_covers_every_root_action():
+    """Cheap presets must still evaluate every landmark once at the root."""
+    n = 50
+    cfg = get_config("PointMaze", d_max=100.0, mcts_n_simulations=20)
+    nodes = torch.arange(n + 1, dtype=torch.float32).view(-1, 1)
+    mcts = LandmarkMCTS(
+        n, _FakeV(), nodes, np.r_[-np.ones(n), 0.0], cfg,
+        np.random.default_rng(0))
+    _, stats = mcts.search(np.r_[-np.ones(n), -100.0])
+    assert len(stats) == n + 1
+    assert mcts.actual_simulations >= 2 * (n + 1)
+    print("ok  test_mcts_covers_every_root_action")
+
+
+def test_mcts_returns_none_when_all_root_actions_masked():
+    cfg = get_config("PointMaze", mcts_n_simulations=20)
+    mcts = LandmarkMCTS(
+        2, _FakeV(), torch.tensor([[0.], [1.], [2.]]),
+        np.array([-2.0, -1.0, 0.0]), cfg, np.random.default_rng(0))
+    best, stats = mcts.search(
+        np.array([-1.0, -1.0, -1.0]),
+        mask=np.ones(3, dtype=bool))
+    assert best is None and stats == {} and mcts.actual_simulations == 0
+    print("ok  test_mcts_returns_none_when_all_root_actions_masked")
+
+
+def test_mcts_terminal_goal_reward_applies_at_root():
+    nodes = torch.tensor([[0.0], [2.0]])
+    heuristic = np.array([-10.0, 0.0])
+    d_s2c = np.array([0.0, -20.0])
+
+    def choose(goal_reward):
+        cfg = get_config(
+            "PointMaze", d_max=1.0, mcts_n_simulations=100,
+            mcts_lambda_goal=goal_reward)
+        return LandmarkMCTS(
+            1, _FakeV(), nodes, heuristic, cfg,
+            np.random.default_rng(0)).search(d_s2c)[0]
+
+    assert choose(0.0) == 0
+    assert choose(15.0) == 1
+    print("ok  test_mcts_terminal_goal_reward_applies_at_root")
+
+
 class _WormholeV:
     """Raw V has an over-optimistic landmark->goal edge."""
     def __call__(self, g1, g2):
@@ -291,14 +475,12 @@ def test_mcts_rollout_capped_by_soft_floyd_heuristic():
     print("ok  test_mcts_rollout_capped_by_soft_floyd_heuristic")
 
 
-def test_mcts_rollout_cap_is_fetch_default_only():
-    """Fetch enables the rollout cap by default to guard against critic
-    landmark-goal wormholes; PointMaze keeps the uncapped behavior used by the
-    existing E1 reports unless a script opts in explicitly."""
+def test_mcts_rollout_cap_is_opt_in():
+    """The conservative rollout cap must not silently change MCTS by env."""
     assert get_config("PointMaze").mcts_cap_rollout_by_heuristic is False
     assert get_config("PointMazeMuJoCo").mcts_cap_rollout_by_heuristic is False
-    assert get_config("FetchPickAndPlace").mcts_cap_rollout_by_heuristic is True
-    print("ok  test_mcts_rollout_cap_is_fetch_default_only")
+    assert get_config("FetchPickAndPlace").mcts_cap_rollout_by_heuristic is False
+    print("ok  test_mcts_rollout_cap_is_opt_in")
 
 
 def test_mcts_respects_prev_landmark_mask():
@@ -357,6 +539,18 @@ def test_mcts_planner_interface_compatible():
     print("ok  test_mcts_planner_interface_compatible")
 
 
+def test_mcts_deterministic_limit_matches_soft_floyd_action():
+    d_s2c = np.array([-2.0, -1.0, -10.0])
+    d_c2g = np.array([-1.0, -4.0, 0.0])
+    mask = np.array([False, False, False])
+    assert MCTSPlanner._soft_floyd_action(d_s2c, d_c2g, mask) == 0
+    mask[0] = True
+    assert MCTSPlanner._soft_floyd_action(d_s2c, d_c2g, mask) == 1
+    assert MCTSPlanner._soft_floyd_action(
+        d_s2c, d_c2g, np.ones(3, dtype=bool)) is None
+    print("ok  test_mcts_deterministic_limit_matches_soft_floyd_action")
+
+
 def test_naive_replan_every_step():
     """Baseline 2 (SPEC Sec 7): NaiveReplanPlanner must re-plan on every act()
     call, unlike LatentPlanner's commit-for-K-steps behavior."""
@@ -381,6 +575,29 @@ def test_naive_replan_every_step():
     planner.act(obs)
     assert agent.calls == 3
     print("ok  test_naive_replan_every_step")
+
+
+def test_fresh_graph_baseline_refreshes_value_observation():
+    """SPEC baseline 3 keeps the first paired graph then refreshes V_obs per act."""
+    class CountingV(_FakeV):
+        def __init__(self):
+            self.calls = 0
+        def __call__(self, g1, g2):
+            self.calls += 1
+            return super().__call__(g1, g2)
+
+    cfg = get_config("PointMaze", d_max=20.0)
+    agent = _FakeAgent(distances=[2.0, 3.0, 8.0, 20.0])
+    agent.value = CountingV()
+    planner = FreshGraphReplanPlanner(
+        agent, LatentLandmarks(3, 2), _IdentityAE(), GraphSearch(cfg), cfg)
+    planner.reset(np.array([3.0, 3.0], dtype=np.float32))
+    assert agent.value.calls == 1
+    planner.act(np.zeros(2, dtype=np.float32))
+    assert agent.value.calls == 1
+    planner.act(np.zeros(2, dtype=np.float32))
+    assert agent.value.calls == 2
+    print("ok  test_fresh_graph_baseline_refreshes_value_observation")
 
 
 def test_mcts_admissibility_cached_once_per_episode():
@@ -441,6 +658,13 @@ def test_dmax_candidates_keep_fallback_for_tiny_v():
     print("ok  test_dmax_candidates_keep_fallback_for_tiny_v")
 
 
+def test_calibration_seed_is_disjoint_and_deterministic():
+    assert calibration_seed(7) == calibration_seed(7)
+    assert calibration_seed(7) != 7
+    assert calibration_seed(7) != calibration_seed(8)
+    print("ok  test_calibration_seed_is_disjoint_and_deterministic")
+
+
 def test_bootstrap_ci():
     """Bootstrap CI must bracket the sample mean, collapse to a point for
     all-equal outcomes, and narrow as sample size grows (SPEC Sec 10)."""
@@ -460,20 +684,24 @@ def test_bootstrap_ci():
     print("ok  test_bootstrap_ci")
 
 
+def test_hierarchical_bootstrap_preserves_seed_variation():
+    groups = [np.zeros(100), np.ones(100)]
+    mean, lo, hi = hierarchical_bootstrap_ci(
+        groups, n_boot=4000, rng=np.random.default_rng(0))
+    assert mean == 0.5
+    assert lo <= 0.05 and hi >= 0.95, (lo, hi)
+    print("ok  test_hierarchical_bootstrap_preserves_seed_variation")
+
+
 def test_build_sigma_matrix():
-    """Symmetric, zero diagonal, goal edges kept low, and ~frac_high of
-    landmark-landmark edges set to sigma_hi (E1b heterogeneous oracle)."""
+    """Directed, zero diagonal, and ~frac_high of ordered graph edges are high."""
     m, goal_idx = 6, 5
     sig = build_sigma_matrix(m, frac_high=0.5, sigma_lo=0.1, sigma_hi=0.9,
                              rng=np.random.default_rng(0), goal_idx=goal_idx)
-    assert np.allclose(sig, sig.T)                        # symmetric
     assert np.allclose(np.diag(sig), 0.0)                 # zero diagonal
-    # goal row/col never high
-    assert not np.any(np.isclose(sig[goal_idx], 0.9)) and not np.any(np.isclose(sig[:, goal_idx], 0.9))
-    # among landmark-landmark unordered pairs, ~50% are high
-    lm = [(i, j) for i in range(m) for j in range(i + 1, m) if i != goal_idx and j != goal_idx]
-    n_high = sum(np.isclose(sig[i, j], 0.9) for i, j in lm)
-    assert n_high == round(0.5 * len(lm)), (n_high, len(lm))
+    pairs = [(i, j) for i in range(m) for j in range(m) if i != j]
+    n_high = sum(np.isclose(sig[i, j], 0.9) for i, j in pairs)
+    assert n_high == round(0.5 * len(pairs)), (n_high, len(pairs))
     print("ok  test_build_sigma_matrix")
 
 
@@ -534,16 +762,34 @@ def test_uct_beta_bonus_shifts_selection():
     print("ok  test_uct_beta_bonus_shifts_selection")
 
 
+def test_uct_beta_information_bonus_decays_with_samples():
+    cfg = get_config(
+        "PointMaze", mcts_uncertainty_mode="beta",
+        mcts_beta_uncertainty=2.0)
+    sigma = np.ones((3, 3), dtype=np.float64)
+    mcts = LandmarkMCTS(
+        2, _FakeV(), torch.tensor([[0.], [1.], [2.]]),
+        np.array([-2.0, -1.0, 0.0]), cfg, np.random.default_rng(0),
+        sigma_matrix=sigma)
+    node = _Node(idx=0, candidates=[1])
+    node.child_visits[1] = 1
+    first = mcts._uct_bonus(node)(1)
+    node.child_visits[1] = 16
+    later = mcts._uct_bonus(node)(1)
+    assert later == first / 4
+    print("ok  test_uct_beta_information_bonus_decays_with_samples")
+
+
 def test_build_bias_matrix():
-    """E1c Loai-1 bias: symmetric, zero diagonal, goal edges unbiased, and the
-    landmark-landmark biases are ~N(0, sigma^2)."""
+    """E1c Loai-1 bias: directed, zero diagonal, all edges ~N(0,sigma^2)."""
     m, goal_idx, sigma = 5, 4, 0.3
     b = build_bias_matrix(m, sigma, np.random.default_rng(0), goal_idx=goal_idx)
-    assert np.allclose(b, b.T) and np.allclose(np.diag(b), 0.0)
-    assert np.allclose(b[goal_idx], 0.0) and np.allclose(b[:, goal_idx], 0.0)
-    # empirical std of the landmark-landmark biases ~ sigma (large sample)
+    assert np.allclose(np.diag(b), 0.0)
+    assert not np.allclose(b, b.T)
+    assert np.any(np.abs(b[goal_idx, :goal_idx]) > 0)
+    # empirical std of all directed edge biases ~ sigma (large sample)
     big = build_bias_matrix(80, sigma, np.random.default_rng(1), goal_idx=79)
-    off = big[np.triu_indices(79, k=1)]           # exclude goal row/col
+    off = big[~np.eye(80, dtype=bool)]
     assert abs(off.std() - sigma) < 0.05, off.std()
     print("ok  test_build_bias_matrix")
 
@@ -597,7 +843,9 @@ def _make_feedback_planner():
     pl._nodes_t = torch.tensor([[0., 0.], [10., 0.], [0., 10.], [10., 10.]])
     bias = np.zeros((4, 4)); bias[0, 1] = bias[1, 0] = 0.5      # edge (0,1) inflated +50%
     pl._biased = BiasedValueFn(CriticEdgeFn(_StubAgent(scale=1.0)), pl._nodes_t, bias)
-    pl._v_exec, pl._attempts, pl._blacklist = {}, {}, set()
+    pl._v_exec, pl._residual_stats, pl._attempts, pl._blacklist = {}, {}, {}, set()
+    pl.stats = dict(macros=0, reached=0, progressed=0, stuck=0,
+                    blacklisted=0, corrections=0, snaps=0, virtual_roots=0)
     return pl
 
 
@@ -615,6 +863,20 @@ def test_feedback_ema_correction_and_reached():
     assert pl._attempts == {}                                   # cleared on REACHED
     assert 1 not in pl._blacklist
     print("ok  test_feedback_ema_correction_and_reached")
+
+
+def test_feedback_never_blacklists_goal():
+    """Regression: the GOAL node must never be masked out of the candidate set,
+    even after a failed direct-to-goal macro-step blacklists it (the fix for the
+    `<= n_landmarks` bug). A blacklisted landmark IS masked; the goal is not."""
+    pl = _make_feedback_planner()
+    goal_idx = pl.n_landmarks                       # 3
+    pl._blacklist = {goal_idx, 1}                   # goal + landmark 1 blacklisted
+    pl.prev_landmark = None
+    mask = pl._candidate_mask()
+    assert mask[goal_idx] == False, "goal node must never be masked"
+    assert mask[1] == True, "a blacklisted landmark must be masked"
+    print("ok  test_feedback_never_blacklists_goal")
 
 
 def test_feedback_stuck_blacklists_immediately():
@@ -644,6 +906,171 @@ def test_feedback_progressed_blacklists_after_rmax():
     print("ok  test_feedback_progressed_blacklists_after_rmax")
 
 
+def test_feedback_virtual_root_and_direct_goal_outcome():
+    """Off-graph states stay virtual; failed direct-goal attempts are not ignored."""
+    pl = _make_feedback_planner()
+    pl.tau_snap = 0.1
+    idx, nearest = pl._snap(np.array([5.0, 5.0], dtype=np.float32))
+    assert idx is None and nearest > pl.tau_snap
+
+    pl.stats = dict(macros=0, reached=0, progressed=0, stuck=0,
+                    blacklisted=0, corrections=0, snaps=0, virtual_roots=0)
+    pl._macro_start_i = None
+    pl._cur_j = pl.n_landmarks
+    pl._macro_start_z = np.array([0.0, 0.0], dtype=np.float32)
+    pl._macro_k = 2
+    pl._observe(np.array([0.0, 0.0], dtype=np.float32))
+    assert pl.n_landmarks in pl._blacklist
+    assert pl._cur_j is None
+    print("ok  test_feedback_virtual_root_and_direct_goal_outcome")
+
+
+def test_feedback_accepts_separate_observation_and_achieved_goal():
+    """Ant/Fetch feedback must not assume obs_dim == goal_dim."""
+    class SplitObsAgent(_StubAgent):
+        def distance_after_action(self, obs, goals):
+            obs = np.atleast_2d(obs)
+            goals = np.atleast_2d(goals)
+            xy = obs[:, :2]
+            if xy.shape[0] == 1 and goals.shape[0] > 1:
+                xy = np.repeat(xy, goals.shape[0], axis=0)
+            return np.linalg.norm(xy - goals, axis=1)
+
+    cfg = get_config("PointMaze", d_max=50.0)
+    pl = FeedbackMCTSPlanner(
+        SplitObsAgent(), LatentLandmarks(2, 2), _IdentityAE(), GraphSearch(cfg),
+        cfg, sigma=0.0, noise_seed=0, edge_value_fn=_FakeV())
+    pl.n_landmarks = 2
+    pl.landmark_goals = np.array([[0., 0.], [10., 0.]], dtype=np.float32)
+    pl.goal = np.array([10., 10.], dtype=np.float32)
+    pl._nodes_t = torch.tensor([[0., 0.], [10., 0.], [10., 10.]])
+    pl._biased = BiasedValueFn(
+        _FakeV(), pl._nodes_t, np.zeros((3, 3), dtype=np.float64))
+    pl._v_exec, pl._residual_stats, pl._attempts, pl._blacklist = {}, {}, {}, set()
+    pl.stats = dict(macros=0, reached=0, progressed=0, stuck=0,
+                    blacklisted=0, corrections=0, snaps=0, virtual_roots=0)
+    pl._macro_start_i, pl._cur_j = 0, 1
+    pl._macro_start_z = np.array([0., 0., 7., 8.], dtype=np.float32)
+    pl._macro_k = 5
+    pl._observe(
+        np.array([10., 0., 9., 9.], dtype=np.float32),
+        achieved_goal=np.array([10., 0.], dtype=np.float32))
+    assert pl.stats["reached"] == 1 and (0, 1) in pl._v_exec
+    print("ok  test_feedback_accepts_separate_observation_and_achieved_goal")
+
+
+def test_execution_noise_is_applied_at_env_action_boundary():
+    action = np.array([0.25, -0.25], dtype=np.float32)
+    assert np.array_equal(
+        apply_execution_noise(action, 0.0, np.random.default_rng(0), 1.0),
+        action)
+    noisy = apply_execution_noise(
+        action, 0.5, np.random.default_rng(0), 1.0)
+    assert not np.array_equal(noisy, action)
+    assert np.all(noisy <= 1.0) and np.all(noisy >= -1.0)
+    print("ok  test_execution_noise_is_applied_at_env_action_boundary")
+
+
+def test_e1d_evaluate_stops_after_success():
+    class Env:
+        def __init__(self):
+            self.steps = 0
+            self.rng = None
+        def reset(self):
+            self.steps = 0
+            return {
+                "observation": np.zeros(2, dtype=np.float32),
+                "achieved_goal": np.zeros(2, dtype=np.float32),
+                "desired_goal": np.ones(2, dtype=np.float32),
+            }
+        def step(self, action):
+            self.steps += 1
+            obs = {
+                "observation": np.zeros(2, dtype=np.float32),
+                "achieved_goal": np.zeros(2, dtype=np.float32),
+                "desired_goal": np.ones(2, dtype=np.float32),
+            }
+            return obs, -1.0, False, {"is_success": float(self.steps == 3)}
+
+    class VecEnv:
+        max_action = 1.0
+        def __init__(self):
+            self.envs = [Env()]
+        def set_eval(self, enabled):
+            self.eval_enabled = enabled
+
+    class Planner:
+        exec_sigma = 0.0
+        search_seconds = 0.0
+        search_calls = 0
+        stats = {}
+        def reset(self, goal):
+            self.finalized = False
+        def act(self, obs, achieved_goal=None):
+            return np.zeros(1, dtype=np.float32)
+        def finalize(self, obs, achieved_goal):
+            self.finalized = True
+
+    class Trainer:
+        env = VecEnv()
+        cfg = get_config("PointMaze", test_episode_steps=20)
+
+    planner = Planner()
+    success, _ = evaluate_e1d_one(Trainer(), planner, episode_seed=0)
+    assert success == 1
+    assert Trainer.env.envs[0].steps == 3
+    assert planner.finalized
+    assert Trainer.env.eval_enabled is False
+    print("ok  test_e1d_evaluate_stops_after_success")
+
+
+def test_execution_residuals_produce_directed_edge_uncertainty():
+    stats = {}
+    update_running_variance(stats, (0, 1), -2.0)
+    update_running_variance(stats, (0, 1), 2.0)
+    update_running_variance(stats, (1, 0), 0.0)
+    sigma = running_sigma_matrix(stats, 3)
+    assert abs(sigma[0, 1] - np.sqrt(8.0)) < 1e-9
+    assert sigma[1, 0] == 0.0
+    print("ok  test_execution_residuals_produce_directed_edge_uncertainty")
+
+
+def test_sigma0_disables_feedback_treatment():
+    """E1c/E1d no-noise branches must remain the static Floyd control."""
+    class EnvShape:
+        obs_dim = 2
+        goal_dim = 2
+
+    class TrainerStub:
+        agent = _StubAgent()
+        landmarks = LatentLandmarks(2, 2)
+        ae = _IdentityAE()
+        graph_search = GraphSearch(get_config("PointMaze"))
+        env = EnvShape()
+
+    class Args:
+        rho = 0.5
+        tau_reach = 1.0
+        tau_progress = 2.0
+        tau_snap = 3.0
+        r_max = 2
+        graph_sigma_scale = 1.0
+        exec_sigma_scale = 1.0
+
+    cfg = get_config("PointMaze")
+    clean_c = make_e1c_branch(
+        "mcts_fb", TrainerStub(), cfg, sigma=0.0, noise_seed=0, args=Args())
+    noisy_c = make_e1c_branch(
+        "mcts_fb", TrainerStub(), cfg, sigma=0.1, noise_seed=0, args=Args())
+    clean_d = make_e1d_branch(
+        "mcts_fb", TrainerStub(), cfg, sigma=0.0, noise_seed=0, args=Args())
+    noisy_d = make_e1d_branch(
+        "mcts_fb", TrainerStub(), cfg, sigma=0.1, noise_seed=0, args=Args())
+    assert clean_c.feedback is False and clean_d.feedback is False
+    assert noisy_c.feedback is True and noisy_d.feedback is True
+    print("ok  test_sigma0_disables_feedback_treatment")
+
+
 ALL_TESTS = [
     test_q_from_distance,
     test_value_regression,
@@ -651,28 +1078,48 @@ ALL_TESTS = [
     test_gls_and_elbo,
     test_soft_floyd_and_dmax,
     test_planner_commitment_and_masking,
+    test_evaluate_stops_after_success,
     test_noisy_value_zero_sigma_passthrough,
     test_noisy_value_matches_distribution,
+    test_noisy_value_remains_zero_mean_near_zero,
+    test_mcts_indexed_noise_caches_clean_values_but_resamples_noise,
+    test_mcts_uses_indexed_value_cache,
+    test_graph_heuristic_and_admissibility_share_one_observation,
     test_mcts_matches_soft_floyd_at_sigma0,
+    test_mcts_covers_every_root_action,
+    test_mcts_returns_none_when_all_root_actions_masked,
+    test_mcts_terminal_goal_reward_applies_at_root,
     test_mcts_rollout_capped_by_soft_floyd_heuristic,
-    test_mcts_rollout_cap_is_fetch_default_only,
+    test_mcts_rollout_cap_is_opt_in,
     test_mcts_respects_prev_landmark_mask,
     test_mcts_planner_interface_compatible,
+    test_mcts_deterministic_limit_matches_soft_floyd_action,
     test_naive_replan_every_step,
+    test_fresh_graph_baseline_refreshes_value_observation,
     test_mcts_admissibility_cached_once_per_episode,
     test_dmax_candidates_track_v_scale,
     test_dmax_candidates_keep_fallback_for_tiny_v,
+    test_calibration_seed_is_disjoint_and_deterministic,
     test_bootstrap_ci,
+    test_hierarchical_bootstrap_preserves_seed_variation,
     test_build_sigma_matrix,
     test_heterogeneous_noise,
     test_mcts_alpha_avoids_uncertain_edge,
     test_uct_beta_bonus_shifts_selection,
+    test_uct_beta_information_bonus_decays_with_samples,
     test_build_bias_matrix,
     test_critic_edge_fn,
     test_biased_value_fn,
     test_feedback_ema_correction_and_reached,
+    test_feedback_never_blacklists_goal,
     test_feedback_stuck_blacklists_immediately,
     test_feedback_progressed_blacklists_after_rmax,
+    test_feedback_virtual_root_and_direct_goal_outcome,
+    test_feedback_accepts_separate_observation_and_achieved_goal,
+    test_execution_noise_is_applied_at_env_action_boundary,
+    test_e1d_evaluate_stops_after_success,
+    test_execution_residuals_produce_directed_edge_uncertainty,
+    test_sigma0_disables_feedback_treatment,
 ]
 
 if __name__ == "__main__":

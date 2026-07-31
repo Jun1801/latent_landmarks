@@ -27,7 +27,7 @@ import torch
 
 from l3p.config import get_config, list_envs
 from l3p.envs import make_vec_env
-from l3p.planning.noise import dmax_candidates
+from l3p.planning.noise import dmax_candidates, calibration_seed
 from l3p.planning.planner import LatentPlanner
 from l3p.trainer import L3PTrainer
 
@@ -109,7 +109,8 @@ def main() -> None:
     best_dmax, best_sr = default_dmax, -1.0
     for dmax in value_dmax_candidates(trainer, args.percentiles):
         trainer.cfg.d_max = dmax
-        out = eval_soft_floyd(trainer, args.calibrate_episodes, args.seed)
+        out = eval_soft_floyd(
+            trainer, args.calibrate_episodes, calibration_seed(args.seed))
         sr = mean(out)
         sweep.append(dict(d_max=dmax, success=sr, successes=sum(out),
                           episodes=len(out)))
