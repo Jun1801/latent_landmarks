@@ -456,6 +456,59 @@ def test_progressive_widening_matches_soft_floyd_at_sigma0():
     print(f"ok  test_progressive_widening_matches_soft_floyd_at_sigma0 (mean_q={mean_q:.2f})")
 
 
+def _bayes_mcts(mode="bayes"):
+    cfg = get_config("PointMaze", d_max=100.0, mcts_n_simulations=200,
+                     mcts_rollout_horizon=6, mcts_uncertainty_mode=mode,
+                     mcts_beta_uncertainty=1.0, mcts_bayes_sigma0=1.0, mcts_bayes_n0=1.0)
+    nodes = torch.tensor([[0.], [1.], [2.], [3.]])
+    return LandmarkMCTS(3, _FakeV(), nodes, np.array([-3., -2., -1., 0.]),
+                        cfg, np.random.default_rng(0))
+
+
+def test_bayes_posterior_shrinks_with_samples_and_variance():
+    """Normal-normal posterior variance: 0 for a deterministic edge, larger with
+    higher observed variance, smaller with more samples (oracle-free)."""
+    m = _bayes_mcts()
+    node = _Node(idx=0, candidates=[1, 2, 3])
+    node.child_visits.update({0: 4, 1: 4, 2: 16, 3: 4})
+    node.child_total.update({0: 4.0, 1: 0.0, 2: 0.0, 3: 0.0})
+    node.child_total_sq.update({0: 4.0, 1: 16.0, 2: 64.0, 3: 64.0})  # var: 0, 5.33, 4.27, 21.3
+    pv = {j: m._posterior(node, j)[1] for j in (0, 1, 2, 3)}
+    assert abs(pv[0]) < 1e-12                      # deterministic edge -> no uncertainty
+    assert pv[1] > pv[2]                            # same-ish var, but 16 samples < 4 samples
+    assert pv[3] > pv[1]                            # higher observed variance -> more uncertain
+    assert abs(m._posterior(node, 0)[0] - 1.0) < 1e-9   # posterior mean = sample mean
+    print("ok  test_bayes_posterior_shrinks_with_samples_and_variance")
+
+
+def test_thompson_prefers_higher_posterior_mean():
+    """Thompson sampling picks the higher-value edge most of the time, and returns
+    None when no child has been visited."""
+    m = _bayes_mcts(mode="thompson")
+    node = _Node(idx=0, candidates=[1, 2])
+    node.child_visits.update({0: 10, 1: 10})
+    node.child_total.update({0: 50.0, 1: 0.0})     # means 5.0 vs 0.0
+    node.child_total_sq.update({0: 260.0, 1: 10.0})  # small variances
+    picks = [m._thompson_child(node) for _ in range(200)]
+    assert picks.count(0) > 150                      # clearly favors the better edge
+    empty = _Node(idx=0, candidates=[1])
+    assert m._thompson_child(empty) is None
+    print(f"ok  test_thompson_prefers_higher_posterior_mean (chose better {picks.count(0)}/200)")
+
+
+def test_bayes_thompson_are_opt_in_and_oracle_free():
+    """Default mode is none; bayes/thompson survive with NO sigma_matrix (they are
+    estimated from observed returns), unlike the oracle beta/alpha modes."""
+    assert get_config("PointMaze").mcts_uncertainty_mode == "none"
+    for mode in ("bayes", "thompson"):
+        assert _bayes_mcts(mode).unc_mode == mode            # not downgraded despite sigma=None
+    cfg = get_config("PointMaze", mcts_uncertainty_mode="beta")
+    m = LandmarkMCTS(3, _FakeV(), torch.tensor([[0.], [1.], [2.], [3.]]),
+                     np.array([-3., -2., -1., 0.]), cfg, np.random.default_rng(0))
+    assert m.unc_mode == "none"                              # oracle beta with no sigma -> disabled
+    print("ok  test_bayes_thompson_are_opt_in_and_oracle_free")
+
+
 def test_mcts_covers_every_root_action():
     """Cheap presets must still evaluate every landmark once at the root."""
     n = 50
@@ -1196,6 +1249,9 @@ ALL_TESTS = [
     test_progressive_widening_reveals_topk_by_visits,
     test_progressive_widening_is_opt_in,
     test_progressive_widening_matches_soft_floyd_at_sigma0,
+    test_bayes_posterior_shrinks_with_samples_and_variance,
+    test_thompson_prefers_higher_posterior_mean,
+    test_bayes_thompson_are_opt_in_and_oracle_free,
     test_mcts_rollout_cap_is_opt_in,
     test_mcts_respects_prev_landmark_mask,
     test_mcts_planner_interface_compatible,

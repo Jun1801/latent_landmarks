@@ -76,8 +76,15 @@ class Config:
     # ---- E1b uncertainty bonus (docs/SPEC_MCTS_Landmark_L3P.md Sec 3) ----
     # "none" = plain MCTS (= MCTS-beta=0 ablation); "alpha" = risk penalty in the
     # reward (avoid uncertain edges); "beta" = exploration bonus in UCT (probe
-    # uncertain edges). NB: distinct from `beta` above (the soft-Floyd temperature).
+    # uncertain edges, needs an ORACLE per-edge sigma). NB: distinct from `beta`
+    # above (the soft-Floyd temperature).
+    # "bayes"/"thompson" = ORACLE-FREE: estimate each edge's uncertainty from the
+    # returns observed in the search via normal-normal conjugacy. "bayes" adds
+    # beta_unc*posterior_std to UCT; "thompson" samples each edge's value from its
+    # posterior and takes the argmax. Both decouple from `sigma_matrix`.
     mcts_uncertainty_mode: str = "none"
+    mcts_bayes_sigma0: float = 1.0       # bayes/thompson: prior std of an edge's value before 2 samples
+    mcts_bayes_n0: float = 1.0           # bayes/thompson: prior pseudo-count (posterior var = obs_var/(n+n0))
     mcts_lambda_goal: float = 0.0        # optional terminal reward; zero preserves shortest-path equivalence
     mcts_lambda_risk: float = 1.0        # alpha: reward penalty weight on edge variance
     mcts_beta_uncertainty: float = 1.0   # beta: UCT exploration-bonus weight on edge uncertainty

@@ -55,7 +55,7 @@ def running_sigma_matrix(stats, size):
 
 class _Node:
     __slots__ = ("idx", "untried", "ranked", "pw", "children", "visits",
-                 "child_visits", "child_total")
+                 "child_visits", "child_total", "child_total_sq")
 
     def __init__(self, idx: Optional[int], candidates: List[int],
                  ranked: Optional[List[int]] = None, pw=None):
@@ -71,6 +71,7 @@ class _Node:
         self.visits = 0
         self.child_visits: Dict[int, int] = defaultdict(int)
         self.child_total: Dict[int, float] = defaultdict(float)
+        self.child_total_sq: Dict[int, float] = defaultdict(float)  # sum of squared backups (bayes/thompson)
 
     def _pw_allowed(self) -> int:
         c, alpha = self.pw
@@ -138,7 +139,11 @@ class LandmarkMCTS:
         self.lambda_risk = getattr(cfg, "mcts_lambda_risk", 0.0)
         self.lambda_goal = getattr(cfg, "mcts_lambda_goal", 0.0)
         self.beta_unc = getattr(cfg, "mcts_beta_uncertainty", 0.0)
-        if self.sigma is None:
+        # bayes/thompson estimate uncertainty from observed returns (no oracle),
+        # so only the oracle-sigma modes are disabled when no sigma is supplied.
+        self.bayes_sigma0 = getattr(cfg, "mcts_bayes_sigma0", 1.0)
+        self.bayes_n0 = getattr(cfg, "mcts_bayes_n0", 1.0)
+        if self.sigma is None and self.unc_mode in ("alpha", "beta", "both"):
             self.unc_mode = "none"
         prepare_nodes = getattr(self.value_fn, "prepare_nodes", None)
         if callable(prepare_nodes):
@@ -223,9 +228,43 @@ class LandmarkMCTS:
             costs = costs + self.lambda_goal * (np.asarray(js) == self.goal_idx)
         return costs
 
+    def _posterior(self, node: "_Node", j: int) -> Tuple[float, float]:
+        """Normal-normal posterior (mean, variance) of edge (node->j)'s value from
+        the returns observed in this search. sigma_lik^2 is the sample variance of
+        the backed-up returns (the prior variance until 2 samples exist); the
+        posterior variance of the mean is sigma_lik^2/(n+n0). A deterministic edge
+        (zero observed variance) collapses to posterior variance 0 -> no bonus,
+        recovering greedy behaviour exactly where there is nothing to probe."""
+        n = node.child_visits[j]
+        mean = node.child_total[j] / n if n else 0.0
+        if n >= 2:
+            var = max(0.0, (node.child_total_sq[j] - node.child_total[j] ** 2 / n) / (n - 1))
+        else:
+            var = self.bayes_sigma0 ** 2
+        post_var = var / (n + self.bayes_n0)
+        return mean, post_var
+
+    def _thompson_child(self, node: "_Node") -> Optional[int]:
+        """Sample each visited child's value from its posterior and take the
+        argmax (Thompson sampling over the landmark graph)."""
+        best_j, best = None, -float("inf")
+        for j, n in node.child_visits.items():
+            if n == 0:
+                continue
+            mean, post_var = self._posterior(node, j)
+            theta = mean + math.sqrt(max(0.0, post_var)) * float(self.rng.normal())
+            if theta > best:
+                best, best_j = theta, j
+        return best_j
+
     def _uct_bonus(self, node: "_Node"):
-        """beta exploration bonus fn for UCT selection at `node` (E1b), or None.
-        Root (state->landmark) edges carry no oracle uncertainty."""
+        """Exploration-bonus fn for UCT selection at `node`, or None.
+        - beta/both (E1b): oracle per-edge sigma, sigma/sqrt(n) (root edges have
+          no oracle uncertainty -> None at the root).
+        - bayes: data-driven posterior std of the edge value (works at the root
+          too, since downstream return variance is observed there)."""
+        if self.unc_mode == "bayes":
+            return lambda j: self.beta_unc * math.sqrt(max(0.0, self._posterior(node, j)[1]))
         if self.unc_mode not in ("beta", "both") or node.idx is None:
             return None
         pi = node.idx
@@ -330,7 +369,10 @@ class LandmarkMCTS:
                     break                       # expand one node per simulation
                 if not node.children:
                     break
-                j = node.best_uct_child(self.cfg.mcts_c_uct, bonus=self._uct_bonus(node))
+                if self.unc_mode == "thompson":
+                    j = self._thompson_child(node)
+                else:
+                    j = node.best_uct_child(self.cfg.mcts_c_uct, bonus=self._uct_bonus(node))
                 if j is None:
                     break
                 path.append((node, j))
@@ -366,6 +408,7 @@ class LandmarkMCTS:
                 parent.visits += 1
                 parent.child_visits[child_idx] += 1
                 parent.child_total[child_idx] += r
+                parent.child_total_sq[child_idx] += r * r
 
         stats: Dict[int, Tuple[int, float]] = {}
         best_idx, best_key = None, (-1, -float("inf"))
