@@ -54,18 +54,46 @@ def running_sigma_matrix(stats, size):
 
 
 class _Node:
-    __slots__ = ("idx", "untried", "children", "visits", "child_visits", "child_total")
+    __slots__ = ("idx", "untried", "ranked", "pw", "children", "visits",
+                 "child_visits", "child_total")
 
-    def __init__(self, idx: Optional[int], candidates: List[int]):
+    def __init__(self, idx: Optional[int], candidates: List[int],
+                 ranked: Optional[List[int]] = None, pw=None):
         self.idx = idx                      # None for the (virtual) root
-        self.untried = list(candidates)
+        self.pw = pw                        # (c, alpha) for progressive widening, else None
+        if pw is None:                      # legacy: expand every candidate, random order
+            self.untried = list(candidates)
+            self.ranked = None
+        else:                               # PW: reveal top-k(visits) candidates in priority order
+            self.untried = None
+            self.ranked = list(ranked if ranked is not None else candidates)
         self.children: Dict[int, "_Node"] = {}
         self.visits = 0
         self.child_visits: Dict[int, int] = defaultdict(int)
         self.child_total: Dict[int, float] = defaultdict(float)
 
+    def _pw_allowed(self) -> int:
+        c, alpha = self.pw
+        return max(1, math.ceil(c * (self.visits ** alpha)))
+
     def fully_expanded(self) -> bool:
-        return len(self.untried) == 0
+        if self.pw is None:
+            return len(self.untried) == 0
+        return len(self.children) >= min(self._pw_allowed(), len(self.ranked))
+
+    def next_expand(self, rng) -> Optional[int]:
+        """Candidate to expand next: a random untried one (legacy) or the
+        highest-prior not-yet-expanded one within the PW visit budget."""
+        if self.pw is None:
+            if not self.untried:
+                return None
+            return self.untried.pop(int(rng.integers(len(self.untried))))
+        if len(self.children) >= self._pw_allowed():
+            return None
+        for j in self.ranked:
+            if j not in self.children:
+                return j
+        return None
 
     def best_uct_child(self, c_uct: float, bonus=None) -> Optional[int]:
         """bonus(child_j) -> extra additive score (E1b beta uncertainty bonus)."""
@@ -94,6 +122,10 @@ class LandmarkMCTS:
         self.heuristic = d_c2g_heuristic    # [N+1], static soft-Floyd d_{c->g}
         self.cfg = cfg
         self.rng = rng
+        # Progressive widening: deep nodes reveal only top-k(visits) candidates in
+        # prior order (root stays full, so the returned action is never pruned).
+        self.pw = ((getattr(cfg, "mcts_pw_c", 1.0), getattr(cfg, "mcts_pw_alpha", 0.5))
+                   if getattr(cfg, "mcts_progressive_widening", False) else None)
         # E1b oracle uncertainty (docs/... Sec 3): per-edge sigma_ij + a mode.
         # "alpha" subtracts lambda_risk*variance from landmark->landmark edge costs
         # (risk-averse: avoid uncertain edges); "beta" adds beta_unc*sigma to the
@@ -144,6 +176,23 @@ class LandmarkMCTS:
 
     def _candidates_of(self, i: int) -> List[int]:
         return [j for j in range(self.n + 1) if j != i and self._admissible[i, j]]
+
+    def _rank(self, i: int, cands: List[int]) -> List[int]:
+        """Order candidates out of node i by the greedy value-to-go prior
+        (edge value + heuristic), best first -- the same score the rollout uses.
+        Only consulted for progressive widening's expansion order."""
+        if not cands:
+            return []
+        scores = self._batch_edge_costs(i, cands) + self.heuristic[cands]
+        return [cands[k] for k in np.argsort(-scores)]
+
+    def _child_candidates(self, j: int):
+        """(candidates, ranked) for a new child j; `ranked` is the PW priority
+        order (None in legacy mode)."""
+        if j == self.goal_idx:
+            return [], []
+        cands = self._candidates_of(j)
+        return cands, (self._rank(j, cands) if self.pw is not None else None)
 
     def _edge_cost(self, i: int, j: int) -> float:
         sample_indexed = getattr(self.value_fn, "sample_indexed", None)
@@ -262,8 +311,25 @@ class LandmarkMCTS:
             node = root
             depth = 0
 
-            # SELECTION
-            while node.fully_expanded() and node.children and depth < self.cfg.mcts_rollout_horizon:
+            # SELECTION + EXPANSION (unified to support progressive widening;
+            # with PW disabled this is equivalent to the classic "descend through
+            # fully-expanded nodes via UCT, then expand one random child").
+            while depth < self.cfg.mcts_rollout_horizon:
+                if node.idx == self.goal_idx:
+                    break
+                if not node.fully_expanded():
+                    j = node.next_expand(self.rng)
+                    if j is None:
+                        break
+                    candidates, ranked = self._child_candidates(j)
+                    child = node.children.setdefault(
+                        j, _Node(j, candidates, ranked=ranked, pw=self.pw))
+                    path.append((node, j))
+                    node = child
+                    depth += 1
+                    break                       # expand one node per simulation
+                if not node.children:
+                    break
                 j = node.best_uct_child(self.cfg.mcts_c_uct, bonus=self._uct_bonus(node))
                 if j is None:
                     break
@@ -272,16 +338,6 @@ class LandmarkMCTS:
                 depth += 1
                 if j == self.goal_idx:
                     break
-
-            # EXPANSION
-            if node.idx != self.goal_idx and node.untried and depth < self.cfg.mcts_rollout_horizon:
-                pick = int(self.rng.integers(len(node.untried)))
-                j = node.untried.pop(pick)
-                candidates = [] if j == self.goal_idx else self._candidates_of(j)
-                child = node.children.setdefault(j, _Node(j, candidates))
-                path.append((node, j))
-                node = child
-                depth += 1
 
             # tree-portion per-edge costs: root edges are the fixed d_s2c;
             # landmark/goal edges resample the (possibly noisy) value_fn on use.

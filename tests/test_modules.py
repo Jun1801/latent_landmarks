@@ -403,6 +403,59 @@ def test_mcts_matches_soft_floyd_at_sigma0():
     print(f"ok  test_mcts_matches_soft_floyd_at_sigma0 (mean_q={mean_q:.2f})")
 
 
+def test_progressive_widening_reveals_topk_by_visits():
+    """A PW node exposes only ceil(c*visits^alpha) children, in prior order, and
+    reveals more as its visit count grows -- so nothing is permanently pruned."""
+    rng = np.random.default_rng(0)
+    node = _Node(idx=5, candidates=[3, 1, 2], ranked=[3, 1, 2], pw=(1.0, 0.5))
+    assert node._pw_allowed() == 1                     # visits=0 -> ceil(0)=0 -> max(1,.)=1
+    assert not node.fully_expanded()
+    assert node.next_expand(rng) == 3                  # top prior first
+    node.children[3] = _Node(3, [])
+    assert node.fully_expanded()                       # 1 child == budget at visits=0
+    node.visits = 4                                    # ceil(1*sqrt(4)) = 2
+    assert node._pw_allowed() == 2 and not node.fully_expanded()
+    assert node.next_expand(rng) == 1
+    node.children[1] = _Node(1, [])
+    assert node.fully_expanded()
+    node.visits = 9                                    # ceil(3) = 3 -> last one revealed
+    assert node.next_expand(rng) == 2
+    # a legacy node (pw=None) is unaffected: random expansion over `untried`
+    legacy = _Node(idx=5, candidates=[1, 2])
+    assert legacy.ranked is None and set(legacy.untried) == {1, 2}
+    print("ok  test_progressive_widening_reveals_topk_by_visits")
+
+
+def test_progressive_widening_is_opt_in():
+    """PW must stay off by default so committed results are unchanged."""
+    assert get_config("PointMaze").mcts_progressive_widening is False
+    assert get_config("FetchPickAndPlace").mcts_progressive_widening is False
+    print("ok  test_progressive_widening_is_opt_in")
+
+
+def test_progressive_widening_matches_soft_floyd_at_sigma0():
+    """With PW enabled the root stays full, so the deterministic sigma=0 sanity
+    still holds: MCTS recovers Soft Floyd's cost-3 route via landmark 0."""
+    cfg = get_config("PointMaze", beta=0.05, soft_iters=40, d_max=1.5, neg_inf=-1e6,
+                     mcts_n_simulations=500, mcts_c_uct=1.4, mcts_rollout_horizon=10,
+                     mcts_progressive_widening=True, mcts_pw_c=1.0, mcts_pw_alpha=0.5)
+    gs = GraphSearch(cfg)
+    landmarks = torch.tensor([[0.], [1.], [2.]])
+    goal = torch.tensor([3.])
+    value_fn = NoisyValueFn(_FakeV(), sigma=0.0, rng=np.random.default_rng(0))
+    W = gs.build_weight_matrix(landmarks, goal, value_fn)
+    d_c2g = gs.soft_floyd(W)[:, -1].numpy()
+    nodes_t = torch.cat([landmarks, goal.view(1, -1)], dim=0)
+    mcts = LandmarkMCTS(n_landmarks=3, value_fn=value_fn, nodes_t=nodes_t,
+                        d_c2g_heuristic=d_c2g, cfg=cfg, rng=np.random.default_rng(1))
+    d_s2c = np.array([0.0, -1e6, -1e6, -1e6], dtype=np.float32)
+    best_idx, stats = mcts.search(d_s2c)
+    assert best_idx == 0
+    _, mean_q = stats[0]
+    assert abs(mean_q + 3.0) < 0.5, mean_q
+    print(f"ok  test_progressive_widening_matches_soft_floyd_at_sigma0 (mean_q={mean_q:.2f})")
+
+
 def test_mcts_covers_every_root_action():
     """Cheap presets must still evaluate every landmark once at the root."""
     n = 50
@@ -1140,6 +1193,9 @@ ALL_TESTS = [
     test_mcts_terminal_goal_reward_applies_at_root,
     test_mcts_rollout_capped_by_soft_floyd_heuristic,
     test_mcts_suffix_backup_credits_return_to_go,
+    test_progressive_widening_reveals_topk_by_visits,
+    test_progressive_widening_is_opt_in,
+    test_progressive_widening_matches_soft_floyd_at_sigma0,
     test_mcts_rollout_cap_is_opt_in,
     test_mcts_respects_prev_landmark_mask,
     test_mcts_planner_interface_compatible,

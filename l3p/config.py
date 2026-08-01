@@ -68,6 +68,9 @@ class Config:
     mcts_rollout_horizon: int = 10       # max additional macro-hops per rollout
     mcts_cap_rollout_by_heuristic: bool = False  # optionally keep rollouts consistent with Soft-Floyd value-to-go
     mcts_suffix_backup: bool = False     # credit each edge with its return-to-go (suffix) instead of the full root->leaf return
+    mcts_progressive_widening: bool = False  # deep nodes expand only top-k(visits) candidates by prior (root stays full)
+    mcts_pw_c: float = 1.0               # PW branch budget: k(n) = ceil(c * n^alpha)
+    mcts_pw_alpha: float = 0.5           # PW branch-growth exponent
     mcts_seed: int = 0                   # rng stream for MCTS's own randomness
 
     # ---- E1b uncertainty bonus (docs/SPEC_MCTS_Landmark_L3P.md Sec 3) ----
