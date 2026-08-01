@@ -959,6 +959,38 @@ def test_feedback_accepts_separate_observation_and_achieved_goal():
     print("ok  test_feedback_accepts_separate_observation_and_achieved_goal")
 
 
+def test_feedback_realized_cost_on_v_scale_not_step_count():
+    """Fix (Fetch/Ant): on a V substrate (obs != goal, edge_value_fn is the
+    ~10x-compressed value fn) the realized cost blended into V_exec must be in
+    the graph's V units, NOT the env-step count macro_k -- otherwise the EMA
+    adds a ~O(10-50) step count to a ~O(0.3) V edge and corrupts the graph. On
+    the critic-D substrate (no edge_value_fn) the env-step formula is kept."""
+    cfg = get_config("PointMaze", d_max=50.0, mcts_n_simulations=20)
+    pl = FeedbackMCTSPlanner(
+        _StubAgent(scale=1.0), LatentLandmarks(2, 2), _IdentityAE(), GraphSearch(cfg),
+        cfg, sigma=0.0, noise_seed=0, rho=0.5, tau_reach=1.0, tau_progress=3.0,
+        r_max=2, edge_value_fn=_FakeV(), rng=np.random.default_rng(0))
+    assert pl._step_scale is False, "a V edge fn must NOT be treated as env-step scale"
+    pl.n_landmarks = 2
+    pl.landmark_goals = np.array([[0., 0.], [10., 0.]], dtype=np.float32)
+    pl.goal = np.array([10., 10.], dtype=np.float32)
+    pl._nodes_t = torch.tensor([[0., 0.], [10., 0.], [10., 10.]])
+    pl._biased = BiasedValueFn(_FakeV(), pl._nodes_t, np.zeros((3, 3), dtype=np.float64))
+    pl._v_exec, pl._residual_stats, pl._attempts, pl._blacklist = {}, {}, {}, set()
+    pl.stats = dict(macros=0, reached=0, progressed=0, stuck=0,
+                    blacklisted=0, corrections=0, snaps=0, virtual_roots=0)
+    pl._macro_start_i, pl._cur_j = 0, 1
+    pl._macro_start_ag = np.array([0., 0.], dtype=np.float32)   # goal-space start
+    pl._macro_start_z = np.array([0., 0.], dtype=np.float32)
+    pl._macro_k = 100                                           # huge env-step count
+    pl._observe(np.array([10., 0.], dtype=np.float32),          # reached c_1
+                achieved_goal=np.array([10., 0.], dtype=np.float32))
+    # V units: prev=|(0,0)-(10,0)|=10 ; realized = travelled(0->10 =10) + remaining(0)
+    # = 10 ; EMA(rho=0.5) = 10. It must NOT be dominated by macro_k=100.
+    assert abs(pl._v_exec[(0, 1)] - 10.0) < 1e-6, pl._v_exec[(0, 1)]
+    print("ok  test_feedback_realized_cost_on_v_scale_not_step_count")
+
+
 def test_execution_noise_is_applied_at_env_action_boundary():
     action = np.array([0.25, -0.25], dtype=np.float32)
     assert np.array_equal(
@@ -1116,6 +1148,7 @@ ALL_TESTS = [
     test_feedback_progressed_blacklists_after_rmax,
     test_feedback_virtual_root_and_direct_goal_outcome,
     test_feedback_accepts_separate_observation_and_achieved_goal,
+    test_feedback_realized_cost_on_v_scale_not_step_count,
     test_execution_noise_is_applied_at_env_action_boundary,
     test_e1d_evaluate_stops_after_success,
     test_execution_residuals_produce_directed_edge_uncertainty,

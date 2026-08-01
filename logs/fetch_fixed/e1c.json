@@ -1696,14 +1696,14 @@
           "stats": {}
         },
         "mcts_nofb": {
-          "mean": 0.05,
-          "ci_low": 0.0,
-          "ci_high": 0.11666666666666667,
+          "mean": 0.4166666666666667,
+          "ci_low": 0.21666666666666667,
+          "ci_high": 0.6166666666666667,
           "n": 60,
           "stats": {
             "blacklisted": 0.0,
             "corrections": 0.0,
-            "macros": 46.233333333333334,
+            "macros": 29.2,
             "progressed": 0.0,
             "reached": 0.0,
             "snaps": 0.0,
@@ -1713,33 +1713,33 @@
           }
         },
         "mcts_fb": {
-          "mean": 0.05,
-          "ci_low": 0.0,
-          "ci_high": 0.11666666666666667,
+          "mean": 0.4166666666666667,
+          "ci_low": 0.21666666666666667,
+          "ci_high": 0.6,
           "n": 60,
           "stats": {
-            "blacklisted": 1.3,
-            "corrections": 45.93333333333333,
-            "macros": 46.06666666666667,
-            "progressed": 0.31666666666666665,
-            "reached": 44.516666666666666,
-            "snaps": 45.93333333333333,
-            "stuck": 1.2333333333333334,
-            "uncertain_edges": 3.85,
-            "virtual_roots": 0.13333333333333333
+            "blacklisted": 1.4833333333333334,
+            "corrections": 28.85,
+            "macros": 28.85,
+            "progressed": 0.016666666666666666,
+            "reached": 27.15,
+            "snaps": 28.85,
+            "stuck": 1.6833333333333333,
+            "uncertain_edges": 1.4666666666666666,
+            "virtual_roots": 0.0
           }
         }
       },
       "per_seed": {
         "0": {
           "soft_floyd": 0.5333333333333333,
-          "mcts_nofb": 0.06666666666666667,
-          "mcts_fb": 0.06666666666666667
+          "mcts_nofb": 0.5333333333333333,
+          "mcts_fb": 0.5333333333333333
         },
         "1": {
           "soft_floyd": 0.3,
-          "mcts_nofb": 0.03333333333333333,
-          "mcts_fb": 0.03333333333333333
+          "mcts_nofb": 0.3,
+          "mcts_fb": 0.3
         }
       },
       "per_episode": {
@@ -1812,22 +1812,9 @@
           },
           "mcts_nofb": {
             "outcomes": [
+              1,
               0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
+              1,
               0,
               0,
               0,
@@ -1836,16 +1823,29 @@
               0,
               1,
               0,
+              1,
+              1,
+              1,
+              0,
+              1,
+              1,
+              0,
+              1,
+              1,
+              1,
               0,
               1,
               0,
+              1,
+              1,
               0,
-              0,
+              1,
+              1,
               0
             ],
             "stats": [
               {
-                "macros": 50.0,
+                "macros": 2.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -1867,7 +1867,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 50.0,
+                "macros": 3.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -1944,7 +1944,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 50.0,
+                "macros": 5.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -1966,7 +1966,29 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 50.0,
+                "macros": 1.0,
+                "reached": 0.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 0.0,
+                "snaps": 0.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 1.0,
+                "reached": 0.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 0.0,
+                "snaps": 0.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 4.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -1988,7 +2010,18 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 48.0,
+                "macros": 4.0,
+                "reached": 0.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 0.0,
+                "snaps": 0.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 2.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -2010,7 +2043,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 50.0,
+                "macros": 1.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -2021,7 +2054,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 50.0,
+                "macros": 11.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -2032,40 +2065,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 50.0,
-                "reached": 0.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 0.0,
-                "snaps": 0.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 0.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 0.0,
-                "snaps": 0.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 49.0,
-                "reached": 0.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 0.0,
-                "snaps": 0.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 50.0,
+                "macros": 7.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -2109,7 +2109,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 47.0,
+                "macros": 3.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -2142,7 +2142,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 50.0,
+                "macros": 3.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -2153,7 +2153,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 50.0,
+                "macros": 1.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -2178,22 +2178,9 @@
           },
           "mcts_fb": {
             "outcomes": [
+              1,
               0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
+              1,
               0,
               0,
               0,
@@ -2202,24 +2189,37 @@
               0,
               1,
               0,
+              1,
+              1,
+              1,
+              0,
+              1,
+              1,
+              0,
+              1,
+              1,
+              1,
               0,
               1,
               0,
+              1,
+              1,
               0,
-              0,
+              1,
+              1,
               0
             ],
             "stats": [
               {
-                "macros": 50.0,
-                "reached": 50.0,
+                "macros": 2.0,
+                "reached": 1.0,
                 "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
+                "stuck": 1.0,
+                "blacklisted": 1.0,
+                "corrections": 2.0,
+                "snaps": 2.0,
                 "virtual_roots": 0.0,
-                "uncertain_edges": 2.0
+                "uncertain_edges": 0.0
               },
               {
                 "macros": 49.0,
@@ -2230,269 +2230,16 @@
                 "corrections": 49.0,
                 "snaps": 49.0,
                 "virtual_roots": 0.0,
-                "uncertain_edges": 3.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 5.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
                 "uncertain_edges": 2.0
               },
               {
-                "macros": 50.0,
-                "reached": 49.0,
-                "progressed": 0.0,
-                "stuck": 1.0,
-                "blacklisted": 1.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 6.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 4.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 2.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 4.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 4.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 9.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 49.0,
-                "progressed": 0.0,
-                "stuck": 1.0,
-                "blacklisted": 1.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 4.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 2.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 3.0
-              },
-              {
-                "macros": 48.0,
-                "reached": 47.0,
-                "progressed": 0.0,
-                "stuck": 1.0,
-                "blacklisted": 1.0,
-                "corrections": 48.0,
-                "snaps": 48.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 4.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 4.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 4.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 7.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 4.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 49.0,
-                "progressed": 0.0,
-                "stuck": 1.0,
-                "blacklisted": 1.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 4.0
-              },
-              {
-                "macros": 49.0,
-                "reached": 48.0,
-                "progressed": 0.0,
-                "stuck": 1.0,
-                "blacklisted": 1.0,
-                "corrections": 49.0,
-                "snaps": 49.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 2.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 3.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 2.0
-              },
-              {
-                "macros": 1.0,
+                "macros": 3.0,
                 "reached": 1.0,
                 "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 1.0,
-                "snaps": 1.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 49.0,
-                "progressed": 0.0,
-                "stuck": 1.0,
+                "stuck": 2.0,
                 "blacklisted": 1.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 5.0
-              },
-              {
-                "macros": 43.0,
-                "reached": 25.0,
-                "progressed": 10.0,
-                "stuck": 8.0,
-                "blacklisted": 11.0,
-                "corrections": 39.0,
-                "snaps": 39.0,
-                "virtual_roots": 4.0,
-                "uncertain_edges": 5.0
-              },
-              {
-                "macros": 1.0,
-                "reached": 1.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 1.0,
-                "snaps": 1.0,
+                "corrections": 3.0,
+                "snaps": 3.0,
                 "virtual_roots": 0.0,
                 "uncertain_edges": 0.0
               },
@@ -2509,14 +2256,190 @@
               },
               {
                 "macros": 50.0,
-                "reached": 47.0,
+                "reached": 49.0,
+                "progressed": 0.0,
+                "stuck": 1.0,
+                "blacklisted": 1.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 3.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 50.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 2.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 50.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 3.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 50.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 2.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 50.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 3.0
+              },
+              {
+                "macros": 5.0,
+                "reached": 5.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 5.0,
+                "snaps": 5.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 1.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 49.0,
+                "progressed": 0.0,
+                "stuck": 1.0,
+                "blacklisted": 1.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 3.0
+              },
+              {
+                "macros": 1.0,
+                "reached": 1.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 1.0,
+                "snaps": 1.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 1.0,
+                "reached": 1.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 1.0,
+                "snaps": 1.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 4.0,
+                "reached": 2.0,
+                "progressed": 0.0,
+                "stuck": 2.0,
+                "blacklisted": 1.0,
+                "corrections": 4.0,
+                "snaps": 4.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 1.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 50.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 3.0
+              },
+              {
+                "macros": 4.0,
+                "reached": 1.0,
                 "progressed": 0.0,
                 "stuck": 3.0,
-                "blacklisted": 3.0,
+                "blacklisted": 1.0,
+                "corrections": 4.0,
+                "snaps": 4.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 1.0
+              },
+              {
+                "macros": 2.0,
+                "reached": 1.0,
+                "progressed": 0.0,
+                "stuck": 1.0,
+                "blacklisted": 1.0,
+                "corrections": 2.0,
+                "snaps": 2.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 50.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
                 "corrections": 50.0,
                 "snaps": 50.0,
                 "virtual_roots": 0.0,
-                "uncertain_edges": 7.0
+                "uncertain_edges": 3.0
+              },
+              {
+                "macros": 1.0,
+                "reached": 1.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 1.0,
+                "snaps": 1.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 11.0,
+                "reached": 11.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 11.0,
+                "snaps": 11.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 2.0
+              },
+              {
+                "macros": 7.0,
+                "reached": 3.0,
+                "progressed": 0.0,
+                "stuck": 4.0,
+                "blacklisted": 1.0,
+                "corrections": 7.0,
+                "snaps": 7.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 1.0
               },
               {
                 "macros": 50.0,
@@ -2528,6 +2451,83 @@
                 "snaps": 50.0,
                 "virtual_roots": 0.0,
                 "uncertain_edges": 2.0
+              },
+              {
+                "macros": 1.0,
+                "reached": 1.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 1.0,
+                "snaps": 1.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 44.0,
+                "progressed": 0.0,
+                "stuck": 6.0,
+                "blacklisted": 6.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 3.0
+              },
+              {
+                "macros": 3.0,
+                "reached": 2.0,
+                "progressed": 0.0,
+                "stuck": 1.0,
+                "blacklisted": 1.0,
+                "corrections": 3.0,
+                "snaps": 3.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 1.0,
+                "reached": 1.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 1.0,
+                "snaps": 1.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 50.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 2.0
+              },
+              {
+                "macros": 3.0,
+                "reached": 1.0,
+                "progressed": 0.0,
+                "stuck": 2.0,
+                "blacklisted": 1.0,
+                "corrections": 3.0,
+                "snaps": 3.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 1.0
+              },
+              {
+                "macros": 1.0,
+                "reached": 1.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 1.0,
+                "snaps": 1.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
               },
               {
                 "macros": 50.0,
@@ -2612,6 +2612,15 @@
           },
           "mcts_nofb": {
             "outcomes": [
+              1,
+              0,
+              0,
+              0,
+              0,
+              1,
+              1,
+              1,
+              1,
               0,
               0,
               0,
@@ -2622,30 +2631,21 @@
               0,
               0,
               0,
+              1,
               0,
               0,
               0,
               0,
+              1,
               0,
               0,
               0,
               0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0
+              1
             ],
             "stats": [
               {
-                "macros": 50.0,
+                "macros": 3.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -2700,7 +2700,84 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 49.0,
+                "macros": 4.0,
+                "reached": 0.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 0.0,
+                "snaps": 0.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 1.0,
+                "reached": 0.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 0.0,
+                "snaps": 0.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 3.0,
+                "reached": 0.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 0.0,
+                "snaps": 0.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 2.0,
+                "reached": 0.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 0.0,
+                "snaps": 0.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 0.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 0.0,
+                "snaps": 0.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 0.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 0.0,
+                "snaps": 0.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 0.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 0.0,
+                "snaps": 0.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 50.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -2733,84 +2810,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 50.0,
-                "reached": 0.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 0.0,
-                "snaps": 0.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 0.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 0.0,
-                "snaps": 0.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 0.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 0.0,
-                "snaps": 0.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 0.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 0.0,
-                "snaps": 0.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 0.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 0.0,
-                "snaps": 0.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
                 "macros": 1.0,
-                "reached": 0.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 0.0,
-                "snaps": 0.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 0.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 0.0,
-                "snaps": 0.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 50.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -2854,7 +2854,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 50.0,
+                "macros": 2.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -2909,29 +2909,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 50.0,
-                "reached": 0.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 0.0,
-                "snaps": 0.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 0.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 0.0,
-                "snaps": 0.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 46.0,
+                "macros": 2.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -2965,6 +2943,28 @@
               },
               {
                 "macros": 50.0,
+                "reached": 0.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 0.0,
+                "snaps": 0.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 0.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 0.0,
+                "snaps": 0.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 2.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -2978,6 +2978,15 @@
           },
           "mcts_fb": {
             "outcomes": [
+              1,
+              0,
+              0,
+              0,
+              0,
+              1,
+              1,
+              1,
+              1,
               0,
               0,
               0,
@@ -2988,38 +2997,29 @@
               0,
               0,
               0,
+              1,
               0,
               0,
               0,
               0,
+              1,
               0,
               0,
               0,
               0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0
+              1
             ],
             "stats": [
               {
-                "macros": 50.0,
-                "reached": 50.0,
+                "macros": 3.0,
+                "reached": 1.0,
                 "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
+                "stuck": 2.0,
+                "blacklisted": 1.0,
+                "corrections": 3.0,
+                "snaps": 3.0,
                 "virtual_roots": 0.0,
-                "uncertain_edges": 6.0
+                "uncertain_edges": 0.0
               },
               {
                 "macros": 50.0,
@@ -3033,15 +3033,136 @@
                 "uncertain_edges": 3.0
               },
               {
-                "macros": 42.0,
-                "reached": 33.0,
-                "progressed": 2.0,
-                "stuck": 7.0,
-                "blacklisted": 7.0,
-                "corrections": 42.0,
-                "snaps": 42.0,
+                "macros": 25.0,
+                "reached": 7.0,
+                "progressed": 0.0,
+                "stuck": 18.0,
+                "blacklisted": 18.0,
+                "corrections": 25.0,
+                "snaps": 25.0,
                 "virtual_roots": 0.0,
-                "uncertain_edges": 5.0
+                "uncertain_edges": 2.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 50.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 43.0,
+                "reached": 34.0,
+                "progressed": 0.0,
+                "stuck": 9.0,
+                "blacklisted": 9.0,
+                "corrections": 43.0,
+                "snaps": 43.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 3.0
+              },
+              {
+                "macros": 4.0,
+                "reached": 1.0,
+                "progressed": 0.0,
+                "stuck": 3.0,
+                "blacklisted": 1.0,
+                "corrections": 4.0,
+                "snaps": 4.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 1.0
+              },
+              {
+                "macros": 1.0,
+                "reached": 1.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 1.0,
+                "snaps": 1.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 3.0,
+                "reached": 1.0,
+                "progressed": 0.0,
+                "stuck": 2.0,
+                "blacklisted": 1.0,
+                "corrections": 3.0,
+                "snaps": 3.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 2.0,
+                "reached": 1.0,
+                "progressed": 0.0,
+                "stuck": 1.0,
+                "blacklisted": 1.0,
+                "corrections": 2.0,
+                "snaps": 2.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 1.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 50.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 49.0,
+                "progressed": 0.0,
+                "stuck": 1.0,
+                "blacklisted": 1.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 2.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 50.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 45.0,
+                "progressed": 0.0,
+                "stuck": 5.0,
+                "blacklisted": 5.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 3.0
+              },
+              {
+                "macros": 1.0,
+                "reached": 0.0,
+                "progressed": 1.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 1.0,
+                "snaps": 1.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
               },
               {
                 "macros": 50.0,
@@ -3053,28 +3174,6 @@
                 "snaps": 50.0,
                 "virtual_roots": 0.0,
                 "uncertain_edges": 2.0
-              },
-              {
-                "macros": 42.0,
-                "reached": 32.0,
-                "progressed": 2.0,
-                "stuck": 8.0,
-                "blacklisted": 8.0,
-                "corrections": 40.0,
-                "snaps": 40.0,
-                "virtual_roots": 2.0,
-                "uncertain_edges": 3.0
-              },
-              {
-                "macros": 44.0,
-                "reached": 41.0,
-                "progressed": 0.0,
-                "stuck": 3.0,
-                "blacklisted": 3.0,
-                "corrections": 43.0,
-                "snaps": 43.0,
-                "virtual_roots": 1.0,
-                "uncertain_edges": 4.0
               },
               {
                 "macros": 1.0,
@@ -3096,7 +3195,40 @@
                 "corrections": 50.0,
                 "snaps": 50.0,
                 "virtual_roots": 0.0,
-                "uncertain_edges": 4.0
+                "uncertain_edges": 3.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 47.0,
+                "progressed": 0.0,
+                "stuck": 3.0,
+                "blacklisted": 3.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 3.0
+              },
+              {
+                "macros": 43.0,
+                "reached": 22.0,
+                "progressed": 0.0,
+                "stuck": 21.0,
+                "blacklisted": 21.0,
+                "corrections": 43.0,
+                "snaps": 43.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 3.0
+              },
+              {
+                "macros": 2.0,
+                "reached": 1.0,
+                "progressed": 0.0,
+                "stuck": 1.0,
+                "blacklisted": 1.0,
+                "corrections": 2.0,
+                "snaps": 2.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 1.0
               },
               {
                 "macros": 50.0,
@@ -3107,7 +3239,62 @@
                 "corrections": 50.0,
                 "snaps": 50.0,
                 "virtual_roots": 0.0,
-                "uncertain_edges": 6.0
+                "uncertain_edges": 2.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 48.0,
+                "progressed": 0.0,
+                "stuck": 2.0,
+                "blacklisted": 2.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 50.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 2.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 50.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 3.0
+              },
+              {
+                "macros": 2.0,
+                "reached": 1.0,
+                "progressed": 0.0,
+                "stuck": 1.0,
+                "blacklisted": 1.0,
+                "corrections": 2.0,
+                "snaps": 2.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 50.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 2.0
               },
               {
                 "macros": 50.0,
@@ -3140,205 +3327,18 @@
                 "corrections": 50.0,
                 "snaps": 50.0,
                 "virtual_roots": 0.0,
-                "uncertain_edges": 5.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 47.0,
-                "progressed": 0.0,
-                "stuck": 3.0,
-                "blacklisted": 3.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 5.0
-              },
-              {
-                "macros": 1.0,
-                "reached": 0.0,
-                "progressed": 1.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 1.0,
-                "snaps": 1.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
                 "uncertain_edges": 3.0
               },
               {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 3.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 2.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 45.0,
-                "progressed": 0.0,
-                "stuck": 5.0,
-                "blacklisted": 5.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 13.0
-              },
-              {
-                "macros": 45.0,
-                "reached": 28.0,
-                "progressed": 4.0,
-                "stuck": 13.0,
-                "blacklisted": 14.0,
-                "corrections": 44.0,
-                "snaps": 44.0,
-                "virtual_roots": 1.0,
-                "uncertain_edges": 8.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 3.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 4.0
-              },
-              {
-                "macros": 49.0,
-                "reached": 42.0,
-                "progressed": 0.0,
-                "stuck": 7.0,
-                "blacklisted": 7.0,
-                "corrections": 49.0,
-                "snaps": 49.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 5.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 2.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 5.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 49.0,
+                "macros": 2.0,
+                "reached": 1.0,
                 "progressed": 0.0,
                 "stuck": 1.0,
                 "blacklisted": 1.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
+                "corrections": 2.0,
+                "snaps": 2.0,
                 "virtual_roots": 0.0,
-                "uncertain_edges": 4.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 2.0
-              },
-              {
-                "macros": 49.0,
-                "reached": 47.0,
-                "progressed": 0.0,
-                "stuck": 2.0,
-                "blacklisted": 2.0,
-                "corrections": 49.0,
-                "snaps": 49.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 6.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 5.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 49.0,
-                "progressed": 0.0,
-                "stuck": 1.0,
-                "blacklisted": 1.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 8.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 2.0
+                "uncertain_edges": 1.0
               }
             ]
           }
@@ -3356,14 +3356,14 @@
           "stats": {}
         },
         "mcts_nofb": {
-          "mean": 0.06666666666666667,
-          "ci_low": 0.0,
-          "ci_high": 0.15,
+          "mean": 0.31666666666666665,
+          "ci_low": 0.13333333333333333,
+          "ci_high": 0.5166666666666667,
           "n": 60,
           "stats": {
             "blacklisted": 0.0,
             "corrections": 0.0,
-            "macros": 44.766666666666666,
+            "macros": 32.75,
             "progressed": 0.0,
             "reached": 0.0,
             "snaps": 0.0,
@@ -3373,33 +3373,33 @@
           }
         },
         "mcts_fb": {
-          "mean": 0.05,
-          "ci_low": 0.0,
-          "ci_high": 0.11666666666666667,
+          "mean": 0.31666666666666665,
+          "ci_low": 0.13333333333333333,
+          "ci_high": 0.5,
           "n": 60,
           "stats": {
-            "blacklisted": 2.1333333333333333,
-            "corrections": 44.28333333333333,
-            "macros": 44.61666666666667,
-            "progressed": 0.9,
-            "reached": 41.666666666666664,
-            "snaps": 44.28333333333333,
-            "stuck": 2.05,
-            "uncertain_edges": 4.266666666666667,
-            "virtual_roots": 0.3333333333333333
+            "blacklisted": 2.5,
+            "corrections": 31.5,
+            "macros": 31.5,
+            "progressed": 0.2,
+            "reached": 28.733333333333334,
+            "snaps": 31.5,
+            "stuck": 2.566666666666667,
+            "uncertain_edges": 2.0833333333333335,
+            "virtual_roots": 0.0
           }
         }
       },
       "per_seed": {
         "0": {
           "soft_floyd": 0.43333333333333335,
-          "mcts_nofb": 0.1,
-          "mcts_fb": 0.06666666666666667
+          "mcts_nofb": 0.43333333333333335,
+          "mcts_fb": 0.43333333333333335
         },
         "1": {
           "soft_floyd": 0.2,
-          "mcts_nofb": 0.03333333333333333,
-          "mcts_fb": 0.03333333333333333
+          "mcts_nofb": 0.2,
+          "mcts_fb": 0.2
         }
       },
       "per_episode": {
@@ -3474,19 +3474,6 @@
             "outcomes": [
               0,
               0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
               1,
               0,
               0,
@@ -3496,16 +3483,29 @@
               0,
               1,
               0,
+              1,
+              1,
+              1,
+              0,
               0,
               1,
               0,
               0,
+              1,
+              1,
               0,
+              1,
+              0,
+              1,
+              1,
+              0,
+              1,
+              1,
               0
             ],
             "stats": [
               {
-                "macros": 47.0,
+                "macros": 49.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -3527,7 +3527,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 50.0,
+                "macros": 3.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -3604,7 +3604,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 50.0,
+                "macros": 5.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -3615,7 +3615,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 48.0,
+                "macros": 43.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -3626,7 +3626,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 50.0,
+                "macros": 1.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -3637,7 +3637,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 50.0,
+                "macros": 1.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -3648,29 +3648,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 48.0,
-                "reached": 0.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 0.0,
-                "snaps": 0.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 0.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 0.0,
-                "snaps": 0.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 14.0,
+                "macros": 4.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -3692,6 +3670,28 @@
                 "uncertain_edges": 0.0
               },
               {
+                "macros": 39.0,
+                "reached": 0.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 0.0,
+                "snaps": 0.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 2.0,
+                "reached": 0.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 0.0,
+                "snaps": 0.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
                 "macros": 50.0,
                 "reached": 0.0,
                 "progressed": 0.0,
@@ -3704,6 +3704,116 @@
               },
               {
                 "macros": 50.0,
+                "reached": 0.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 0.0,
+                "snaps": 0.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 11.0,
+                "reached": 0.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 0.0,
+                "snaps": 0.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 7.0,
+                "reached": 0.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 0.0,
+                "snaps": 0.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 0.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 0.0,
+                "snaps": 0.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 1.0,
+                "reached": 0.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 0.0,
+                "snaps": 0.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 0.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 0.0,
+                "snaps": 0.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 3.0,
+                "reached": 0.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 0.0,
+                "snaps": 0.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 1.0,
+                "reached": 0.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 0.0,
+                "snaps": 0.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 0.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 0.0,
+                "snaps": 0.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 3.0,
+                "reached": 0.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 0.0,
+                "snaps": 0.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 1.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -3715,116 +3825,6 @@
               },
               {
                 "macros": 49.0,
-                "reached": 0.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 0.0,
-                "snaps": 0.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 0.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 0.0,
-                "snaps": 0.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 0.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 0.0,
-                "snaps": 0.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 1.0,
-                "reached": 0.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 0.0,
-                "snaps": 0.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 0.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 0.0,
-                "snaps": 0.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 47.0,
-                "reached": 0.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 0.0,
-                "snaps": 0.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 1.0,
-                "reached": 0.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 0.0,
-                "snaps": 0.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 0.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 0.0,
-                "snaps": 0.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 0.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 0.0,
-                "snaps": 0.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 0.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 0.0,
-                "snaps": 0.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 40.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -3840,20 +3840,7 @@
             "outcomes": [
               0,
               0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
+              1,
               0,
               0,
               0,
@@ -3862,24 +3849,37 @@
               0,
               1,
               0,
+              1,
+              1,
+              1,
+              0,
               0,
               1,
               0,
               0,
+              1,
+              1,
               0,
+              1,
+              0,
+              1,
+              1,
+              0,
+              1,
+              1,
               0
             ],
             "stats": [
               {
-                "macros": 50.0,
-                "reached": 47.0,
+                "macros": 48.0,
+                "reached": 44.0,
                 "progressed": 0.0,
-                "stuck": 3.0,
-                "blacklisted": 3.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
+                "stuck": 4.0,
+                "blacklisted": 4.0,
+                "corrections": 48.0,
+                "snaps": 48.0,
                 "virtual_roots": 0.0,
-                "uncertain_edges": 13.0
+                "uncertain_edges": 8.0
               },
               {
                 "macros": 49.0,
@@ -3889,6 +3889,39 @@
                 "blacklisted": 3.0,
                 "corrections": 49.0,
                 "snaps": 49.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 2.0
+              },
+              {
+                "macros": 3.0,
+                "reached": 1.0,
+                "progressed": 0.0,
+                "stuck": 2.0,
+                "blacklisted": 1.0,
+                "corrections": 3.0,
+                "snaps": 3.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 50.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 2.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 49.0,
+                "progressed": 0.0,
+                "stuck": 1.0,
+                "blacklisted": 1.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
                 "virtual_roots": 0.0,
                 "uncertain_edges": 3.0
               },
@@ -3901,7 +3934,18 @@
                 "corrections": 50.0,
                 "snaps": 50.0,
                 "virtual_roots": 0.0,
-                "uncertain_edges": 5.0
+                "uncertain_edges": 2.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 50.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 3.0
               },
               {
                 "macros": 50.0,
@@ -3916,91 +3960,69 @@
               },
               {
                 "macros": 50.0,
-                "reached": 48.0,
+                "reached": 50.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 3.0
+              },
+              {
+                "macros": 5.0,
+                "reached": 3.0,
                 "progressed": 0.0,
                 "stuck": 2.0,
-                "blacklisted": 2.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
+                "blacklisted": 1.0,
+                "corrections": 5.0,
+                "snaps": 5.0,
                 "virtual_roots": 0.0,
-                "uncertain_edges": 8.0
+                "uncertain_edges": 0.0
               },
               {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 4.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 2.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 5.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 4.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 9.0
-              },
-              {
-                "macros": 46.0,
-                "reached": 41.0,
+                "macros": 35.0,
+                "reached": 30.0,
                 "progressed": 0.0,
                 "stuck": 5.0,
                 "blacklisted": 5.0,
-                "corrections": 46.0,
-                "snaps": 46.0,
+                "corrections": 35.0,
+                "snaps": 35.0,
                 "virtual_roots": 0.0,
-                "uncertain_edges": 8.0
+                "uncertain_edges": 3.0
               },
               {
-                "macros": 50.0,
-                "reached": 50.0,
+                "macros": 1.0,
+                "reached": 1.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
                 "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
+                "corrections": 1.0,
+                "snaps": 1.0,
                 "virtual_roots": 0.0,
-                "uncertain_edges": 2.0
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 1.0,
+                "reached": 1.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 1.0,
+                "snaps": 1.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 4.0,
+                "reached": 2.0,
+                "progressed": 0.0,
+                "stuck": 2.0,
+                "blacklisted": 1.0,
+                "corrections": 4.0,
+                "snaps": 4.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 1.0
               },
               {
                 "macros": 50.0,
@@ -4025,70 +4047,15 @@
                 "uncertain_edges": 4.0
               },
               {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 4.0
-              },
-              {
-                "macros": 49.0,
-                "reached": 42.0,
-                "progressed": 0.0,
-                "stuck": 7.0,
-                "blacklisted": 7.0,
-                "corrections": 49.0,
-                "snaps": 49.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 9.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 46.0,
-                "progressed": 2.0,
-                "stuck": 2.0,
-                "blacklisted": 2.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 4.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 6.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 49.0,
+                "macros": 2.0,
+                "reached": 1.0,
                 "progressed": 0.0,
                 "stuck": 1.0,
                 "blacklisted": 1.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
+                "corrections": 2.0,
+                "snaps": 2.0,
                 "virtual_roots": 0.0,
-                "uncertain_edges": 6.0
-              },
-              {
-                "macros": 49.0,
-                "reached": 48.0,
-                "progressed": 0.0,
-                "stuck": 1.0,
-                "blacklisted": 1.0,
-                "corrections": 49.0,
-                "snaps": 49.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 2.0
+                "uncertain_edges": 0.0
               },
               {
                 "macros": 50.0,
@@ -4103,6 +4070,39 @@
               },
               {
                 "macros": 50.0,
+                "reached": 49.0,
+                "progressed": 0.0,
+                "stuck": 1.0,
+                "blacklisted": 1.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 3.0
+              },
+              {
+                "macros": 11.0,
+                "reached": 11.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 11.0,
+                "snaps": 11.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 2.0
+              },
+              {
+                "macros": 7.0,
+                "reached": 3.0,
+                "progressed": 0.0,
+                "stuck": 4.0,
+                "blacklisted": 1.0,
+                "corrections": 7.0,
+                "snaps": 7.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 1.0
+              },
+              {
+                "macros": 50.0,
                 "reached": 50.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -4125,80 +4125,80 @@
               },
               {
                 "macros": 50.0,
-                "reached": 47.0,
+                "reached": 45.0,
                 "progressed": 0.0,
-                "stuck": 3.0,
-                "blacklisted": 3.0,
+                "stuck": 5.0,
+                "blacklisted": 5.0,
                 "corrections": 50.0,
                 "snaps": 50.0,
                 "virtual_roots": 0.0,
-                "uncertain_edges": 4.0
+                "uncertain_edges": 3.0
               },
               {
-                "macros": 43.0,
-                "reached": 25.0,
-                "progressed": 10.0,
+                "macros": 3.0,
+                "reached": 2.0,
+                "progressed": 0.0,
+                "stuck": 1.0,
+                "blacklisted": 1.0,
+                "corrections": 3.0,
+                "snaps": 3.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 1.0,
+                "reached": 1.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 1.0,
+                "snaps": 1.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 50.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 3.0
+              },
+              {
+                "macros": 3.0,
+                "reached": 1.0,
+                "progressed": 0.0,
+                "stuck": 2.0,
+                "blacklisted": 1.0,
+                "corrections": 3.0,
+                "snaps": 3.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 1.0
+              },
+              {
+                "macros": 1.0,
+                "reached": 1.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 1.0,
+                "snaps": 1.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 49.0,
+                "reached": 41.0,
+                "progressed": 0.0,
                 "stuck": 8.0,
-                "blacklisted": 11.0,
-                "corrections": 39.0,
-                "snaps": 39.0,
-                "virtual_roots": 4.0,
-                "uncertain_edges": 5.0
-              },
-              {
-                "macros": 1.0,
-                "reached": 1.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 1.0,
-                "snaps": 1.0,
+                "blacklisted": 8.0,
+                "corrections": 49.0,
+                "snaps": 49.0,
                 "virtual_roots": 0.0,
-                "uncertain_edges": 0.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 6.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 47.0,
-                "progressed": 0.0,
-                "stuck": 3.0,
-                "blacklisted": 3.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 7.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 2.0
-              },
-              {
-                "macros": 46.0,
-                "reached": 29.0,
-                "progressed": 10.0,
-                "stuck": 7.0,
-                "blacklisted": 7.0,
-                "corrections": 45.0,
-                "snaps": 45.0,
-                "virtual_roots": 1.0,
-                "uncertain_edges": 5.0
+                "uncertain_edges": 11.0
               }
             ]
           }
@@ -4279,6 +4279,7 @@
               0,
               0,
               1,
+              1,
               0,
               0,
               0,
@@ -4286,26 +4287,25 @@
               0,
               0,
               0,
+              1,
+              0,
+              0,
+              0,
+              1,
               0,
               0,
               0,
               0,
+              1,
               0,
               0,
               0,
               0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0
+              1
             ],
             "stats": [
               {
-                "macros": 48.0,
+                "macros": 37.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -4360,7 +4360,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 35.0,
+                "macros": 38.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -4382,7 +4382,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 50.0,
+                "macros": 3.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -4393,7 +4393,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 49.0,
+                "macros": 44.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -4470,7 +4470,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 50.0,
+                "macros": 1.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -4481,7 +4481,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 42.0,
+                "macros": 46.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -4514,7 +4514,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 50.0,
+                "macros": 2.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -4569,7 +4569,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 50.0,
+                "macros": 2.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -4624,7 +4624,7 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 50.0,
+                "macros": 2.0,
                 "reached": 0.0,
                 "progressed": 0.0,
                 "stuck": 0.0,
@@ -4645,6 +4645,7 @@
               0,
               0,
               1,
+              1,
               0,
               0,
               0,
@@ -4652,34 +4653,33 @@
               0,
               0,
               0,
+              1,
+              0,
+              0,
+              0,
+              1,
               0,
               0,
               0,
               0,
+              1,
               0,
               0,
               0,
               0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0
+              1
             ],
             "stats": [
               {
-                "macros": 30.0,
-                "reached": 21.0,
-                "progressed": 4.0,
-                "stuck": 5.0,
-                "blacklisted": 5.0,
-                "corrections": 29.0,
-                "snaps": 29.0,
-                "virtual_roots": 1.0,
-                "uncertain_edges": 3.0
+                "macros": 19.0,
+                "reached": 9.0,
+                "progressed": 0.0,
+                "stuck": 10.0,
+                "blacklisted": 10.0,
+                "corrections": 19.0,
+                "snaps": 19.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 1.0
               },
               {
                 "macros": 50.0,
@@ -4693,14 +4693,14 @@
                 "uncertain_edges": 3.0
               },
               {
-                "macros": 20.0,
+                "macros": 18.0,
                 "reached": 3.0,
-                "progressed": 5.0,
-                "stuck": 12.0,
-                "blacklisted": 12.0,
-                "corrections": 16.0,
-                "snaps": 16.0,
-                "virtual_roots": 4.0,
+                "progressed": 0.0,
+                "stuck": 15.0,
+                "blacklisted": 15.0,
+                "corrections": 18.0,
+                "snaps": 18.0,
+                "virtual_roots": 0.0,
                 "uncertain_edges": 1.0
               },
               {
@@ -4712,29 +4712,29 @@
                 "corrections": 50.0,
                 "snaps": 50.0,
                 "virtual_roots": 0.0,
-                "uncertain_edges": 2.0
+                "uncertain_edges": 0.0
               },
               {
-                "macros": 42.0,
-                "reached": 32.0,
-                "progressed": 2.0,
-                "stuck": 8.0,
-                "blacklisted": 8.0,
-                "corrections": 40.0,
-                "snaps": 40.0,
-                "virtual_roots": 2.0,
-                "uncertain_edges": 3.0
-              },
-              {
-                "macros": 40.0,
-                "reached": 25.0,
-                "progressed": 3.0,
-                "stuck": 12.0,
-                "blacklisted": 12.0,
-                "corrections": 40.0,
-                "snaps": 40.0,
+                "macros": 43.0,
+                "reached": 34.0,
+                "progressed": 0.0,
+                "stuck": 9.0,
+                "blacklisted": 9.0,
+                "corrections": 43.0,
+                "snaps": 43.0,
                 "virtual_roots": 0.0,
                 "uncertain_edges": 3.0
+              },
+              {
+                "macros": 41.0,
+                "reached": 33.0,
+                "progressed": 0.0,
+                "stuck": 8.0,
+                "blacklisted": 8.0,
+                "corrections": 41.0,
+                "snaps": 41.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 8.0
               },
               {
                 "macros": 1.0,
@@ -4748,70 +4748,70 @@
                 "uncertain_edges": 0.0
               },
               {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 4.0
-              },
-              {
-                "macros": 49.0,
-                "reached": 47.0,
+                "macros": 3.0,
+                "reached": 1.0,
                 "progressed": 0.0,
                 "stuck": 2.0,
-                "blacklisted": 2.0,
-                "corrections": 49.0,
-                "snaps": 49.0,
+                "blacklisted": 1.0,
+                "corrections": 3.0,
+                "snaps": 3.0,
                 "virtual_roots": 0.0,
-                "uncertain_edges": 8.0
+                "uncertain_edges": 0.0
               },
               {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 3.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 3.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 46.0,
-                "progressed": 0.0,
-                "stuck": 4.0,
-                "blacklisted": 4.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
+                "macros": 38.0,
+                "reached": 18.0,
+                "progressed": 1.0,
+                "stuck": 19.0,
+                "blacklisted": 19.0,
+                "corrections": 38.0,
+                "snaps": 38.0,
                 "virtual_roots": 0.0,
                 "uncertain_edges": 5.0
               },
               {
-                "macros": 40.0,
-                "reached": 36.0,
+                "macros": 50.0,
+                "reached": 50.0,
                 "progressed": 0.0,
-                "stuck": 4.0,
-                "blacklisted": 4.0,
-                "corrections": 39.0,
-                "snaps": 39.0,
-                "virtual_roots": 1.0,
-                "uncertain_edges": 7.0
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 49.0,
+                "progressed": 0.0,
+                "stuck": 1.0,
+                "blacklisted": 1.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 2.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 50.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 25.0,
+                "reached": 14.0,
+                "progressed": 0.0,
+                "stuck": 11.0,
+                "blacklisted": 11.0,
+                "corrections": 25.0,
+                "snaps": 25.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 3.0
               },
               {
                 "macros": 1.0,
@@ -4833,7 +4833,73 @@
                 "corrections": 50.0,
                 "snaps": 50.0,
                 "virtual_roots": 0.0,
-                "uncertain_edges": 3.0
+                "uncertain_edges": 2.0
+              },
+              {
+                "macros": 1.0,
+                "reached": 1.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 1.0,
+                "snaps": 1.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 33.0,
+                "reached": 21.0,
+                "progressed": 0.0,
+                "stuck": 12.0,
+                "blacklisted": 12.0,
+                "corrections": 33.0,
+                "snaps": 33.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 4.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 46.0,
+                "progressed": 0.0,
+                "stuck": 4.0,
+                "blacklisted": 4.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 4.0
+              },
+              {
+                "macros": 39.0,
+                "reached": 21.0,
+                "progressed": 10.0,
+                "stuck": 8.0,
+                "blacklisted": 12.0,
+                "corrections": 39.0,
+                "snaps": 39.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 4.0
+              },
+              {
+                "macros": 2.0,
+                "reached": 1.0,
+                "progressed": 0.0,
+                "stuck": 1.0,
+                "blacklisted": 1.0,
+                "corrections": 2.0,
+                "snaps": 2.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 1.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 50.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 2.0
               },
               {
                 "macros": 50.0,
@@ -4844,161 +4910,95 @@
                 "corrections": 50.0,
                 "snaps": 50.0,
                 "virtual_roots": 0.0,
-                "uncertain_edges": 9.0
-              },
-              {
-                "macros": 32.0,
-                "reached": 17.0,
-                "progressed": 5.0,
-                "stuck": 10.0,
-                "blacklisted": 10.0,
-                "corrections": 30.0,
-                "snaps": 30.0,
-                "virtual_roots": 2.0,
-                "uncertain_edges": 5.0
+                "uncertain_edges": 0.0
               },
               {
                 "macros": 50.0,
-                "reached": 45.0,
+                "reached": 50.0,
                 "progressed": 0.0,
-                "stuck": 5.0,
-                "blacklisted": 5.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
                 "corrections": 50.0,
                 "snaps": 50.0,
                 "virtual_roots": 0.0,
-                "uncertain_edges": 8.0
+                "uncertain_edges": 2.0
               },
               {
-                "macros": 40.0,
-                "reached": 22.0,
-                "progressed": 12.0,
+                "macros": 50.0,
+                "reached": 50.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 3.0
+              },
+              {
+                "macros": 2.0,
+                "reached": 1.0,
+                "progressed": 0.0,
+                "stuck": 1.0,
+                "blacklisted": 1.0,
+                "corrections": 2.0,
+                "snaps": 2.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 0.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 50.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 2.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 50.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 3.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 50.0,
+                "progressed": 0.0,
+                "stuck": 0.0,
+                "blacklisted": 0.0,
+                "corrections": 50.0,
+                "snaps": 50.0,
+                "virtual_roots": 0.0,
+                "uncertain_edges": 3.0
+              },
+              {
+                "macros": 50.0,
+                "reached": 44.0,
+                "progressed": 0.0,
                 "stuck": 6.0,
-                "blacklisted": 8.0,
-                "corrections": 36.0,
-                "snaps": 36.0,
-                "virtual_roots": 4.0,
-                "uncertain_edges": 4.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
+                "blacklisted": 6.0,
                 "corrections": 50.0,
                 "snaps": 50.0,
                 "virtual_roots": 0.0,
                 "uncertain_edges": 3.0
               },
               {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 4.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 49.0,
+                "macros": 2.0,
+                "reached": 1.0,
                 "progressed": 0.0,
                 "stuck": 1.0,
                 "blacklisted": 1.0,
-                "corrections": 49.0,
-                "snaps": 49.0,
-                "virtual_roots": 1.0,
-                "uncertain_edges": 5.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 48.0,
-                "progressed": 0.0,
-                "stuck": 2.0,
-                "blacklisted": 2.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
+                "corrections": 2.0,
+                "snaps": 2.0,
                 "virtual_roots": 0.0,
-                "uncertain_edges": 3.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 6.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 49.0,
-                "progressed": 0.0,
-                "stuck": 1.0,
-                "blacklisted": 1.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 4.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 2.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 3.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 5.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 49.0,
-                "progressed": 0.0,
-                "stuck": 1.0,
-                "blacklisted": 1.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 8.0
-              },
-              {
-                "macros": 50.0,
-                "reached": 50.0,
-                "progressed": 0.0,
-                "stuck": 0.0,
-                "blacklisted": 0.0,
-                "corrections": 50.0,
-                "snaps": 50.0,
-                "virtual_roots": 0.0,
-                "uncertain_edges": 2.0
+                "uncertain_edges": 1.0
               }
             ]
           }

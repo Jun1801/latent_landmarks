@@ -203,6 +203,14 @@ def main():
     env = make_vec_env(cfg, 1, cfg.seed)
     trainer = L3PTrainer(env, cfg)
     trainer.load(args.load)
+    # V substrate (obs != goal) has near-zero landmark->goal "wormholes" that
+    # MCTS's hard rollout exploits and Soft Floyd averages out; cap the
+    # optimistic rollout at the Soft-Floyd value-to-go there (LandmarkMCTS.
+    # _rollout). Critic-D (PointMaze) is wormhole-free env-step scale -> stays off.
+    trainer.cfg.mcts_cap_rollout_by_heuristic = (
+        trainer.env.obs_dim != trainer.env.goal_dim)
+    print(f"cap_rollout_by_heuristic={trainer.cfg.mcts_cap_rollout_by_heuristic} "
+          f"(substrate={'critic-D' if trainer.env.obs_dim == trainer.env.goal_dim else 'V'}).")
     if not trainer.centroids_initialized:
         print("ERROR: checkpoint has no initialized landmark centroids; "
               "train longer before running E1a.", file=sys.stderr)

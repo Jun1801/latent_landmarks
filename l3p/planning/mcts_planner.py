@@ -455,6 +455,15 @@ class FeedbackMCTSPlanner(MCTSPlanner):
         self.tau_snap = tau_snap
         self.r_max = r_max
         self.edge_value_fn = edge_value_fn
+        # Execution feedback was designed for the critic-D substrate (env-step
+        # scale, obs == goal): realized cost mixes the env-step count macro_k
+        # with a critic-D remaining distance, which is coherent only there. On a
+        # V substrate (obs != goal, edge_value_fn is the ~10x-compressed value
+        # fn) that mix is a unit error -- so realized cost and snap thresholds
+        # are measured on the substrate (`_sub_goal_dist`) instead. A missing /
+        # CriticEdgeFn edge fn IS the critic-D substrate -> keep the original path.
+        self._step_scale = (edge_value_fn is None
+                            or isinstance(edge_value_fn, CriticEdgeFn))
 
     @torch.no_grad()
     def reset(self, goal, extra_centroids=None):
@@ -485,6 +494,8 @@ class FeedbackMCTSPlanner(MCTSPlanner):
         self._macro_k = 0
         self._macro_start_i = None
         self._macro_start_z = None
+        self._macro_start_ag = None
+        self._cur_ag = None
         self._cur_j = None
         self.search_seconds = 0.0
         self.search_calls = 0
@@ -493,9 +504,26 @@ class FeedbackMCTSPlanner(MCTSPlanner):
                           virtual_roots=0, uncertain_edges=0)
 
     # ---- feedback helpers ----
-    def _snap(self, obs):
-        distances = np.asarray(
-            self.agent.distance_after_action(obs, self.landmark_goals))
+    def _sub_goal_dist(self, ga, gb):
+        """Distance between GOAL-space point(s) on the SAME substrate as the
+        graph edges (edge_value_fn). On a critic-D substrate this equals the
+        env-step distance; on a compressed V substrate it keeps realized cost
+        and snap thresholds in the graph's own units (rather than mixing them
+        with the env-step count macro_k)."""
+        fn = self.edge_value_fn if self.edge_value_fn is not None else CriticEdgeFn(self.agent)
+        ta = torch.as_tensor(np.atleast_2d(ga), dtype=torch.float32, device=self.device)
+        tb = torch.as_tensor(np.atleast_2d(gb), dtype=torch.float32, device=self.device)
+        return np.atleast_1d(fn(ta, tb).detach().cpu().numpy())
+
+    def _snap(self, obs, achieved_goal=None):
+        if (not self._step_scale) and achieved_goal is not None:
+            ag = np.asarray(achieved_goal, dtype=np.float32)
+            distances = self._sub_goal_dist(
+                np.repeat(ag[None, :], len(self.landmark_goals), axis=0),
+                self.landmark_goals)
+        else:
+            distances = np.asarray(
+                self.agent.distance_after_action(obs, self.landmark_goals))
         idx = int(np.argmin(distances))
         nearest = float(distances[idx])
         return (idx, nearest) if nearest <= self.tau_snap else (None, nearest)
@@ -529,13 +557,26 @@ class FeedbackMCTSPlanner(MCTSPlanner):
         c_j = self.goal if j >= self.n_landmarks else self.landmark_goals[j]
         z_end = (np.asarray(achieved_goal, dtype=np.float32)
                  if achieved_goal is not None else np.asarray(obs_end, dtype=np.float32))
-        dist_to_goal = self._critic_dist(obs_end, c_j)
-        dist_travelled = self._critic_dist(self._macro_start_z, z_end)
-        realized = self._macro_k + max(0.0, dist_to_goal)     # env-step scale
-        reached = (
-            float(np.linalg.norm(z_end - c_j)) <= self.cfg.goal_threshold
-            if achieved_goal is not None else dist_to_goal <= self.tau_reach
-        )
+        if (not self._step_scale) and achieved_goal is not None:
+            # V substrate: realized cost stays in the graph's V units (both the
+            # traversed and the remaining leg via edge_value_fn), so the EMA
+            # blends like-with-like instead of adding the env-step count macro_k
+            # to a ~10x-compressed V.
+            start_ag = getattr(self, "_macro_start_ag", None)
+            if start_ag is None:
+                start_ag = z_end
+            dist_to_goal = float(self._sub_goal_dist(z_end, c_j)[0])
+            dist_travelled = float(self._sub_goal_dist(start_ag, z_end)[0])
+            realized = dist_travelled + max(0.0, dist_to_goal)
+            reached = float(np.linalg.norm(z_end - c_j)) <= self.cfg.goal_threshold
+        else:
+            dist_to_goal = self._critic_dist(obs_end, c_j)
+            dist_travelled = self._critic_dist(self._macro_start_z, z_end)
+            realized = self._macro_k + max(0.0, dist_to_goal)     # env-step scale
+            reached = (
+                float(np.linalg.norm(z_end - c_j)) <= self.cfg.goal_threshold
+                if achieved_goal is not None else dist_to_goal <= self.tau_reach
+            )
 
         if i is not None:
             prev = self._v_exec.get((i, j), self._biased_edge(i, j))
@@ -594,6 +635,7 @@ class FeedbackMCTSPlanner(MCTSPlanner):
     def act(self, obs, noise_scale=0.0, random_prob=0.0, achieved_goal=None):
         if self.n_landmarks == 0:
             return self.agent.act(obs, self.goal, noise_scale, random_prob)
+        self._cur_ag = achieved_goal          # goal-space pose for substrate snap
         if self.feedback and self._reached_current_subgoal(obs, achieved_goal):
             self._observe(obs, achieved_goal)
             self.cnt = 0.0
@@ -646,13 +688,15 @@ class FeedbackMCTSPlanner(MCTSPlanner):
         self.prev_landmark = self.subg_idx
         self.stats["macros"] += 1
         if self.feedback:                           # open a new macro-step
+            ag = getattr(self, "_cur_ag", None)
             self._macro_k = 0
-            self._macro_start_i, _ = self._snap(obs)
+            self._macro_start_i, _ = self._snap(obs, ag)
             if self._macro_start_i is None:
                 self.stats["virtual_roots"] += 1
             else:
                 self.stats["snaps"] += 1
             self._macro_start_z = np.asarray(obs, dtype=np.float32)
+            self._macro_start_ag = None if ag is None else np.asarray(ag, dtype=np.float32)
             self._cur_j = best_idx
 
 

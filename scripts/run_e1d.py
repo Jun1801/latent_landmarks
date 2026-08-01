@@ -516,8 +516,15 @@ def main():
     trainer.load(args.load)
     substrate = ("critic-D" if trainer.env.obs_dim == trainer.env.goal_dim
                  else "goal-to-goal V")
+    # V substrate (obs != goal) has near-zero landmark->goal "wormholes" MCTS's
+    # hard rollout exploits while Soft Floyd averages them out; cap optimistic
+    # rollouts at the Soft-Floyd value-to-go there (LandmarkMCTS._rollout).
+    # Critic-D (PointMaze) is wormhole-free env-step scale -> stays off.
+    trainer.cfg.mcts_cap_rollout_by_heuristic = (
+        trainer.env.obs_dim != trainer.env.goal_dim)
     print(f"E1d on {args.env}: Loai-2 noise at Noi 1,2,3 with MCTS "
-          f"recovery/feedback/loop guard. Graph substrate={substrate}.")
+          f"recovery/feedback/loop guard. Graph substrate={substrate}. "
+          f"cap_rollout_by_heuristic={trainer.cfg.mcts_cap_rollout_by_heuristic}.")
     if not trainer.centroids_initialized:
         print("ERROR: checkpoint has no initialized landmark centroids.", file=sys.stderr)
         sys.exit(1)

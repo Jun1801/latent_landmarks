@@ -329,6 +329,52 @@ graph ~rỗng → Floyd noise-immune ~1.0). Soft Floyd @σ=0.3 per-seed = [0.32,
 
 ---
 
+## 7.6 Fetch (gym-robotics) — 2 bug substrate được tìm ra & sửa
+Checkpoint `checkpoint/l3p_fetch.pt` (undertrained: flat 0.70 / Soft Floyd 0.50; V-scale ~0.3).
+Fetch có obs≠goal nên substrate graph bắt buộc là `V`/`agent.value` (KHÁC PointMaze dùng
+critic-`D`). Lần chạy đầu, MCTS **sập** 0.42→0.05 dưới bias trong khi Soft Floyd tĩnh giữ
+0.42 — thoạt nhìn "ngược PointMaze". Soi kỹ code cho thấy đây là **2 bug substrate**, không
+phải phát hiện khoa học:
+
+**Bug #1 — MCTS lạc quan hoá "wormhole" V≈0, cap tắt.** Trên `V` (`agent.value` "compressed
+~10x, weakly correlated with D" — chính docstring `noise.py:CriticEdgeFn`) có cạnh landmark→goal
+gần 0. Rollout hard-argmax của MCTS (`mcts_planner.py:_rollout`) latch vào đó; Soft Floyd nhờ
+softmax-β trung bình hoá nên miễn nhiễm. Guard `mcts_cap_rollout_by_heuristic` sinh ra đúng cho
+case này nhưng **mặc định tắt và không bật ở đâu**. Probe quyết định (σ=0.1, 20 eps):
+`mcts_nofb` cap=OFF **0.00** → cap=ON **0.50** = Soft Floyd. → Fix: harness E1a/c/d tự bật cap
+khi `obs_dim != goal_dim` (substrate `V`); PointMaze critic-`D` giữ tắt (config default không đổi).
+
+**Bug #2 — realized cost trộn đơn vị.** `realized = macro_k + dist_to_goal` (`:534`) cộng
+**số env-step** (`macro_k`) với **thang `V`** (~0.3); chỉ đúng trên critic-`D` (D≈số bước).
+Trên `V` → EMA `_v_exec` bơm cạnh lên ~O(10-50), phá graph. → Fix: khi substrate `V`, đo
+`realized`/`dist_travelled`/`_snap` bằng `edge_value_fn` (đơn vị `V`), qua cờ `self._step_scale`
+(critic-`D` giữ nguyên byte-for-byte → **PointMaze P1 không đổi**; các test feedback cũ vẫn pass).
+Regression test mới: `test_feedback_realized_cost_on_v_scale_not_step_count`.
+
+**E1c (bias) SAU FIX — hết sập, MCTS bám Soft Floyd** (seeds 0,1 × 30 eps; cap auto-on):
+| σ | Soft Floyd | MCTS no-fb | MCTS + fb | (buggy: nofb/fb) |
+|---|---|---|---|---|
+| 0.0 | 0.42 | 0.42 | 0.42 | 0.42 / 0.42 |
+| 0.1 | 0.42 | 0.42 | 0.42 | ~~0.05 / 0.05~~ |
+| 0.3 | 0.32 | 0.32 | 0.32 | ~~0.07 / 0.05~~ |
+
+Bias đơn điệu + checkpoint yếu → feedback **trung tính** (không hại, không thêm) trên Fetch.
+Claim "feedback sửa bias" vẫn chỉ vững trên **PointMaze critic-`D`** (§7.5, 4 seed).
+
+**E1a (stochastic) SAU FIX — vẫn degenerate, nhưng do σ-scale, KHÔNG phải bug:**
+| σ | Soft Floyd (static) | Naive replan | Fresh V_obs (MPC) | MCTS |
+|---|---|---|---|---|
+| 0.0 | 0.42 | 0.40 | 0.40 | 0.42 |
+| 0.1 | 0.05 | 0.05 | 0.05 | 0.08 |
+| 0.3 | 0.05 | 0.05 | 0.05 | 0.07 |
+
+Ở đây **cả Soft Floyd tĩnh cũng sập** 0.42→0.05 → dấu hiệu rõ đây là **nhiễu quá lớn** (zero-mean
+σ=0.1 trên V-scale ~0.3 ≈ 30% tương đối), không phải lỗi planner. E1a Fetch chỉ có nghĩa khi
+**σ calibrate theo V-scale** (≈0.01–0.03) hoặc checkpoint train đủ. Kết quả: `logs/fetch_fixed/`
+(bản buggy giữ ở `logs/fetch/`).
+
+---
+
 ## 8. Tổng hợp — cơ chế robustness
 
 | | Nhiễu | Cơ chế cứu | Kết luận |
