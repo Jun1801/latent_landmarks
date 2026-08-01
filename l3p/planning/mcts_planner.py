@@ -215,6 +215,26 @@ class LandmarkMCTS:
             total = min(total, start_heuristic)
         return total
 
+    @staticmethod
+    def _edge_backups(edge_costs, rollout_return, suffix):
+        """Per-edge backup value for one simulation. `suffix=False` (legacy):
+        every edge on the path gets the full root->leaf return. `suffix=True`:
+        edge k gets its return-to-go (sum of costs from k onward + rollout) --
+        the standard MCTS credit assignment. The root edge (k=0) is identical
+        either way, so the planner's returned action is unaffected; only deeper
+        edges shed the shared-but-noisy prefix, which sharpens deep selection
+        under resampled (stochastic) edge costs."""
+        n = len(edge_costs)
+        if not suffix:
+            total = float(sum(edge_costs)) + rollout_return
+            return [total] * n
+        out = [0.0] * n
+        running = rollout_return
+        for k in range(n - 1, -1, -1):
+            running += edge_costs[k]
+            out[k] = running
+        return out
+
     def search(self, d_s2c: np.ndarray, mask: Optional[np.ndarray] = None
               ) -> Tuple[Optional[int], Dict[int, Tuple[int, float]]]:
         """Run `cfg.mcts_n_simulations` simulations rooted at the real state
@@ -263,16 +283,17 @@ class LandmarkMCTS:
                 node = child
                 depth += 1
 
-            # tree-portion cost: root edges are the fixed d_s2c; landmark/goal
-            # edges resample the (possibly noisy) value_fn on every use.
-            tree_return = 0.0
+            # tree-portion per-edge costs: root edges are the fixed d_s2c;
+            # landmark/goal edges resample the (possibly noisy) value_fn on use.
+            edge_costs = []
             for parent, child_idx in path:
                 if parent.idx is None:
-                    tree_return += d_s2c[child_idx]
+                    c = d_s2c[child_idx]
                     if child_idx == self.goal_idx:
-                        tree_return += self.lambda_goal
+                        c += self.lambda_goal
                 else:
-                    tree_return += self._edge_cost(parent.idx, child_idx)
+                    c = self._edge_cost(parent.idx, child_idx)
+                edge_costs.append(c)
 
             # ROLLOUT (Soft-Floyd-greedy) from the reached node
             if node.idx == self.goal_idx:
@@ -280,13 +301,15 @@ class LandmarkMCTS:
             else:
                 rollout_return = self._rollout(node.idx, self.cfg.mcts_rollout_horizon - depth)
 
-            total_return = tree_return + rollout_return
-
-            # BACKPROPAGATION
-            for parent, child_idx in path:
+            # BACKPROPAGATION: credit each edge with its backup value (full
+            # root->leaf return by default; return-to-go suffix when enabled).
+            backups = self._edge_backups(
+                edge_costs, rollout_return,
+                getattr(self.cfg, "mcts_suffix_backup", False))
+            for (parent, child_idx), r in zip(path, backups):
                 parent.visits += 1
                 parent.child_visits[child_idx] += 1
-                parent.child_total[child_idx] += total_return
+                parent.child_total[child_idx] += r
 
         stats: Dict[int, Tuple[int, float]] = {}
         best_idx, best_key = None, (-1, -float("inf"))

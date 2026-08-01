@@ -475,6 +475,23 @@ def test_mcts_rollout_capped_by_soft_floyd_heuristic():
     print("ok  test_mcts_rollout_capped_by_soft_floyd_heuristic")
 
 
+def test_mcts_suffix_backup_credits_return_to_go():
+    """Suffix backup gives each edge its return-to-go; the root edge is identical
+    to the legacy full-return backup (so the planner's chosen action is unchanged),
+    while deeper edges shed the path prefix."""
+    costs = [-3.0, -2.0, -1.0]      # root edge, mid edge, deep edge (maximized)
+    rollout = -4.0
+    total = sum(costs) + rollout    # -10
+    legacy = LandmarkMCTS._edge_backups(costs, rollout, suffix=False)
+    suffix = LandmarkMCTS._edge_backups(costs, rollout, suffix=True)
+    assert legacy == [total, total, total]
+    assert abs(suffix[0] - (-10.0)) < 1e-9      # root: full return (unchanged)
+    assert abs(suffix[1] - (-7.0)) < 1e-9       # -2 + -1 + -4
+    assert abs(suffix[2] - (-5.0)) < 1e-9       # -1 + -4
+    assert abs(suffix[0] - legacy[0]) < 1e-9    # root edge identical -> action unaffected
+    print("ok  test_mcts_suffix_backup_credits_return_to_go")
+
+
 def test_mcts_rollout_cap_is_opt_in():
     """The conservative rollout cap must not silently change MCTS by env."""
     assert get_config("PointMaze").mcts_cap_rollout_by_heuristic is False
@@ -1122,6 +1139,7 @@ ALL_TESTS = [
     test_mcts_returns_none_when_all_root_actions_masked,
     test_mcts_terminal_goal_reward_applies_at_root,
     test_mcts_rollout_capped_by_soft_floyd_heuristic,
+    test_mcts_suffix_backup_credits_return_to_go,
     test_mcts_rollout_cap_is_opt_in,
     test_mcts_respects_prev_landmark_mask,
     test_mcts_planner_interface_compatible,

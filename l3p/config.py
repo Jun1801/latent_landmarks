@@ -67,6 +67,7 @@ class Config:
     mcts_c_uct: float = 1.4              # UCT exploration constant (~sqrt(2))
     mcts_rollout_horizon: int = 10       # max additional macro-hops per rollout
     mcts_cap_rollout_by_heuristic: bool = False  # optionally keep rollouts consistent with Soft-Floyd value-to-go
+    mcts_suffix_backup: bool = False     # credit each edge with its return-to-go (suffix) instead of the full root->leaf return
     mcts_seed: int = 0                   # rng stream for MCTS's own randomness
 
     # ---- E1b uncertainty bonus (docs/SPEC_MCTS_Landmark_L3P.md Sec 3) ----
