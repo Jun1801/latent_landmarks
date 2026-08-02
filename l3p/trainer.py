@@ -160,17 +160,27 @@ class L3PTrainer:
             next_ag=a.to_tensor(raw["next_ag"]),          # raw goal space for V
             future_ag=a.to_tensor(raw["future_ag"]),      # raw goal space for V
             future_ag_norm=a.norm_goal(raw["future_ag"]),  # normalized for the critic
+            ag=a.to_tensor(raw["ag"]),                     # raw achieved goal for PN extensions
+            cmd_g=a.to_tensor(raw["cmd_g"]),               # raw commanded goal for PN extensions
+            ag_norm=a.norm_goal(raw["ag"]),
+            cmd_g_norm=a.norm_goal(raw["cmd_g"]),
+            cost=a.to_tensor(raw["cost"]),
+            stop=a.to_tensor(raw["stop"]),
         )
 
     def update(self, n_steps: int) -> Dict[str, float]:
         logs = {"critic": 0.0, "value": 0.0, "actor": 0.0, "ae_rec": 0.0,
                 "ae_latent": 0.0, "elbo": 0.0}
+        if self.cfg.pn_lmcgs_enabled:
+            logs["cost_critic"] = 0.0
         for _ in range(n_steps):
             raw = self.buffer.sample(self.cfg.batch_size, self.rng)
             batch = self._make_batch(raw)
 
             logs["value"] += self.agent.update_value(batch)
             logs["critic"] += self.agent.update_critic(batch)
+            if self.cfg.pn_lmcgs_enabled:
+                logs["cost_critic"] += self.agent.update_cost_critic(batch)
             logs["actor"] += self.agent.update_actor(batch)
 
             # Auto-encoder (Eq. 2) on a fresh batch of achieved goals.

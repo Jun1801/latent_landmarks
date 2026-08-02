@@ -20,6 +20,7 @@ landmark goals before querying the critic, so representations stay consistent.
 from __future__ import annotations
 
 import copy
+from contextlib import contextmanager
 from typing import Dict
 
 import numpy as np
@@ -28,6 +29,11 @@ import torch.nn as nn
 
 from l3p.agent.normalizer import Normalizer
 from l3p.models.networks import Actor, Critic, ValueFunction
+from l3p.pn_lmcgs.safety_critic import (
+    ViolationCritic,
+    violation_binary_cross_entropy,
+    violation_td_target,
+)
 
 
 class DDPGAgent:
@@ -54,6 +60,19 @@ class DDPGAgent:
         self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=cfg.actor_lr)
         self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=cfg.critic_lr)
         self.value_opt = torch.optim.Adam(self.value.parameters(), lr=cfg.critic_lr)
+        self.pn_lmcgs_enabled = bool(getattr(cfg, "pn_lmcgs_enabled", False))
+        if self.pn_lmcgs_enabled:
+            self.cost_critic = ViolationCritic(
+                obs_dim, goal_dim, act_dim, cfg.hidden_units, cfg.hidden_layers,
+            ).to(self.device)
+            self.cost_critic_target = copy.deepcopy(self.cost_critic)
+            for p in self.cost_critic_target.parameters():
+                p.requires_grad_(False)
+            cost_critic_lr = getattr(cfg, "pn_cost_critic_lr", None)
+            self.cost_critic_opt = torch.optim.Adam(
+                self.cost_critic.parameters(),
+                lr=cfg.critic_lr if cost_critic_lr is None else cost_critic_lr,
+            )
 
         self.o_norm = Normalizer(obs_dim)
         self.g_norm = Normalizer(goal_dim)
@@ -118,6 +137,19 @@ class DDPGAgent:
         d = self.critic.distance(no, a, ng)
         return d.cpu().numpy()
 
+    @torch.no_grad()
+    def cost_after_action(self, obs: np.ndarray, goals: np.ndarray) -> np.ndarray:
+        """Return ``C(s, pi(s, g), g)`` for raw observation/goal rows."""
+        if not self.pn_lmcgs_enabled:
+            raise RuntimeError("cost critic is unavailable when pn_lmcgs_enabled=False")
+        obs = np.atleast_2d(obs)
+        goals = np.atleast_2d(goals)
+        if obs.shape[0] == 1 and goals.shape[0] > 1:
+            obs = np.repeat(obs, goals.shape[0], axis=0)
+        no, ng = self._no(obs), self._ng(goals)
+        a = self.actor(no, ng)
+        return self.cost_critic(no, a, ng).cpu().numpy()
+
     # ------------------------------------------------------------------ learning
     def update_critic(self, batch: Dict[str, torch.Tensor]) -> float:
         """Critic TD loss, Eq. 1 (with the distance parameterization of Eq. 3)."""
@@ -147,12 +179,52 @@ class DDPGAgent:
         a = self.actor(obs, g)
         q = self.critic(obs, a, g, self.gamma)
         loss = -q.mean() + self.cfg.action_l2 * (a / self.max_action).pow(2).mean()
+        if self.pn_lmcgs_enabled:
+            self.cost_critic_opt.zero_grad(set_to_none=True)
+            with self._freeze_cost_critic():
+                risk = self.cost_critic(obs, a, g)
+            loss = loss + self.cfg.pn_cost_critic_weight * risk.mean()
 
         self.actor_opt.zero_grad()
         loss.backward()
         if self.cfg.grad_norm_clip is not None:
             nn.utils.clip_grad_norm_(self.actor.parameters(), self.cfg.grad_norm_clip)
         self.actor_opt.step()
+        return float(loss.item())
+
+    @contextmanager
+    def _freeze_cost_critic(self):
+        """Keep actor-to-action gradients while avoiding cost-critic gradients."""
+        parameters = tuple(self.cost_critic.parameters())
+        requires_grad = [p.requires_grad for p in parameters]
+        for p in parameters:
+            p.requires_grad_(False)
+            p.grad = None
+        try:
+            yield
+        finally:
+            for p, enabled in zip(parameters, requires_grad):
+                p.requires_grad_(enabled)
+                p.grad = None
+
+    def update_cost_critic(self, batch: Dict[str, torch.Tensor]) -> float:
+        """Train ``C`` against the detached safety-violation TD target."""
+        if not self.pn_lmcgs_enabled:
+            raise RuntimeError("cost critic is unavailable when pn_lmcgs_enabled=False")
+        obs, act, next_obs, g = batch["obs"], batch["act"], batch["next_obs"], batch["g"]
+        with torch.no_grad():
+            next_act = self.actor_target(next_obs, g)
+            next_probability = self.cost_critic_target(next_obs, next_act, g)
+            target = violation_td_target(batch["cost"], batch["stop"], next_probability).detach()
+
+        prediction = self.cost_critic(obs, act, g)
+        loss = violation_binary_cross_entropy(prediction, target)
+        self.cost_critic_opt.zero_grad(set_to_none=True)
+        loss.backward()
+        if self.cfg.grad_norm_clip is not None:
+            nn.utils.clip_grad_norm_(self.cost_critic.parameters(), self.cfg.grad_norm_clip)
+        self.cost_critic_opt.step()
+        self.cost_critic_opt.zero_grad(set_to_none=True)
         return float(loss.item())
 
     def update_value(self, batch: Dict[str, torch.Tensor]) -> float:
@@ -188,12 +260,18 @@ class DDPGAgent:
                 tp.mul_(tau).add_((1 - tau) * p)
             for p, tp in zip(self.critic.parameters(), self.critic_target.parameters()):
                 tp.mul_(tau).add_((1 - tau) * p)
+            if self.pn_lmcgs_enabled:
+                for p, tp in zip(self.cost_critic.parameters(), self.cost_critic_target.parameters()):
+                    tp.mul_(tau).add_((1 - tau) * p)
 
     # ------------------------------------------------------------------ (de)serialize
     def state_dict(self) -> dict:
-        return dict(actor=self.actor.state_dict(), critic=self.critic.state_dict(),
-                    value=self.value.state_dict(),
-                    o_norm=self.o_norm.state_dict(), g_norm=self.g_norm.state_dict())
+        state = dict(actor=self.actor.state_dict(), critic=self.critic.state_dict(),
+                     value=self.value.state_dict(),
+                     o_norm=self.o_norm.state_dict(), g_norm=self.g_norm.state_dict())
+        if self.pn_lmcgs_enabled:
+            state["cost_critic"] = self.cost_critic.state_dict()
+        return state
 
     def load_state_dict(self, d: dict) -> None:
         self.actor.load_state_dict(d["actor"])
@@ -201,5 +279,15 @@ class DDPGAgent:
         self.value.load_state_dict(d["value"])
         self.actor_target = copy.deepcopy(self.actor)
         self.critic_target = copy.deepcopy(self.critic)
+        for p in self.actor_target.parameters():
+            p.requires_grad_(False)
+        for p in self.critic_target.parameters():
+            p.requires_grad_(False)
+        if self.pn_lmcgs_enabled:
+            if "cost_critic" in d:
+                self.cost_critic.load_state_dict(d["cost_critic"])
+            self.cost_critic_target = copy.deepcopy(self.cost_critic)
+            for p in self.cost_critic_target.parameters():
+                p.requires_grad_(False)
         self.o_norm.load_state_dict(d["o_norm"])
         self.g_norm.load_state_dict(d["g_norm"])
