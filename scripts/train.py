@@ -61,6 +61,11 @@ def main():
     p.add_argument("--n-value-negatives", type=int, default=None)
     p.add_argument("--negative-sampling-strategy", choices=["random", "cross_episode"],
                    default=None)
+    p.add_argument("--ae-contrastive-lambda", type=float, default=None,
+                   help="weight for the auxiliary AE latent triplet loss; use 0.0 for baseline")
+    p.add_argument("--ae-contrastive-margin", type=float, default=None)
+    p.add_argument("--ae-negatives-per-anchor", type=int, default=None)
+    p.add_argument("--ae-negative-mode", choices=["random", "hard"], default=None)
     args = p.parse_args()
 
     overrides = dict(seed=args.seed, total_steps=args.steps)
@@ -80,6 +85,14 @@ def main():
         overrides["n_value_negatives"] = args.n_value_negatives
     if args.negative_sampling_strategy is not None:
         overrides["negative_sampling_strategy"] = args.negative_sampling_strategy
+    if args.ae_contrastive_lambda is not None:
+        overrides["ae_contrastive_lambda"] = args.ae_contrastive_lambda
+    if args.ae_contrastive_margin is not None:
+        overrides["ae_contrastive_margin"] = args.ae_contrastive_margin
+    if args.ae_negatives_per_anchor is not None:
+        overrides["ae_negatives_per_anchor"] = args.ae_negatives_per_anchor
+    if args.ae_negative_mode is not None:
+        overrides["ae_negative_mode"] = args.ae_negative_mode
 
     cfg = get_config(args.env, **overrides)
     save = args.save or f"l3p_{cfg.env_name}.pt"
@@ -93,6 +106,9 @@ def main():
     print(f"(value contrastive={'on' if cfg.use_value_contrastive else 'off'} "
           f"lambda={cfg.value_contrastive_lambda} temp={cfg.value_contrastive_temperature} "
           f"K={cfg.n_value_negatives} negatives={cfg.negative_sampling_strategy})")
+    print(f"(AE contrastive={'on' if cfg.ae_contrastive_lambda > 0 else 'off'} "
+          f"lambda={cfg.ae_contrastive_lambda} margin={cfg.ae_contrastive_margin} "
+          f"K={cfg.ae_negatives_per_anchor} negatives={cfg.ae_negative_mode})")
     print(f"(logging to {log_file}, model -> {save})")
 
     venv = make_vec_env(cfg, cfg.n_workers, cfg.seed)

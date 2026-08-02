@@ -25,7 +25,7 @@ import numpy as np
 import torch
 
 from l3p.agent.ddpg import DDPGAgent
-from l3p.losses import ae_losses
+from l3p.losses import ae_contrastive_loss, ae_losses
 from l3p.models.autoencoder import ReachabilityAutoEncoder
 from l3p.models.landmarks import LatentLandmarks, greedy_latent_sparsification
 from l3p.planning.graph_search import GraphSearch
@@ -75,13 +75,26 @@ class L3PTrainer:
                 raise ValueError("n_value_negatives must be >= 1 when use_value_contrastive=True")
             if cfg.value_contrastive_temperature <= 0:
                 raise ValueError("value_contrastive_temperature must be > 0")
+        if cfg.ae_contrastive_lambda < 0:
+            raise ValueError("ae_contrastive_lambda must be >= 0")
+        if cfg.ae_contrastive_margin < 0:
+            raise ValueError("ae_contrastive_margin must be >= 0")
+        if cfg.ae_negatives_per_anchor < 1:
+            raise ValueError("ae_negatives_per_anchor must be >= 1")
+        if cfg.ae_negative_mode not in {"random", "hard"}:
+            raise ValueError("ae_negative_mode must be 'random' or 'hard'")
+        if cfg.ae_negative_mode == "hard":
+            raise NotImplementedError("AE hard negatives are not implemented yet; use random")
 
         self.buffer = HERReplayBuffer(
             size_episodes=100_000, horizon=self.T, obs_dim=od, goal_dim=gd, act_dim=ad,
             compute_reward=vec_env.compute_reward, her_ratio=cfg.her_ratio,
             hindsight_range=cfg.hindsight_range,
             n_value_negatives=cfg.n_value_negatives if cfg.use_value_contrastive else 0,
-            negative_sampling_strategy=cfg.negative_sampling_strategy)
+            negative_sampling_strategy=cfg.negative_sampling_strategy,
+            ae_negatives_per_anchor=cfg.ae_negatives_per_anchor,
+            ae_negative_mode=cfg.ae_negative_mode,
+            goal_threshold=cfg.goal_threshold)
 
         self.total_env_steps = 0
         self.episodes_collected = 0
@@ -175,7 +188,8 @@ class L3PTrainer:
 
     def update(self, n_steps: int) -> Dict[str, float]:
         logs = {"critic": 0.0, "value": 0.0, "actor": 0.0, "ae_rec": 0.0,
-                "ae_latent": 0.0, "elbo": 0.0}
+                "ae_latent": 0.0, "elbo": 0.0, "ae_contrastive": 0.0,
+                "ae_rank_acc": 0.0}
         for _ in range(n_steps):
             raw = self.buffer.sample(self.cfg.batch_size, self.rng)
             batch = self._make_batch(raw)
@@ -189,11 +203,38 @@ class L3PTrainer:
             goals_t = self.agent.to_tensor(goals)
             l_rec, l_latent, ae_total = ae_losses(self.ae, self.agent.value, goals_t,
                                                   self.cfg.ae_lambda)
+            l_contrastive = torch.zeros((), device=self.device)
+            rank_acc = torch.zeros((), device=self.device)
+            triples = self.buffer.sample_ae_triples(self.cfg.batch_size, self.rng)
+            anchor = self.agent.to_tensor(triples["anchor"])
+            positive = self.agent.to_tensor(triples["positive"])
+            negative = self.agent.to_tensor(triples["negative"])
+            if self.cfg.ae_contrastive_lambda > 0.0:
+                l_contrastive = ae_contrastive_loss(
+                    self.ae, anchor, positive, negative, self.cfg.ae_contrastive_margin
+                )
+                ae_total = ae_total + self.cfg.ae_contrastive_lambda * l_contrastive
+            else:
+                with torch.no_grad():
+                    l_contrastive = ae_contrastive_loss(
+                        self.ae, anchor, positive, negative, self.cfg.ae_contrastive_margin
+                    )
+
+            with torch.no_grad():
+                z_a = self.ae.encode(anchor)
+                z_p = self.ae.encode(positive)
+                B, K, G = negative.shape
+                z_n = self.ae.encode(negative.reshape(B * K, G)).view(B, K, -1)
+                d_pos = ((z_a - z_p) ** 2).sum(dim=-1)
+                d_neg = ((z_a[:, None, :] - z_n) ** 2).sum(dim=-1)
+                rank_acc = (d_pos[:, None] < d_neg).float().mean()
             self.ae_opt.zero_grad()
             ae_total.backward()
             self.ae_opt.step()
             logs["ae_rec"] += float(l_rec.item())
             logs["ae_latent"] += float(l_latent.item())
+            logs["ae_contrastive"] += float(l_contrastive.item())
+            logs["ae_rank_acc"] += float(rank_acc.item())
 
             # Latent centroids (ELBO, Eq. 5) on a GLS-sparsified batch.
             if self.centroids_initialized:

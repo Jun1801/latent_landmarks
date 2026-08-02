@@ -40,3 +40,36 @@ def ae_losses(ae: ReachabilityAutoEncoder, value_fn: ValueFunction,
     l_latent = ((latent_dist - reach) ** 2).mean()
 
     return l_rec, l_latent, l_rec + lam * l_latent
+
+
+def ae_contrastive_loss(ae: ReachabilityAutoEncoder, anchor: torch.Tensor,
+                        positive: torch.Tensor, negative: torch.Tensor,
+                        margin: float) -> torch.Tensor:
+    """Triplet-style auxiliary loss over AE latent goals.
+
+    The positive is a temporally nearby future achieved goal from the same
+    episode. Negatives are unrelated achieved goals. The loss is zero when each
+    negative is at least `margin` farther from the anchor than the positive.
+    """
+    if margin < 0:
+        raise ValueError("ae_contrastive_margin must be >= 0")
+    if anchor.shape != positive.shape:
+        raise ValueError("anchor and positive must have the same shape")
+    if negative.ndim not in {2, 3}:
+        raise ValueError("negative must have shape [batch, goal_dim] or [batch, K, goal_dim]")
+    if negative.shape[0] != anchor.shape[0] or negative.shape[-1] != anchor.shape[-1]:
+        raise ValueError("anchor, positive, and negative have incompatible shapes")
+
+    z_a = ae.encode(anchor)
+    z_p = ae.encode(positive)
+    d_pos = ((z_a - z_p) ** 2).sum(dim=-1)
+
+    if negative.ndim == 2:
+        z_n = ae.encode(negative)
+        d_neg = ((z_a - z_n) ** 2).sum(dim=-1)
+        return torch.relu(d_pos - d_neg + margin).mean()
+
+    B, K, G = negative.shape
+    z_n = ae.encode(negative.reshape(B * K, G)).view(B, K, -1)
+    d_neg = ((z_a[:, None, :] - z_n) ** 2).sum(dim=-1)
+    return torch.relu(d_pos[:, None] - d_neg + margin).mean()

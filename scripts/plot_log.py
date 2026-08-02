@@ -21,12 +21,14 @@ PROG = re.compile(
     r"\[\s*(\d+)\s+steps.*?landmarks=(on|off)\s*\|\s*"
     r"critic=([-\d.]+)\s+value=([-\d.]+)\s+actor=([-\d.]+)\s+"
     r"ae_rec=([-\d.]+)\s+ae_latent=([-\d.]+)\s+elbo=([-\d.]+)"
+    r"(?:\s+ae_contrastive=([-\d.]+)\s+ae_rank_acc=([-\d.]+))?"
 )
 EVAL = re.compile(r"eval success rate \(long-horizon test\):\s*([-\d.]+)")
 
 
 def parse(path):
     steps, critic, value, actor, ae_rec, elbo = [], [], [], [], [], []
+    ae_contrastive, ae_rank_acc = [], []
     eval_steps, eval_sr = [], []
     landmark_on_step = None
     last_step = 0
@@ -44,13 +46,16 @@ def parse(path):
                 actor.append(float(m.group(5)))
                 ae_rec.append(float(m.group(6)))
                 elbo.append(float(m.group(8)))
+                ae_contrastive.append(float(m.group(9)) if m.group(9) is not None else 0.0)
+                ae_rank_acc.append(float(m.group(10)) if m.group(10) is not None else 0.0)
                 continue
             e = EVAL.search(line)
             if e:
                 eval_steps.append(last_step)
                 eval_sr.append(float(e.group(1)))
     return dict(steps=steps, critic=critic, value=value, actor=actor,
-                ae_rec=ae_rec, elbo=elbo, eval_steps=eval_steps, eval_sr=eval_sr,
+                ae_rec=ae_rec, elbo=elbo, ae_contrastive=ae_contrastive,
+                ae_rank_acc=ae_rank_acc, eval_steps=eval_steps, eval_sr=eval_sr,
                 landmark_on=landmark_on_step)
 
 
@@ -90,6 +95,9 @@ def main():
     ax2.plot(sx, d["critic"], color="#1f77b4", lw=1.2, label="critic TD (Eq.1)")
     ax2.plot(sx, d["value"], color="#2ca02c", lw=1.2, label="value reg (Eq.4)")
     ax2.plot(sx, d["ae_rec"], color="#ff7f0e", lw=1.2, label="AE recon (Eq.2)")
+    if any(v > 0 for v in d["ae_contrastive"]):
+        ax2.plot(sx, d["ae_contrastive"], color="#9467bd", lw=1.2,
+                 label="AE contrastive")
     ax2.set_xlabel("Env steps (thousands)")
     ax2.set_ylabel("loss")
     ax2.grid(alpha=0.3)

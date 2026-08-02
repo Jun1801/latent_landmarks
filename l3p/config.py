@@ -55,6 +55,10 @@ class Config:
     embedding_size: int = 16            # latent dim of the reachability-constrained AE
     ae_lambda: float = 1.0              # lambda for the reachability constraint loss (Eq 2)
     ae_lr: float = 3e-4
+    ae_contrastive_lambda: float = 0.1  # auxiliary triplet loss on AE latent goals
+    ae_contrastive_margin: float = 1.0
+    ae_negatives_per_anchor: int = 1
+    ae_negative_mode: str = "random"    # random | hard
     n_landmarks: int = 50               # per-env below
     n_warmup_trajs: int = 500           # per-env below
     landmark_batch_size: int = 256      # per-env below

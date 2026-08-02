@@ -20,7 +20,7 @@ from l3p.models.networks import Critic, ValueFunction
 from l3p.planning.graph_search import GraphSearch
 from l3p.planning.planner import LatentPlanner
 from l3p.replay.her_buffer import HERReplayBuffer
-from l3p.losses import ae_losses
+from l3p.losses import ae_contrastive_loss, ae_losses
 
 
 def test_q_from_distance():
@@ -85,6 +85,45 @@ def test_replay_samples_negative_goals():
     print("ok  test_replay_samples_negative_goals")
 
 
+def test_replay_samples_ae_triples_shapes():
+    """Replay can sample anchor/future-positive/random-negative AE triples."""
+    T, obs_dim, goal_dim, act_dim = 6, 3, 2, 1
+
+    def reward(ag, g):
+        return -(np.linalg.norm(ag - g, axis=-1) > 0.1).astype(np.float32)
+
+    buf = HERReplayBuffer(
+        size_episodes=4, horizon=T, obs_dim=obs_dim, goal_dim=goal_dim,
+        act_dim=act_dim, compute_reward=reward, hindsight_range=3,
+        ae_negatives_per_anchor=2, goal_threshold=0.1,
+    )
+    for ep_id in range(4):
+        obs = np.zeros((T + 1, obs_dim), dtype=np.float32)
+        ag = np.zeros((T + 1, goal_dim), dtype=np.float32)
+        ag[:, 0] = ep_id
+        ag[:, 1] = np.arange(T + 1)
+        g = np.zeros((T, goal_dim), dtype=np.float32)
+        act = np.zeros((T, act_dim), dtype=np.float32)
+        buf.store_episode(dict(obs=obs, ag=ag, g=g, act=act))
+
+    triples = buf.sample_ae_triples(batch_size=16, rng=np.random.default_rng(0))
+    anchor = triples["anchor"]
+    positive = triples["positive"]
+    negative = triples["negative"]
+
+    assert anchor.shape == (16, goal_dim)
+    assert positive.shape == (16, goal_dim)
+    assert negative.shape == (16, 2, goal_dim)
+    assert anchor.dtype == np.float32
+    assert positive.dtype == np.float32
+    assert negative.dtype == np.float32
+    assert (positive[:, 0] == anchor[:, 0]).all()
+    assert (positive[:, 1] > anchor[:, 1]).all()
+    assert (positive[:, 1] <= np.minimum(anchor[:, 1] + 3, T)).all()
+    assert (negative[:, :, 0] != anchor[:, None, 0]).all()
+    print("ok  test_replay_samples_ae_triples_shapes")
+
+
 def test_value_contrastive_loss_orders_goals():
     """InfoNCE teaches V(anchor, positive) < V(anchor, negative) on a line."""
     torch.manual_seed(0)
@@ -139,6 +178,23 @@ class _ScaledV:
 
     def __call__(self, g1, g2):
         return self.scale * torch.norm(g1 - g2, dim=-1)
+
+
+class _IdentityEncodingAE:
+    def encode(self, g):
+        return g
+
+
+def test_ae_contrastive_loss_zero_when_negative_farther():
+    """Triplet loss is zero once negatives are farther than positives by margin."""
+    ae = _IdentityEncodingAE()
+    anchor = torch.tensor([[0.0], [1.0]])
+    positive = torch.tensor([[0.1], [1.1]])
+    negative = torch.tensor([[[2.0], [3.0]], [[-1.0], [-2.0]]])
+
+    loss = ae_contrastive_loss(ae, anchor, positive, negative, margin=1.0)
+    assert loss.item() == 0.0
+    print("ok  test_ae_contrastive_loss_zero_when_negative_farther")
 
 
 def test_autoencoder_reachability():
@@ -287,8 +343,10 @@ ALL_TESTS = [
     test_q_from_distance,
     test_value_regression,
     test_replay_samples_negative_goals,
+    test_replay_samples_ae_triples_shapes,
     test_value_contrastive_loss_orders_goals,
     test_update_value_without_negatives_when_disabled,
+    test_ae_contrastive_loss_zero_when_negative_farther,
     test_autoencoder_reachability,
     test_gls_and_elbo,
     test_soft_floyd_and_dmax,

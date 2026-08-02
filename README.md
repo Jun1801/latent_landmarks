@@ -62,6 +62,26 @@ python scripts/train_pointmaze.py --steps 500000 --seed 0 --value-contrastive \
 Use the eval success-rate lines in the logs, or plot several seeds with
 `scripts/plot_seeds.py`.
 
+### AE latent contrastive experiment
+
+The AE contrastive variant is controlled by `ae_contrastive_lambda`; use `0.0`
+for the original L3P baseline and `0.1` for the proposed random-negative
+variant:
+
+```bash
+python scripts/train_pointmaze.py --steps 500000 --seed 0 \
+  --ae-contrastive-lambda 0.0 \
+  --log-file logs/pm_ae_base_s0.log --save logs/pm_ae_base_s0.pt
+
+python scripts/train_pointmaze.py --steps 500000 --seed 0 \
+  --ae-contrastive-lambda 0.1 --ae-contrastive-margin 1.0 \
+  --ae-negatives-per-anchor 1 --ae-negative-mode random \
+  --log-file logs/pm_ae_contrast_s0.log --save logs/pm_ae_contrast_s0.pt
+```
+
+See `docs/AE_CONTRASTIVE_EXPERIMENTS.md` and
+`notebooks/kaggle_ae_contrastive_experiment.ipynb` for the full ablation setup.
+
 For time-limited CPU sessions, add `--save-training-state --save-every 50000
 --time-limit-hours 5.25`; the next run can continue with `--load path/to.pt`
 as long as the env/config flags match.
