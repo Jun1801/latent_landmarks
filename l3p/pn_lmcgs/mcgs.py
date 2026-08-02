@@ -210,33 +210,37 @@ class RiskConstrainedMCGS:
     def plan(self, state: Any, achieved_goal: Any, final_goal: Any, positive_goals: Any,
              context: Any = None, training: bool = False) -> PlanResult:
         started = perf_counter()
+        self._state = _vector(state, "state")
         self._achieved = _vector(achieved_goal, "achieved_goal")
         self._goal = _vector(final_goal, "final_goal", len(self._achieved))
         self._positives = np.asarray(positive_goals, dtype=np.float64)
         if self._positives.ndim != 2 or self._positives.shape[1] != len(self._goal) or not np.isfinite(self._positives).all():
             raise ValueError("positive_goals must be a finite [N, goal_dim] array")
-        self._state, self._context = state, context
+        self._context = None if context is None else _vector(context, "context")
         self._goal_id = len(self._positives)
         self._training = bool(training)
         self._prediction_cache: dict[tuple[int, int], EdgePrediction] = {}
         self._distance_cache: dict[tuple[int, int], float] = {}
         self._remaining_cache: dict[int, float] = {self._goal_id: 0.0}
         self._table: dict[NodeKey, SearchNode] = {}
-        self._diagnostics = {"simulations": 0, "cycles": 0, "leaf_uses": 0,
+        requested_simulations = int(self.cfg.pn_num_simulations)
+        self._diagnostics = {"simulations": 0, "requested_simulations": requested_simulations,
+                             "completed_simulations": 0, "cycles": 0, "leaf_uses": 0,
                              "simulated_safe_successes": 0, "simulated_violations": 0,
                              "branch_before": 0, "branch_after": 0}
         self._build_leaf_tables()
         root_key = NodeKey(ROOT, int(self.cfg.pn_macro_depth))
-        root = self._node(root_key, frozenset({ROOT}))
+        root = self._node(root_key)
         self._diagnostics["branch_before"] = self._root_raw_count()
         self._diagnostics["branch_after"] = len(root.edges)
-        for _ in range(int(self.cfg.pn_num_simulations)):
+        for _ in range(requested_simulations):
             reward, safety, selected, parents = self._simulate(root_key, frozenset({ROOT}), 0.0)
             for edge in selected:
                 edge.update(reward, safety)
             for node in parents:
                 node.update(reward, safety)
             self._diagnostics["simulations"] += 1
+            self._diagnostics["completed_simulations"] += 1
 
         result = self._choose_root(root, training)
         diagnostics = dict(self._diagnostics)
@@ -276,7 +280,10 @@ class RiskConstrainedMCGS:
         else:
             source = self._node_goal(source_id)[None, :]
             values = self.value_distance_fn(source, target)
-        value = float(np.asarray(values, dtype=np.float64).reshape(-1)[0])
+        result = np.asarray(values, dtype=np.float64)
+        if result.shape != (1,):
+            raise ValueError("distance callbacks must return one finite non-negative distance")
+        value = float(result[0])
         if not isfinite(value) or value < 0.0:
             raise ValueError("distance callbacks must return finite non-negative distances")
         self._distance_cache[key] = value
@@ -302,15 +309,18 @@ class RiskConstrainedMCGS:
                 prediction = values[0]
             if not isinstance(prediction, EdgePrediction):
                 raise ValueError("edge_prediction_fn must return EdgePrediction values")
+            if (prediction.positive_drift_distribution is not None
+                    and len(prediction.positive_drift_distribution) != self._goal_id):
+                raise ValueError("positive_drift_distribution must match positive_goals")
             self._prediction_cache[key] = replace(prediction, local_distance=self._distance(source_id, target_id))
         return self._prediction_cache[key]
 
-    def _candidate_edges(self, key: NodeKey, path: frozenset[int]) -> list[EdgeStats]:
+    def _candidate_edges(self, key: NodeKey) -> list[EdgeStats]:
         source = key.node_id
         items: list[tuple[float, int, EdgePrediction]] = []
         edge_limit = self.cfg.pn_epsilon_edge_train if self._training else self.cfg.pn_epsilon_edge_eval
         for target in range(self._goal_id + 1):
-            if target == source or target in path:
+            if target == source:
                 continue
             prediction = self._prediction(source, target)
             local = prediction.local_distance
@@ -330,10 +340,10 @@ class RiskConstrainedMCGS:
         return [EdgeStats(target, prediction, float(prior), self.cfg.pn_risk_pseudocount, self.cfg.pn_risk_z)
                 for (_, target, prediction), prior in zip(items, priors)]
 
-    def _node(self, key: NodeKey, path: frozenset[int]) -> SearchNode:
+    def _node(self, key: NodeKey) -> SearchNode:
         node = self._table.get(key)
         if node is None:
-            node = SearchNode(key, self._candidate_edges(key, path))
+            node = SearchNode(key, self._candidate_edges(key))
             self._table[key] = node
         return node
 
@@ -351,7 +361,7 @@ class RiskConstrainedMCGS:
         return min(feasible, key=lambda edge: (-score(edge), edge.target_id))
 
     def _simulate(self, key: NodeKey, path: frozenset[int], elapsed: float) -> tuple[float, float, list[EdgeStats], list[SearchNode]]:
-        node = self._node(key, path)
+        node = self._node(key)
         parents = [node]
         if key.node_id == self._goal_id:
             return self._goal_return(elapsed), 0.0, [], parents
