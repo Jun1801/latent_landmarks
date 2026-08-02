@@ -207,7 +207,8 @@ class L3PTrainer:
 
         return dict(obs=obs_buf, ag=ag_buf, g=g_buf, act=act_buf)
 
-    def collect(self) -> None:
+    def collect(self) -> int:
+        collected = 0
         for env in self.env.envs:
             random_actions = self.episodes_collected < self.cfg.initial_random_trajs * self.env.n
             use_planning = self.rng.random() < self.cfg.search_prob_train
@@ -219,11 +220,14 @@ class L3PTrainer:
             else:
                 self.agent.update_normalizers(ep["obs"][:-1], ep["g"])
             self.episodes_collected += 1
-            self.total_env_steps += ep["length"] if self.cfg.pn_lmcgs_enabled else self.T
+            env_steps = ep["length"] if self.cfg.pn_lmcgs_enabled else self.T
+            self.total_env_steps += env_steps
+            collected += env_steps
 
         # Initialize latent centroids via GLS once enough warm-up data is in.
         if not self.centroids_initialized and self.episodes_collected >= self.cfg.n_warmup_trajs:
             self._init_centroids()
+        return collected
 
     def _init_centroids(self) -> None:
         goals = self.buffer.sample_achieved_goals(self.cfg.gls_batch_size, self.rng)
@@ -341,11 +345,11 @@ class L3PTrainer:
         last_log = 0
         last_ckpt = 0
         while self.total_env_steps < total_steps:
-            self.collect()
+            collected = self.collect()
 
             if self.total_env_steps >= self.cfg.train_after and len(self.buffer) > 1:
-                collected = self.env.n * self.T * self.cfg.k_env
-                n_updates = max(1, collected // self.cfg.env_steps_per_opt)
+                env_steps_per_opt = max(1, self.cfg.env_steps_per_opt)
+                n_updates = max(1, collected // env_steps_per_opt)
                 logs = self.update(n_updates)
             else:
                 logs = {}

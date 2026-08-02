@@ -380,3 +380,59 @@ def test_trainer_cost_critic_threshold_batch_size_and_actor_risk_gate(monkeypatc
     assert cost_batch_sizes == [7]
     assert actor_cost_flags == [False, True]
     assert warm_logs["cost_critic"] == 1.0
+
+
+def test_enabled_train_scales_updates_by_early_done_transitions(monkeypatch):
+    env = _ScriptedRawEnv([
+        {"kind": "gymnasium", "achieved": 1.0, "terminated": True},
+    ])
+    trainer = _collection_trainer(
+        env,
+        train_after=0,
+        env_steps_per_opt=1,
+        eval_interval=100,
+        log_interval=100,
+    )
+    requested_updates = []
+    monkeypatch.setattr(trainer, "update", lambda n_steps: requested_updates.append(n_steps) or {})
+    monkeypatch.setattr(trainer, "evaluate", lambda *args: 0.0)
+
+    trainer.train(total_steps=2)
+
+    assert trainer.total_env_steps == 2
+    assert requested_updates == [1]
+
+
+def test_disabled_collect_returns_fixed_horizon_transitions():
+    env = _ScriptedRawEnv([
+        {"kind": "legacy", "achieved": 1.0, "done": True},
+        {"kind": "legacy", "achieved": 2.0, "done": True},
+        {"kind": "legacy", "achieved": 3.0, "done": True},
+    ])
+    trainer = _collection_trainer(env, enabled=False)
+
+    collected = trainer.collect()
+
+    assert collected == trainer.env.n * trainer.T
+    assert trainer.total_env_steps == collected
+
+
+@pytest.mark.parametrize("env_steps_per_opt", [0, -1])
+def test_train_avoids_nonpositive_optimizer_step_divisors(monkeypatch, env_steps_per_opt):
+    env = _ScriptedRawEnv([
+        {"kind": "gymnasium", "achieved": 1.0, "terminated": True},
+    ])
+    trainer = _collection_trainer(
+        env,
+        train_after=0,
+        env_steps_per_opt=env_steps_per_opt,
+        eval_interval=100,
+        log_interval=100,
+    )
+    requested_updates = []
+    monkeypatch.setattr(trainer, "update", lambda n_steps: requested_updates.append(n_steps) or {})
+    monkeypatch.setattr(trainer, "evaluate", lambda *args: 0.0)
+
+    trainer.train(total_steps=2)
+
+    assert requested_updates == [1]
