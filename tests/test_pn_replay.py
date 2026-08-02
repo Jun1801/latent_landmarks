@@ -53,6 +53,38 @@ def test_her_preserves_cost_and_recomputes_reached_stop():
     assert np.all(batch["reward"] == 0)
 
 
+def test_her_preserves_independent_cost_and_violation_labels_by_transition():
+    replay = buffer(horizon=3, her_ratio=1.0)
+    cost = np.array([0.25, 0.5, 0.75], dtype=np.float32)
+    violation = np.array([True, False, True], dtype=bool)
+    ep = episode(3, cost=cost, violation=violation)
+    ep["act"] = np.arange(3, dtype=np.float32).reshape(-1, 1)
+    replay.store_episode(ep)
+
+    batch = replay.sample(96, np.random.default_rng(14))
+    transitions = batch["obs"].astype(np.int64).ravel()
+
+    assert set(transitions) == {0, 1, 2}
+    np.testing.assert_array_equal(batch["act"].ravel(), transitions)
+    np.testing.assert_array_equal(batch["cost"], cost[transitions])
+    np.testing.assert_array_equal(batch["violation"], violation[transitions])
+
+
+@pytest.mark.parametrize(
+    ("ep_factory", "message"),
+    [
+        (lambda: episode(0), "episode length must be in"),
+        (lambda: {**episode(4), "length": 4}, "episode length must be in"),
+        (lambda: episode(2, cmd_g=np.zeros((2, 2), dtype=np.float32)), "cmd_g"),
+        (lambda: episode(2, ag=np.zeros((2, 1), dtype=np.float32)), "inconsistent transition lengths"),
+        (lambda: episode(2, obs=np.zeros((3, 2), dtype=np.float32)), "obs"),
+    ],
+)
+def test_store_episode_rejects_invalid_lengths_and_shapes(ep_factory, message):
+    with pytest.raises(ValueError, match=message):
+        buffer(horizon=3).store_episode(ep_factory())
+
+
 def test_shortened_episode_future_indices_and_achieved_goals_exclude_padding():
     replay = buffer(horizon=5, her_ratio=1.0)
     replay.store_episode(episode(2))
