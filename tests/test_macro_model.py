@@ -51,7 +51,7 @@ def test_attempt_validation_and_buffer_fifo_copy_split_and_atomic_load():
         MacroAttempt(np.zeros(2), np.zeros(2), np.zeros(2), None, 1, np.zeros(1), False, False, 1, 2, 1)
 
     first, second, third = attempt(1), attempt(2), attempt(3)
-    replay = MacroAttemptBuffer(capacity=2, validation_fraction=0.5, split_seed=5)
+    replay = MacroAttemptBuffer(capacity=2, validation_fraction=0.0, split_seed=5)
     replay.extend([first, second, third])
     first.start_goal[:] = 99
     assert len(replay) == replay.size == 2
@@ -62,10 +62,13 @@ def test_attempt_validation_and_buffer_fifo_copy_split_and_atomic_load():
     train, validation = replay.train_indices, replay.validation_indices
     assert set(train).isdisjoint(validation)
     assert sorted(np.concatenate([train, validation]).tolist()) == [0, 1]
-    np.testing.assert_array_equal(replay.sample_train(4, np.random.default_rng(3))["start_goal"][:, 0], [3, 3, 3, 3])
-    np.testing.assert_array_equal(replay.sample_validation(4, np.random.default_rng(3))["start_goal"][:, 0], [2, 2, 2, 2])
+    np.testing.assert_array_equal(
+        replay.sample_train(4, np.random.default_rng(3))["start_goal"][:, 0], [3, 2, 2, 2]
+    )
+    with pytest.raises(ValueError, match="empty"):
+        replay.sample_validation(1, np.random.default_rng(3))
 
-    clone = MacroAttemptBuffer(capacity=2, validation_fraction=0.5, split_seed=5)
+    clone = MacroAttemptBuffer(capacity=2, validation_fraction=0.0, split_seed=5)
     state = replay.state_dict()
     clone.load_state_dict(state)
     np.testing.assert_array_equal(clone.state_dict()["attempts"][0]["start_goal"], state["attempts"][0]["start_goal"])
@@ -82,10 +85,10 @@ def test_attempt_validation_and_buffer_fifo_copy_split_and_atomic_load():
     np.testing.assert_array_equal(clone.state_dict()["attempts"][0]["start_goal"], before["attempts"][0]["start_goal"])
 
 
-def test_replay_split_membership_survives_fifo_eviction_and_state_roundtrip():
-    replay = MacroAttemptBuffer(capacity=3, validation_fraction=0.5, split_seed=11)
+def test_replay_seeded_membership_is_stable_through_fifo_restore_and_future_additions():
+    replay = MacroAttemptBuffer(capacity=8, validation_fraction=0.5, split_seed=11)
     memberships = {}
-    for value in range(6):
+    for value in range(16):
         replay.add(attempt(value))
         state = replay.state_dict()
         current = {
@@ -96,16 +99,13 @@ def test_replay_split_membership_survives_fifo_eviction_and_state_roundtrip():
             if identity in memberships:
                 assert is_validation == memberships[identity]
         memberships.update(current)
-        expected_validation_size = min(
-            max(1, int(np.floor(len(replay) * 0.5))) if len(replay) > 1 else 0,
-            len(replay) - 1,
-        )
-        assert sum(state["validation_membership"]) == expected_validation_size
 
-    restored = MacroAttemptBuffer(capacity=3, validation_fraction=0.5, split_seed=11)
+    restored = MacroAttemptBuffer(capacity=8, validation_fraction=0.5, split_seed=11)
     restored.load_state_dict(replay.state_dict())
     restored_state, replay_state = restored.state_dict(), replay.state_dict()
     assert restored_state["validation_membership"] == replay_state["validation_membership"]
+    assert restored_state["attempt_uids"] == replay_state["attempt_uids"]
+    assert restored_state["next_uid"] == replay_state["next_uid"]
     for restored_item, replay_item in zip(restored_state["attempts"], replay_state["attempts"]):
         np.testing.assert_array_equal(restored_item["start_goal"], replay_item["start_goal"])
     for sampler in ("sample_train", "sample_validation"):
@@ -113,12 +113,77 @@ def test_replay_split_membership_survives_fifo_eviction_and_state_roundtrip():
             getattr(restored, sampler)(8, np.random.default_rng(7))["start_goal"],
             getattr(replay, sampler)(8, np.random.default_rng(7))["start_goal"],
         )
+    for value in range(16, 24):
+        replay.add(attempt(value))
+        restored.add(attempt(value))
+    assert restored.state_dict()["attempt_uids"] == replay.state_dict()["attempt_uids"]
+    assert restored.state_dict()["validation_membership"] == replay.state_dict()["validation_membership"]
+
+
+def test_replay_seed_controls_natural_membership_and_duplicate_attempts_have_unique_uids():
+    first = MacroAttemptBuffer(capacity=1024, validation_fraction=0.5, split_seed=5)
+    same = MacroAttemptBuffer(capacity=1024, validation_fraction=0.5, split_seed=5)
+    different = MacroAttemptBuffer(capacity=1024, validation_fraction=0.5, split_seed=6)
+    entries = [attempt(1) for _ in range(1024)]
+    first.extend(entries)
+    same.extend(entries)
+    different.extend(entries)
+
+    first_state, same_state, different_state = first.state_dict(), same.state_dict(), different.state_dict()
+    assert first_state["attempt_uids"] == list(range(1024))
+    assert first_state["validation_membership"] == same_state["validation_membership"]
+    assert np.count_nonzero(np.asarray(first_state["validation_membership"]) != np.asarray(different_state["validation_membership"])) > 300
+    assert 400 < sum(first_state["validation_membership"]) < 624
+
+    duplicate_membership = first_state["validation_membership"]
+    assert any(duplicate_membership)
+    assert not all(duplicate_membership)
+
+
+def test_replay_split_fraction_endpoints_and_uid_state_validation_are_exact_and_atomic():
+    for fraction, expected_validation in ((0.0, False), (1.0, True)):
+        replay = MacroAttemptBuffer(capacity=4, validation_fraction=fraction, split_seed=3)
+        replay.extend([attempt(value) for value in range(4)])
+        assert replay.state_dict()["validation_membership"] == [expected_validation] * 4
+
+    with pytest.raises(ValueError, match="split_seed"):
+        MacroAttemptBuffer(capacity=2, split_seed=True)
+
+    replay = MacroAttemptBuffer(capacity=4, validation_fraction=0.5, split_seed=3)
+    replay.extend([attempt(value) for value in range(4)])
+    before = replay.state_dict()
+    malformed = copy.deepcopy(before)
+    malformed["attempt_uids"][0] = True
+    with pytest.raises(ValueError, match="uid"):
+        replay.load_state_dict(malformed)
+    assert replay.state_dict()["attempt_uids"] == before["attempt_uids"]
+    assert replay.state_dict()["validation_membership"] == before["validation_membership"]
+    malformed = copy.deepcopy(before)
+    malformed["next_uid"] = False
+    with pytest.raises(ValueError, match="next_uid"):
+        replay.load_state_dict(malformed)
+    assert replay.state_dict()["next_uid"] == before["next_uid"]
+    zero_seed = MacroAttemptBuffer(capacity=4, validation_fraction=0.5, split_seed=0)
+    zero_seed.extend([attempt(value) for value in range(4)])
+    zero_seed_before = zero_seed.state_dict()
+    malformed = copy.deepcopy(zero_seed_before)
+    malformed["split_seed"] = False
+    with pytest.raises(ValueError, match="split_seed"):
+        zero_seed.load_state_dict(malformed)
+    assert zero_seed.state_dict()["attempt_uids"] == zero_seed_before["attempt_uids"]
+    empty = MacroAttemptBuffer(capacity=4, validation_fraction=0.5, split_seed=0)
+    malformed = empty.state_dict()
+    malformed["next_uid"] = 1
+    with pytest.raises(ValueError, match="next_uid"):
+        empty.load_state_dict(malformed)
+    assert empty.state_dict()["next_uid"] == 0
 
 
 def test_replay_sampling_uses_cached_partition_slots_and_load_is_atomic():
-    replay = MacroAttemptBuffer(capacity=4, validation_fraction=0.5, split_seed=3)
+    replay = MacroAttemptBuffer(capacity=4, validation_fraction=0.0, split_seed=3)
     replay.extend([attempt(value) for value in range(4)])
-    assert len(replay.train_indices) == len(replay.validation_indices) == 2
+    assert len(replay.train_indices) == 4
+    assert len(replay.validation_indices) == 0
 
     class SamplingRng(np.random.Generator):
         def __init__(self):
@@ -131,7 +196,8 @@ def test_replay_sampling_uses_cached_partition_slots_and_load_is_atomic():
             raise AssertionError("sampling must not rebuild a split permutation")
 
     replay.sample_train(3, SamplingRng())
-    replay.sample_validation(3, SamplingRng())
+    with pytest.raises(ValueError, match="empty"):
+        replay.sample_validation(3, SamplingRng())
 
     class NoMaterializeSlots(list):
         def __array__(self, *_args, **_kwargs):
@@ -153,9 +219,8 @@ def test_replay_sampling_uses_cached_partition_slots_and_load_is_atomic():
     assert replay.state_dict()["validation_membership"] == before["validation_membership"]
 
     replay.add(attempt(4))
-    state = replay.state_dict()
-    assert len(replay.train_indices) == len(replay.validation_indices) == 2
-    assert sum(state["validation_membership"]) == 2
+    assert len(replay.train_indices) == 4
+    assert len(replay.validation_indices) == 0
 
 
 def test_stratification_is_exact_sized_and_handles_absent_classes():
