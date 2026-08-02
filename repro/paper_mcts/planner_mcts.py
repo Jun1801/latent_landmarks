@@ -70,6 +70,7 @@ class PaperMCTSPlanner(Planner):
             return self.dists_to_goals.detach().cpu().numpy()
         n, K = self.n_landmarks, self.n_goals
         Mn = self._edge_clean + self._rng.normal(0.0, self._sigma, size=self._edge_clean.shape)
+        Mn = np.minimum(Mn, 0.0)          # V must stay <= 0 (paper's min(dists,0); value_iter asserts it)
         full = np.full((n + K, n + K), -self.args.inf_value, dtype=np.float64)
         full[:n, :] = Mn                                                   # goal rows stay -inf
         ft = torch.as_tensor(full, dtype=torch.float32)
