@@ -49,6 +49,18 @@ def test_normalize_gymnasium_timeout_is_not_a_violation():
     assert result.info["termination_reason"] == "timeout"
 
 
+def test_point_maze_legacy_timeout_normalizes_as_truncation():
+    env = PointMazeEnv(cfg=get_config("PointMaze", max_episode_steps=1), seed=0)
+    env.reset()
+
+    result = normalize_step_result(env.step(np.zeros(2, dtype=np.float32)))
+
+    assert result.info["termination_reason"] == "timeout"
+    assert result.info["TimeLimit.truncated"] is True
+    assert result.terminated is False
+    assert result.truncated is True
+
+
 def test_normalize_safety_gymnasium_uses_separate_cost_before_info():
     result = normalize_step_result(
         ("obs", -1.0, 2.0, False, False, {"safety_cost": 0.0, "cost": 0.0})
@@ -149,6 +161,19 @@ def test_hazardous_point_maze_has_short_risky_route_and_long_safe_detour():
     assert direct < safe_detour
 
 
+@pytest.mark.parametrize("eval_mode", [False, True])
+def test_hazardous_point_maze_reset_never_samples_hazardous_start_or_goal(eval_mode):
+    cfg = get_config("PointMaze", pn_lmcgs_enabled=True, pn_pointmaze_hazard_enabled=True)
+    env = PointMazeEnv(cfg=cfg, seed=17)
+    env.set_eval(eval_mode)
+
+    for _ in range(100):
+        obs = env.reset()
+        for key in ("achieved_goal", "desired_goal"):
+            col, row = np.floor(obs[key]).astype(int)
+            assert not env.hazard_mask[row, col]
+
+
 def test_hazardous_point_maze_emits_cost_without_terminal_violation():
     cfg = get_config("PointMaze", pn_lmcgs_enabled=True, pn_pointmaze_hazard_enabled=True)
     env = PointMazeEnv(cfg=cfg, seed=0)
@@ -160,6 +185,7 @@ def test_hazardous_point_maze_emits_cost_without_terminal_violation():
 
     assert done is False
     assert info["safety_cost"] == 1.0
+    assert info["hazard"] is True
     assert info["termination_reason"] == "other"
 
 
@@ -172,6 +198,7 @@ def test_standard_point_maze_layout_and_step_behavior_remain_default():
     _, _, done, info = env.step(np.zeros(2, dtype=np.float32))
     assert done is False
     assert info["safety_cost"] == 0.0
+    assert info["hazard"] is False
     assert "goal_reached" in info and "termination_reason" in info
 
 
@@ -238,6 +265,26 @@ def test_pn_config_defaults_and_validation():
     for overrides in invalid_overrides:
         with pytest.raises(ValueError):
             get_config("PointMaze", **overrides)
+
+
+@pytest.mark.parametrize("info_key", ["", "   "])
+def test_pn_config_requires_nonempty_collision_key_when_enabled(info_key):
+    with pytest.raises(ValueError, match="pn_collision_cost_info_key"):
+        get_config(
+            "PointMaze",
+            pn_collision_cost_enabled=True,
+            pn_collision_cost_info_key=info_key,
+        )
+
+
+def test_pn_config_accepts_nonempty_collision_key_when_enabled():
+    cfg = get_config(
+        "PointMaze",
+        pn_collision_cost_enabled=True,
+        pn_collision_cost_info_key="collision",
+    )
+
+    assert cfg.pn_collision_cost_info_key == "collision"
 
 
 @pytest.mark.parametrize(

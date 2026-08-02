@@ -74,6 +74,9 @@ class PointMazeEnv:
         self.rng = np.random.default_rng(seed)
 
         self.free_cells = np.argwhere(self.maze == 0)  # (row, col)
+        self.safe_free_cells = self.free_cells[
+            ~self.hazard_mask[self.free_cells[:, 0], self.free_cells[:, 1]]
+        ]
         # Longest-path endpoints for evaluation: first and last corridor.
         corridors = list(range(1, self.W - 1, 2))
         if hazard_enabled:
@@ -86,8 +89,12 @@ class PointMazeEnv:
         # For evaluation we sample start/goal from the two end corridors (rather
         # than two fixed points), so repeated eval episodes genuinely differ and
         # the success rate is a smooth average rather than all-or-nothing.
-        self._start_region = self.free_cells[self.free_cells[:, 1] == self._start_cell[1]]
-        self._goal_region = self.free_cells[self.free_cells[:, 1] == self._goal_cell[1]]
+        self._start_region = self.safe_free_cells[
+            self.safe_free_cells[:, 1] == self._start_cell[1]
+        ]
+        self._goal_region = self.safe_free_cells[
+            self.safe_free_cells[:, 1] == self._goal_cell[1]
+        ]
 
         self.obs_dim = 2
         self.goal_dim = 2
@@ -134,8 +141,8 @@ class PointMazeEnv:
             self._pos = self._sample_free_pos(self._start_region)
             self._goal = self._sample_free_pos(self._goal_region)
         else:
-            self._pos = self._sample_free_pos()
-            self._goal = self._sample_free_pos()
+            self._pos = self._sample_free_pos(self.safe_free_cells)
+            self._goal = self._sample_free_pos(self.safe_free_cells)
         return self._get_obs()
 
     def step(self, action: np.ndarray):
@@ -160,13 +167,17 @@ class PointMazeEnv:
         success = reward == 0.0
         done = self._steps >= self.max_episode_steps
         row, col = int(np.floor(self._pos[1])), int(np.floor(self._pos[0]))
-        safety_cost = float(self.hazard_mask[row, col])
+        hazard = bool(self.hazard_mask[row, col])
+        safety_cost = float(hazard)
         info = {
             "is_success": float(success),
             "goal_reached": bool(success),
             "safety_cost": safety_cost,
+            "hazard": hazard,
             "termination_reason": "timeout" if done else ("goal" if success else "other"),
         }
+        if done:
+            info["TimeLimit.truncated"] = True
         return obs, reward, done, info
 
     def compute_reward(self, achieved_goal: np.ndarray, desired_goal: np.ndarray,

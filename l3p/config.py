@@ -342,6 +342,14 @@ def validate_pn_config(cfg: Config) -> None:
             raise ValueError(f"{name} must be between 0 and 1")
     if cfg.pn_root_risk_limit > cfg.pn_search_risk_limit:
         raise ValueError("pn_root_risk_limit must not exceed pn_search_risk_limit")
+    if cfg.pn_collision_cost_enabled and (
+        not isinstance(cfg.pn_collision_cost_info_key, str)
+        or not cfg.pn_collision_cost_info_key.strip()
+    ):
+        raise ValueError(
+            "pn_collision_cost_info_key must be a non-empty string when "
+            "pn_collision_cost_enabled=True"
+        )
     if cfg.pn_pointmaze_hazard_enabled and not cfg.pn_lmcgs_enabled:
         raise ValueError("pn_pointmaze_hazard_enabled requires pn_lmcgs_enabled=True")
 
