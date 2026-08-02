@@ -1,22 +1,28 @@
-"""Route A, Step 2: MCTS-over-landmarks as a drop-in test-time planner for the
-paper repo. `PaperMCTSPlanner` subclasses the paper's `Planner` and overrides only
-the subgoal SELECTION inside `get_subgoals` (the commit-for-K-steps and
-mask-previous-landmark bookkeeping are kept identical). Everything else -- the
-landmark set, the soft-Floyd value-to-go (`dists_to_goals`), the state->landmark
-distances (`agent.pairwise_value`) -- is reused from the trained model.
+"""Route A, Step 2: MCTS-over-landmarks + a matched noisy soft-Floyd baseline as
+test-time planners for the paper repo. `PaperMCTSPlanner` subclasses the paper's
+`Planner` and overrides only the subgoal SELECTION in `get_subgoals`; the
+commit-for-K-steps and mask-previous-landmark bookkeeping are kept identical.
 
-Sign convention bridge (paper vs our engine):
-  * paper value V is a NEGATIVE value (higher = closer); admissible if V >= dist_clip.
-  * our LandmarkMCTS expects a POSITIVE distance D (edge cost = -D) and d_s2c /
-    heuristic as NEGATIVE values-to-go.
-  So we feed the engine `-M` (V negated -> positive distance) as the edge value_fn,
-  and pass `dists_to_landmarks` / `dists_to_goals` unchanged (already negative).
-The sigma=0 sanity (MCTS ~ Soft Floyd ~ 1.0) catches any sign mistake immediately.
+Fair noise model (Loai-2, E1a-style additive on the landmark graph):
+  * Per episode, one noise draw perturbs the clean landmark edge matrix, and the
+    paper's own value_iter is run on it -> a NOISY value-to-go `d_c2g` that BOTH
+    planners use. So the world model is mis-estimated identically for both.
+  * soft_floyd (noisy): argmax(d_s2c + noisy d_c2g)      -- static, trusts it once.
+  * mcts (noisy): heuristic = the SAME noisy d_c2g, but rollout/tree edges RESAMPLE
+    the noise -> sample-averaging that static Soft Floyd cannot do.
+  * d_s2c (state->landmark) stays clean, matching the reimpl E1a convention.
+
+Sign bridge: paper V is a NEGATIVE value (higher=closer, admissible if V>=dist_clip);
+our engine wants a POSITIVE distance D (edge cost=-D) with d_s2c/heuristic negative.
+So the engine's edge value_fn gets `-M` (V negated) and d_s2c/d_c2g are passed as-is.
+The sigma=0 run reduces to the clean case (noisy d_c2g == clean), so it still
+matches Soft Floyd ~1.0 -- the port sanity.
 """
 import numpy as np
 import torch
 
-from rl.search.latent_planner import Planner, clip_dist, v_pairwise_dists
+from rl.search.latent_planner import (Planner, clip_dist, v_pairwise_dists,
+                                       value_iter, adaptive_clip_dist)
 
 from mcts_core import LandmarkMCTS, MatrixNoisyValueFn
 
@@ -41,55 +47,48 @@ class MctsCfg:
 
 
 class PaperMCTSPlanner(Planner):
-    """Planner that selects sub-goals with LandmarkMCTS instead of the softmax
-    over `dists_to_landmarks + dists_to_goals`. Noise (Loai-2 additive `sigma`,
-    Loai-1 fixed `bias`) is injected on the cached clean edge matrix per episode
-    to mimic a mis-estimated world model (E1a / E1c)."""
-
-    def configure_mcts(self, mcts_cfg, sigma=0.0, bias_sigma=0.0, noise_seed=0):
+    def configure_mcts(self, mcts_cfg, sigma=0.0, select_mode="mcts", noise_seed=0):
         self._mcts_cfg = mcts_cfg
-        self._sigma = float(sigma)              # Loai-2 additive noise std (on distance scale)
-        self._bias_sigma = float(bias_sigma)    # Loai-1 fixed multiplicative bias std
-        self._noise_seed = int(noise_seed)
+        self._sigma = float(sigma)             # Loai-2 additive noise std (distance scale)
+        self._select_mode = select_mode        # "mcts" or "softfloyd" (both on the noisy graph)
         self._rng = np.random.default_rng(noise_seed + 1)
         self._edge_clean = None
-        self._bias = None
+        self._noisy_dtg = None
 
     def update(self, goals, test_time=False):
         super().update(goals, test_time=test_time)
-        # Cache the CLEAN landmark -> (landmark+goal) V matrix (paper's pre-value_iter
-        # graph, clamped to <= 0 exactly like update()). self.landmarks == [lm; goals].
         lm_only = self.landmarks[:self.n_landmarks]
         with torch.no_grad():
             M = v_pairwise_dists(lm_only, self.landmarks, agent=self.agent)
-        M = torch.min(M, M * 0.0).detach().cpu().numpy()            # (n_landmark, n_landmark+K)
-        self._edge_clean = M
-        # Per-episode fixed Loai-1 bias over the (N+1)-node graph (goal is last node).
-        if self._bias_sigma > 0:
-            n = self.n_landmarks + 1
-            rng = np.random.default_rng(self._noise_seed)
-            b = rng.normal(0.0, self._bias_sigma, size=(n, n))
-            b[:, -1] = b[-1, :] = 0.0                               # no bias on goal edges
-            self._bias = b
-        else:
-            self._bias = None
+        self._edge_clean = torch.min(M, M * 0.0).detach().cpu().numpy()   # (n, n+K), <= 0
+        self._noisy_dtg = self._build_noisy_dtg()                          # (K, n+K)
+
+    def _build_noisy_dtg(self):
+        """Value-to-go from the paper's value_iter on a per-episode noisy graph.
+        sigma=0 -> the clean d_c2g (so the port sanity is unchanged)."""
+        if self._sigma <= 0:
+            return self.dists_to_goals.detach().cpu().numpy()
+        n, K = self.n_landmarks, self.n_goals
+        Mn = self._edge_clean + self._rng.normal(0.0, self._sigma, size=self._edge_clean.shape)
+        full = np.full((n + K, n + K), -self.args.inf_value, dtype=np.float64)
+        full[:n, :] = Mn                                                   # goal rows stay -inf
+        ft = torch.as_tensor(full, dtype=torch.float32)
+        ft = adaptive_clip_dist(ft, clip=self.args.dist_clip, inf_value=self.args.inf_value)
+        ft = value_iter(ft, temp=self.args.temp, n_iter=self.args.vi_iter)
+        return ft[:, -K:].permute(1, 0).detach().cpu().numpy()            # (K, n+K)
 
     def _mcts_select(self, env_id, d_s2c_row, heur_row):
-        """Run MCTS over [landmarks; this env's goal]; return the chosen node idx
-        (0..n_landmark-1 = landmark, n_landmark = goal)."""
         n = self.n_landmarks
-        cols = list(range(n)) + [n + env_id]                       # N+1 node columns
-        d_s2c = d_s2c_row[cols].detach().cpu().numpy().astype(np.float64)      # negative values
-        heur = heur_row[cols].detach().cpu().numpy().astype(np.float64)        # negative values-to-go
-        # clean edge submatrix over these N+1 nodes, negated to a positive distance
-        sub = np.full((n + 1, n + 1), -1.0, dtype=np.float64) * 0.0
+        cols = list(range(n)) + [n + env_id]
+        d_s2c = d_s2c_row[cols].detach().cpu().numpy().astype(np.float64)
+        heur = np.asarray(heur_row)[cols].astype(np.float64)
+        sub = np.zeros((n + 1, n + 1), dtype=np.float64)
         sub[:n, :n] = self._edge_clean[:n, :n]
         sub[:n, n] = self._edge_clean[:n, n + env_id]
-        Dpos = -sub                                                # positive distance for the engine
-        adm = (sub >= self.args.dist_clip)                         # V >= clip  <=>  admissible
+        adm = (sub >= self.args.dist_clip)                               # structural (clean) mask
         np.fill_diagonal(adm, False)
-        adm[n, :] = False                                          # goal is absorbing
-        value_fn = MatrixNoisyValueFn(Dpos, sigma=self._sigma, bias=self._bias, rng=self._rng)
+        adm[n, :] = False
+        value_fn = MatrixNoisyValueFn(-sub, sigma=self._sigma, rng=self._rng)  # resampled rollouts
         nodes_t = self.landmarks[cols].detach().float()
         value_fn.prepare_nodes(nodes_t)
         mcts = LandmarkMCTS(n_landmarks=n, value_fn=value_fn, nodes_t=nodes_t,
@@ -101,6 +100,17 @@ class PaperMCTSPlanner(Planner):
             mask[prev] = True
         idx, _ = mcts.search(d_s2c, mask=mask)
         return n if idx is None else int(idx)
+
+    def _softfloyd_select(self, env_id, d_s2c_row, heur_row):
+        n = self.n_landmarks
+        cols = list(range(n)) + [n + env_id]
+        d_s2c = d_s2c_row[cols].detach().cpu().numpy()
+        heur = np.asarray(heur_row)[cols]
+        score = d_s2c + heur                                             # argmax = paper selection
+        prev = self.past_goal[env_id]
+        if prev != -1 and prev < n:
+            score[prev] = -self.args.inf_value
+        return int(np.argmax(score))
 
     def get_subgoals(self, obs, goals):
         obs = self.to_2d_array(obs)
@@ -120,21 +130,24 @@ class PaperMCTSPlanner(Planner):
         for env_id in range(obs_t.size(0)):
             env_goal_idx = n + env_id
             prev_idx = self.past_goal[env_id]
-            if self.subgoal_cnt[env_id] > 1.0:                     # mid-commitment: hold subgoal
+            if self.subgoal_cnt[env_id] > 1.0:
                 goals[env_id] = self.landmarks[prev_idx].detach().cpu().numpy()
                 self.subgoal_cnt[env_id] -= 1.0
                 continue
             if dists_to_landmarks[env_id, env_goal_idx] < -self.args.local_horizon:
-                idx = self._mcts_select(env_id, dists_to_landmarks[env_id], self.dists_to_goals[env_id])
-                if idx < n:                                        # a landmark sub-goal
+                heur_row = self._noisy_dtg[env_id]
+                if self._select_mode == "softfloyd":
+                    idx = self._softfloyd_select(env_id, dists_to_landmarks[env_id], heur_row)
+                else:
+                    idx = self._mcts_select(env_id, dists_to_landmarks[env_id], heur_row)
+                if idx < n:
                     steps = float(-dists_to_landmarks[env_id, idx].cpu().numpy())
                     goals[env_id] = self.landmarks[idx].detach().cpu().numpy()
                     self.past_goal[env_id] = idx
                     self.subgoal_cnt[env_id] = steps + extra_steps
-                else:                                              # head straight to the goal
+                else:
                     steps = float(-dists_to_landmarks[env_id, env_goal_idx].cpu().numpy())
                     self.past_goal[env_id] = env_goal_idx
                     self.subgoal_cnt[env_id] = max(1.0, steps) + extra_steps
-            # else: goal is directly reachable -> keep goals[env_id] as the real goal
         assert goals.ndim == 2
         return goals

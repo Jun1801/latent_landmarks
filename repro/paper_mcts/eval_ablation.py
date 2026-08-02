@@ -80,25 +80,27 @@ def main():
     ref = eval_mean(a.episodes)
     print(f"\nsoft_floyd (clean):            {ref:.3f}", flush=True)
 
-    # ---- MCTS variants ----
-    variants = {
-        "mcts":            dict(),
-        "mcts+suffix":     dict(suffix_backup=True),
-        "mcts+pw":         dict(progressive_widening=True),
-        "mcts+bayes":      dict(uncertainty_mode="bayes"),
-    }
+    # ---- planners under the SAME noisy world model (soft_floyd vs MCTS) ----
+    # (name, select_mode, mcts kwargs)
+    variants = [
+        ("soft_floyd",   "softfloyd", dict()),
+        ("mcts",         "mcts",      dict()),
+        ("mcts+suffix",  "mcts",      dict(suffix_backup=True)),
+        ("mcts+pw",      "mcts",      dict(progressive_widening=True)),
+        ("mcts+bayes",   "mcts",      dict(uncertainty_mode="bayes")),
+    ]
     print(f"\n{'variant':16}" + "".join(f"  s={s}".ljust(9) for s in a.sigmas), flush=True)
-    for name, kw in variants.items():
+    for name, mode, kw in variants:
         row = []
         for s in a.sigmas:
             algo.planner.__class__ = PaperMCTSPlanner
             algo.planner.configure_mcts(MctsCfg(n_simulations=a.sims, **kw),
-                                        sigma=float(s), noise_seed=0)
+                                        sigma=float(s), select_mode=mode, noise_seed=0)
             row.append(eval_mean(a.episodes))
         print(f"{name:16}" + "".join(f"  {v:.3f}".ljust(9) for v in row), flush=True)
 
-    print("\nSANITY: mcts at s=0 must ~match soft_floyd (clean). "
-          "If it does, the port is correct.", flush=True)
+    print("\nSANITY: at s=0, soft_floyd/mcts must ~match soft_floyd(clean). "
+          "Under s>0: does MCTS hold success better than static soft_floyd?", flush=True)
 
 
 if __name__ == "__main__":
