@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections import Counter
-from typing import Dict, List, Tuple
+from collections import Counter, deque
+from typing import Deque, Dict, Sequence, Tuple
 
 import numpy as np
 
@@ -20,8 +20,8 @@ class LandmarkMemoryManager:
         self.goal_dim = int(goal_dim)
         self.positive_capacity = int(positive_capacity)
         self.negative_capacity = int(negative_capacity)
-        self._positive: List[np.ndarray] = []
-        self._negative: List[Tuple[np.ndarray, int, bool]] = []
+        self._positive: Deque[np.ndarray] = deque()
+        self._negative: Deque[Tuple[np.ndarray, int, bool]] = deque()
         self._negative_episode_counts: Counter = Counter()
 
     @property
@@ -72,7 +72,7 @@ class LandmarkMemoryManager:
                 later = successful[successful >= t]
                 if len(later):
                     goal_time = int(later[0])
-                    if cost[t:goal_time].sum() == 0:
+                    if cost[t:goal_time + 1].sum() == 0:
                         self._append_positive(ag[t])
             start = end
 
@@ -120,19 +120,21 @@ class LandmarkMemoryManager:
         preimpact = np.asarray(state["negative_is_preimpact"])
         if ids.shape != (len(negative),) or preimpact.shape != (len(negative),):
             raise ValueError("negative memory metadata has invalid shape")
-        self._positive = [goal.copy() for goal in positive]
-        self._negative = [(goal.copy(), int(ident), bool(pre))
-                          for goal, ident, pre in zip(negative, ids, preimpact)]
+        self._positive = deque(goal.copy() for goal in positive)
+        self._negative = deque(
+            (goal.copy(), int(ident), bool(pre))
+            for goal, ident, pre in zip(negative, ids, preimpact)
+        )
         self._negative_episode_counts = Counter(int(ident) for ident in ids)
 
     def _append_positive(self, goal: np.ndarray) -> None:
         if len(self._positive) == self.positive_capacity:
-            self._positive.pop(0)
+            self._positive.popleft()
         self._positive.append(np.asarray(goal, dtype=np.float32).copy())
 
     def _append_negative(self, goal: np.ndarray, episode_id: int, is_preimpact: bool) -> None:
         if len(self._negative) == self.negative_capacity:
-            _, old_episode, _ = self._negative.pop(0)
+            _, old_episode, _ = self._negative.popleft()
             self._negative_episode_counts[old_episode] -= 1
             if not self._negative_episode_counts[old_episode]:
                 del self._negative_episode_counts[old_episode]
@@ -176,7 +178,7 @@ class LandmarkMemoryManager:
             raise ValueError(f"episode field {name!r} is shorter than the episode")
         return array[:length]
 
-    def _goals(self, goals: List[np.ndarray]) -> np.ndarray:
+    def _goals(self, goals: Sequence[np.ndarray]) -> np.ndarray:
         if not goals:
             return np.empty((0, self.goal_dim), dtype=np.float32)
         return np.asarray(goals, dtype=np.float32).copy()

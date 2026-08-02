@@ -126,6 +126,16 @@ def test_safe_successful_command_segment_adds_only_eligible_positive_goals():
     assert memory.negative_size == 0
 
 
+def test_goal_transition_violation_excludes_every_positive_in_command_segment():
+    memory = manager()
+    ep = episode(3, cmd_g=np.array([[2], [2], [2]], dtype=np.float32),
+                 goal_reached=np.array([0, 1, 0], dtype=bool),
+                 cost=np.array([0., 1., 0.], dtype=np.float32))
+    memory.ingest_episode(ep, episode_id=10)
+
+    assert memory.positive_size == 0
+
+
 def test_timeout_or_failure_is_neutral():
     memory = manager()
     ep = episode(3, goal_reached=np.zeros(3, dtype=bool),
@@ -158,6 +168,36 @@ def test_violation_fallback_metadata_and_distinct_episode_gate_survives_eviction
     assert not np.any(sample["is_preimpact"]), "evicted fallback must not leave stale metadata"
 
 
+def test_memory_fifo_eviction_preserves_goal_order_and_episode_counts():
+    memory = LandmarkMemoryManager(goal_dim=1, positive_capacity=2, negative_capacity=3)
+    for ident in range(4):
+        memory.ingest_episode(
+            episode(1, ag=np.array([[ident], [ident + 10]], dtype=np.float32),
+                    cmd_g=np.array([[7]], dtype=np.float32),
+                    goal_reached=np.array([True]), cost=np.array([0.], dtype=np.float32)),
+            episode_id=100 + ident,
+        )
+    for ident in (1, 1, 2, 3, 3):
+        memory.ingest_episode(
+            episode(1, ag=np.array([[ident], [ident + 10]], dtype=np.float32),
+                    cost=np.array([1.], dtype=np.float32)),
+            episode_id=ident,
+        )
+
+    state = memory.state_dict()
+    np.testing.assert_array_equal(memory.positive_goals, np.array([[2.], [3.]], dtype=np.float32))
+    np.testing.assert_array_equal(memory.negative_goals, np.array([[12.], [13.], [13.]], dtype=np.float32))
+    np.testing.assert_array_equal(state["negative_episode_ids"], np.array([2, 3, 3]))
+    assert memory.distinct_negative_episodes == 2
+    assert memory.negative_landmarks_active(3, 2)
+
+    clone = LandmarkMemoryManager(goal_dim=1, positive_capacity=2, negative_capacity=3)
+    clone.load_state_dict(state)
+    np.testing.assert_array_equal(clone.positive_goals, memory.positive_goals)
+    np.testing.assert_array_equal(clone.negative_goals, memory.negative_goals)
+    assert clone.distinct_negative_episodes == 2
+
+
 def test_memory_copies_inputs_and_roundtrips_with_validation():
     memory = manager()
     ep = episode(2, goal_reached=np.array([1, 0], dtype=bool), cost=np.array([0., 1.]))
@@ -186,3 +226,29 @@ def test_memory_rejects_malformed_commanded_goal_shape():
     ep = episode(2, cmd_g=np.array([1., 1.]), goal_reached=np.array([0, 1], dtype=bool))
     with pytest.raises(ValueError, match="cmd_g"):
         memory.ingest_episode(ep, episode_id=1)
+
+
+@pytest.mark.parametrize("name", ("obs", "ag", "g", "act", "cmd_g"))
+def test_store_episode_rejects_scalar_structured_fields(name):
+    ep = episode(2)
+    ep["length"] = 2
+    ep[name] = np.array(0.0)
+
+    with pytest.raises(ValueError, match=name):
+        buffer(horizon=3).store_episode(ep)
+
+
+@pytest.mark.parametrize(
+    "reason",
+    (
+        np.array([1.5, 0.0]),
+        np.array([-1, 0]),
+        np.array([256, 0]),
+        np.array([True, False]),
+        np.array([np.nan, 0.0]),
+        np.array([np.inf, 0.0]),
+    ),
+)
+def test_store_episode_rejects_non_integer_or_out_of_range_termination_reason(reason):
+    with pytest.raises(ValueError, match="termination_reason"):
+        buffer(horizon=3).store_episode(episode(2, termination_reason=reason))

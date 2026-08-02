@@ -73,12 +73,21 @@ class HERReplayBuffer:
         length = self._episode_length(ep)
         i = self.ptr
         self._clear_slot(i)
-        self.obs[i, :length + 1] = self._field(ep, "obs", length + 1, self.obs.shape[2:])
-        self.ag[i, :length + 1] = self._field(ep, "ag", length + 1, self.ag.shape[2:])
-        self.g[i, :length] = self._field(ep, "g", length, self.g.shape[2:])
-        self.act[i, :length] = self._field(ep, "act", length, self.act.shape[2:])
+        self.obs[i, :length + 1] = self._field(
+            ep, "obs", length + 1, self.obs.shape[2:], allow_scalar=False, exact=True
+        )
+        self.ag[i, :length + 1] = self._field(
+            ep, "ag", length + 1, self.ag.shape[2:], allow_scalar=False, exact=True
+        )
+        self.g[i, :length] = self._field(
+            ep, "g", length, self.g.shape[2:], allow_scalar=False, exact=True
+        )
+        self.act[i, :length] = self._field(
+            ep, "act", length, self.act.shape[2:], allow_scalar=False, exact=True
+        )
+        cmd_g_source = ep if "cmd_g" in ep else {"cmd_g": ep["g"]}
         self.cmd_g[i, :length] = self._field(
-            ep, "cmd_g", length, self.cmd_g.shape[2:], default=ep["g"]
+            cmd_g_source, "cmd_g", length, self.cmd_g.shape[2:], allow_scalar=False, exact=True
         )
         self.cost[i, :length] = self._field(ep, "cost", length, (), default=0.0)
         self.violation[i, :length] = self._field(
@@ -109,8 +118,15 @@ class HERReplayBuffer:
                 raise ValueError(f"episode missing required field {name!r}")
         explicit = ep.get("length", ep.get("episode_length"))
         if explicit is None:
-            lengths = (len(np.asarray(ep["g"])), len(np.asarray(ep["act"])),
-                       len(np.asarray(ep["obs"])) - 1, len(np.asarray(ep["ag"])) - 1)
+            lengths = tuple(
+                array.shape[0] - offset if array.ndim else -1
+                for array, offset in (
+                    (np.asarray(ep["g"]), 0),
+                    (np.asarray(ep["act"]), 0),
+                    (np.asarray(ep["obs"]), 1),
+                    (np.asarray(ep["ag"]), 1),
+                )
+            )
             if len(set(lengths)) != 1:
                 raise ValueError("episode shapes imply inconsistent transition lengths; provide length")
             length = lengths[0]
@@ -124,7 +140,7 @@ class HERReplayBuffer:
 
     @staticmethod
     def _field(ep: Dict[str, np.ndarray], name: str, length: int, tail: tuple,
-               default=None) -> np.ndarray:
+               default=None, allow_scalar: bool = True, exact: bool = False) -> np.ndarray:
         if name not in ep:
             value = default
             if value is None:
@@ -133,24 +149,39 @@ class HERReplayBuffer:
             value = ep[name]
         array = np.asarray(value)
         if array.ndim == 0:
+            if not allow_scalar:
+                raise ValueError(f"episode field {name!r} must have shape ({length}, {tail}), got scalar")
             array = np.full((length,) + tail, array, dtype=array.dtype)
         expected = (length,) + tail
-        if array.shape[0] < length or array.shape[1:] != tail:
+        if (exact and array.shape != expected) or (
+            not exact and (array.shape[0] < length or array.shape[1:] != tail)
+        ):
             raise ValueError(f"episode field {name!r} must have shape ({length}, {tail}), got {array.shape}")
         return array[:length]
 
     def _reason_field(self, ep: Dict[str, np.ndarray], length: int) -> np.ndarray:
         raw = ep.get("termination_reason", self.REASON_OTHER)
         values = self._field({"value": raw}, "value", length, ())
-        if np.issubdtype(values.dtype, np.number):
-            result = values.astype(np.int8)
-            if np.any((result < self.REASON_OTHER) | (result > self.REASON_VIOLATION)):
-                raise ValueError("termination_reason contains an unknown numeric code")
-            return result
-        try:
-            return np.asarray([self._REASON_CODES[str(x)] for x in values], dtype=np.int8)
-        except KeyError as exc:
-            raise ValueError(f"unknown termination_reason {exc.args[0]!r}") from exc
+        if np.issubdtype(values.dtype, np.bool_):
+            raise ValueError("termination_reason must contain integer codes, not booleans")
+        if np.issubdtype(values.dtype, np.integer):
+            result = values
+        elif np.issubdtype(values.dtype, np.floating):
+            if not np.all(np.isfinite(values)):
+                raise ValueError("termination_reason must contain finite integer codes")
+            if not np.all(values == np.trunc(values)):
+                raise ValueError("termination_reason must contain integer codes")
+            result = values
+        elif np.issubdtype(values.dtype, np.number):
+            raise ValueError("termination_reason must contain real integer codes")
+        else:
+            try:
+                return np.asarray([self._REASON_CODES[str(x)] for x in values], dtype=np.int8)
+            except KeyError as exc:
+                raise ValueError(f"unknown termination_reason {exc.args[0]!r}") from exc
+        if np.any((result < self.REASON_OTHER) | (result > self.REASON_VIOLATION)):
+            raise ValueError("termination_reason contains an unknown numeric code")
+        return result.astype(np.int8)
 
     # ------------------------------------------------------------------ sampling
     def _future_index(self, t: np.ndarray, rng: np.random.Generator,
