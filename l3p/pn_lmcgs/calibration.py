@@ -20,6 +20,9 @@ class TemperatureFit:
 
 def fit_temperature(outcome_logits, outcome_labels) -> TemperatureFit:
     logits, labels = _logits_and_labels(outcome_logits, outcome_labels)
+    # An empty validation partition provides no calibration evidence.
+    if logits.shape[0] == 0:
+        return TemperatureFit(1.0, 0.0, 0.0)
     grid = torch.linspace(0.5, 5.0, 91, device=logits.device)
     nlls = torch.stack([F.cross_entropy(logits / temperature, labels) for temperature in grid])
     base = F.cross_entropy(logits, labels)
@@ -34,6 +37,8 @@ def expected_calibration_error(outcome_logits, outcome_labels, temperature: floa
     logits, labels = _logits_and_labels(outcome_logits, outcome_labels)
     _positive_scalar(temperature, "temperature")
     n_bins = _positive_int(n_bins, "n_bins")
+    if logits.shape[0] == 0:
+        return 0.0
     probabilities = torch.softmax(logits / temperature, dim=-1)
     confidence, prediction = probabilities.max(dim=-1)
     accuracy = prediction.eq(labels).float()
@@ -47,14 +52,15 @@ def expected_calibration_error(outcome_logits, outcome_labels, temperature: floa
 
 
 def violation_reliability_bins(outcome_logits, outcome_labels, n_bins: int = 10, temperature: float = 1.0) -> dict[str, np.ndarray]:
+    """Return violation calibration bins; empty bins use predicted=empirical=count=0."""
     logits, labels = _logits_and_labels(outcome_logits, outcome_labels)
     n_bins = _positive_int(n_bins, "n_bins")
     _positive_scalar(temperature, "temperature")
     probability = torch.softmax(logits / temperature, dim=-1)[:, int(Outcome.VIOLATION)]
     actual = labels.eq(int(Outcome.VIOLATION)).float()
     count = np.zeros(n_bins, dtype=np.int64)
-    predicted = np.full(n_bins, np.nan, dtype=np.float64)
-    empirical = np.full(n_bins, np.nan, dtype=np.float64)
+    predicted = np.zeros(n_bins, dtype=np.float64)
+    empirical = np.zeros(n_bins, dtype=np.float64)
     for index in range(n_bins):
         low, high = index / n_bins, (index + 1) / n_bins
         mask = (probability >= low) & ((probability < high) if index + 1 < n_bins else (probability <= high))
@@ -82,10 +88,11 @@ def confusion_matrix_and_classification_metrics(prediction, target) -> dict[str,
 
 
 def duration_mae_by_outcome(outcomes, predicted_duration, true_duration) -> np.ndarray:
+    """Return outcome MAEs; outcomes without observations use the neutral value 0."""
     labels = _outcome_vector(outcomes, "outcomes")
     predicted = _duration_vector(predicted_duration, "predicted_duration", len(labels))
     actual = _duration_vector(true_duration, "true_duration", len(labels))
-    result = np.full(4, np.nan, dtype=np.float64)
+    result = np.zeros(4, dtype=np.float64)
     for outcome in range(4):
         mask = labels == outcome
         if mask.any():
@@ -94,8 +101,8 @@ def duration_mae_by_outcome(outcomes, predicted_duration, true_duration) -> np.n
 
 
 def _logits_and_labels(logits, labels) -> tuple[torch.Tensor, torch.Tensor]:
-    if not isinstance(logits, torch.Tensor) or logits.ndim != 2 or logits.shape[1] != 4 or logits.shape[0] == 0:
-        raise ValueError("outcome_logits must have non-empty shape [B, 4]")
+    if not isinstance(logits, torch.Tensor) or logits.ndim != 2 or logits.shape[1] != 4:
+        raise ValueError("outcome_logits must have shape [B, 4]")
     if not torch.isfinite(logits).all():
         raise ValueError("outcome_logits must contain finite values")
     values = _outcome_vector(labels, "outcome_labels", device=logits.device)
@@ -106,7 +113,11 @@ def _logits_and_labels(logits, labels) -> tuple[torch.Tensor, torch.Tensor]:
 
 def _outcome_vector(value, name: str, device=None) -> torch.Tensor:
     tensor = torch.as_tensor(value, device=device)
-    if tensor.ndim != 1 or tensor.dtype == torch.bool or tensor.dtype.is_floating_point:
+    if tensor.ndim != 1:
+        raise ValueError(f"{name} must be an integer vector")
+    if tensor.dtype.is_floating_point and not torch.isfinite(tensor).all():
+        raise ValueError(f"{name} must contain finite values")
+    if tensor.dtype == torch.bool or tensor.dtype.is_floating_point:
         raise ValueError(f"{name} must be an integer vector")
     tensor = tensor.to(dtype=torch.long)
     if torch.any((tensor < 0) | (tensor > 3)):

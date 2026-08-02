@@ -70,6 +70,11 @@ def test_attempt_validation_and_buffer_fifo_copy_split_and_atomic_load():
     with pytest.raises(ValueError, match="capacity"):
         clone.load_state_dict(bad)
     np.testing.assert_array_equal(clone.state_dict()["attempts"][0]["start_goal"], before["attempts"][0]["start_goal"])
+    nested_bad = copy.deepcopy(state)
+    nested_bad["attempts"][0]["duration"] = 0
+    with pytest.raises(ValueError, match="duration"):
+        clone.load_state_dict(nested_bad)
+    np.testing.assert_array_equal(clone.state_dict()["attempts"][0]["start_goal"], before["attempts"][0]["start_goal"])
 
 
 def test_stratification_is_exact_sized_and_handles_absent_classes():
@@ -80,6 +85,22 @@ def test_stratification_is_exact_sized_and_handles_absent_classes():
     assert set(labels[indices]) <= {Outcome.TARGET, Outcome.STUCK}
     with pytest.raises(ValueError, match="batch"):
         stratified_macro_indices(labels, 0, np.random.default_rng(0))
+
+
+def test_stratification_uses_exact_50_25_25_mix_and_deterministic_valid_reallocation():
+    labels = np.array([Outcome.TARGET, Outcome.DRIFT, Outcome.STUCK, Outcome.VIOLATION])
+    indices = stratified_macro_indices(labels, 20, np.random.default_rng(6))
+    sampled = labels[indices]
+    assert np.count_nonzero(sampled == Outcome.TARGET) == 10
+    assert np.count_nonzero(np.isin(sampled, [Outcome.DRIFT, Outcome.STUCK])) == 5
+    assert np.count_nonzero(sampled == Outcome.VIOLATION) == 5
+
+    sparse = np.array([Outcome.TARGET, Outcome.STUCK])
+    first = stratified_macro_indices(sparse, 13, np.random.default_rng(9))
+    second = stratified_macro_indices(sparse, 13, np.random.default_rng(9))
+    np.testing.assert_array_equal(first, second)
+    assert first.shape == (13,)
+    assert np.all(np.isin(sparse[first], sparse))
 
 
 def test_current_centroid_labels_prioritize_violation_and_change_when_centroids_move():
@@ -103,6 +124,27 @@ def test_current_centroid_labels_prioritize_violation_and_change_when_centroids_
     assert zero_positive.outcome.item() == Outcome.STUCK
     with pytest.raises(ValueError, match="positive_centroids"):
         label_macro_attempts(attempts[2:3], encoder, torch.empty(0, 1), None, 1.0, False)
+
+
+def test_labels_use_boundary_radius_violation_fallback_and_no_grad_encoder_output():
+    boundary, outside, violated = attempt(0), attempt(0), attempt(0, violation=True)
+    boundary.end_goal[:] = [1.0, 0.0]
+    outside.end_goal[:] = [1.0001, 0.0]
+    violated.end_goal[:] = [3.0, 0.0]
+    calls: list[bool] = []
+
+    def encoder(goals):
+        calls.append(torch.is_grad_enabled())
+        return goals * 2
+
+    labels = label_macro_attempts(
+        [boundary, outside, violated], encoder, torch.tensor([[2.0, 0.0]]), torch.tensor([[6.0, 0.0]]),
+        assignment_radius=0.0, negative_active=True,
+    )
+    assert labels.outcome.tolist() == [Outcome.DRIFT, Outcome.STUCK, Outcome.VIOLATION]
+    assert labels.positive_id.tolist() == [0, -1, -1]
+    assert labels.negative_id.tolist() == [-1, -1, 0]
+    assert calls and not any(calls)
 
 
 def test_model_factorization_shapes_gradients_moving_centroids_and_duration_bounds():
@@ -130,10 +172,34 @@ def test_model_factorization_shapes_gradients_moving_centroids_and_duration_boun
     output = model(torch.zeros(2, 2), torch.ones(2, 2), torch.zeros(2, 1), torch.empty(0, 2), torch.empty(0, 2))
     assert output.positive_probs.shape == output.negative_probs.shape == (2, 0)
     assert heads == tuple(id(head) for head in (model.outcome_head, model.positive_query_head, model.negative_query_head, model.duration_head))
+    empty = model(torch.empty(0, 2), torch.empty(0, 2), torch.empty(0, 1), torch.empty(0, 2), torch.empty(0, 2))
+    assert empty.outcome_probs.shape == (0, 4)
+    assert empty.positive_probs.shape == empty.negative_probs.shape == (0, 0)
+    assert empty.duration_by_outcome.shape == (0, 4)
     model.set_temperature(2.0)
     assert model.temperature.item() == 2.0
     with pytest.raises(ValueError, match="temperature"):
         model.set_temperature(0)
+
+
+def test_model_temperature_persists_and_moved_centroids_change_candidate_probabilities():
+    model = MacroTransitionModel(2, 0, 5, 4)
+    with torch.no_grad():
+        model.positive_query_head.weight.zero_()
+        model.positive_query_head.bias.copy_(torch.tensor([1.0, 0.0]))
+    inputs = (torch.zeros(1, 2), torch.ones(1, 2), torch.empty(1, 0))
+    heads = tuple(id(head) for head in (model.outcome_head, model.positive_query_head, model.negative_query_head, model.duration_head))
+    first = model(*inputs, torch.tensor([[1.0, 0.0], [-1.0, 0.0]]), torch.empty(0, 2))
+    second = model(*inputs, torch.tensor([[-1.0, 0.0], [1.0, 0.0]]), torch.empty(0, 2))
+    assert not torch.allclose(first.positive_logits, second.positive_logits)
+    assert not torch.allclose(first.positive_probs, second.positive_probs)
+    assert heads == tuple(id(head) for head in (model.outcome_head, model.positive_query_head, model.negative_query_head, model.duration_head))
+    uncalibrated = first.outcome_probs
+    model.set_temperature(2.0)
+    assert not torch.allclose(uncalibrated, model(*inputs, torch.empty(0, 2), torch.empty(0, 2)).outcome_probs)
+    restored = MacroTransitionModel(2, 0, 5, 4)
+    restored.load_state_dict(model.state_dict())
+    assert restored.temperature.item() == pytest.approx(2.0)
 
 
 def test_loss_uses_conditional_terms_and_rejects_invalid_active_ids():
@@ -158,6 +224,33 @@ def test_loss_uses_conditional_terms_and_rejects_invalid_active_ids():
     inactive_labels = MacroLabels(torch.tensor([Outcome.VIOLATION]), torch.tensor([-1]), torch.tensor([-1]), torch.tensor([2.0]))
     inactive_loss = macro_model_loss(inactive_output, inactive_labels, k_max=4)
     assert inactive_loss.negative_count == 0
+    assert inactive_loss.negative.item() == 0.0
+    invalid_negative = MacroLabels(labels.outcome, labels.positive_id, torch.tensor([-1, -1, 1]), labels.duration)
+    with pytest.raises(ValueError, match="negative"):
+        macro_model_loss(output, invalid_negative, k_max=4)
+
+
+def test_mixed_outcome_loss_composes_components_and_reaches_every_trainable_head():
+    model = MacroTransitionModel(2, 1, 6, 4)
+    z_start = torch.zeros(4, 2, requires_grad=True)
+    z_command = torch.ones(4, 2, requires_grad=True)
+    context = torch.zeros(4, 1, requires_grad=True)
+    positive = torch.tensor([[1.0, 0.0], [0.0, 1.0]], requires_grad=True)
+    negative = torch.tensor([[1.0, 1.0], [-1.0, -1.0]], requires_grad=True)
+    output = model(z_start, z_command, context, positive, negative)
+    labels = MacroLabels(
+        torch.tensor([Outcome.TARGET, Outcome.DRIFT, Outcome.VIOLATION, Outcome.STUCK]),
+        torch.tensor([-1, 1, -1, -1]), torch.tensor([-1, -1, 0, -1]),
+        torch.tensor([1.0, 2.0, 3.0, 4.0]),
+    )
+    loss = macro_model_loss(output, labels, beta_duration=0.3, k_max=4)
+    assert loss.positive.item() > 0 and loss.negative.item() > 0
+    assert torch.allclose(loss.total, loss.outcome + loss.positive + loss.negative + 0.3 * loss.duration)
+    loss.total.backward()
+    for head in (model.backbone, model.outcome_head, model.positive_query_head, model.negative_query_head, model.duration_head):
+        assert any(parameter.grad is not None for parameter in head.parameters())
+    assert z_start.grad is None and z_command.grad is None and context.grad is None
+    assert positive.grad is None and negative.grad is None
 
 
 def test_calibration_and_diagnostics_are_finite_and_handle_missing_classes():
@@ -176,3 +269,62 @@ def test_calibration_and_diagnostics_are_finite_and_handle_missing_classes():
     mae = duration_mae_by_outcome(torch.tensor([0, 0, 1]), torch.tensor([1.0, 3.0, 4.0]), torch.tensor([2.0, 2.0, 1.0]))
     assert mae.shape == (4,)
     assert mae[0] == pytest.approx(1.0)
+
+
+def test_empty_calibration_diagnostics_use_documented_neutral_values():
+    logits = torch.empty((0, 4), dtype=torch.float32)
+    labels = torch.empty(0, dtype=torch.long)
+
+    fit = fit_temperature(logits, labels)
+    assert (fit.temperature, fit.before_nll, fit.after_nll) == (1.0, 0.0, 0.0)
+    assert expected_calibration_error(logits, labels) == 0.0
+
+    reliability = violation_reliability_bins(logits, labels, n_bins=4)
+    np.testing.assert_array_equal(reliability["count"], np.zeros(4, dtype=np.int64))
+    np.testing.assert_array_equal(reliability["predicted"], np.zeros(4))
+    np.testing.assert_array_equal(reliability["empirical"], np.zeros(4))
+
+    metrics = confusion_matrix_and_classification_metrics(labels, labels)
+    np.testing.assert_array_equal(metrics["matrix"], np.zeros((4, 4), dtype=np.int64))
+    np.testing.assert_array_equal(metrics["precision"], np.zeros(4))
+    np.testing.assert_array_equal(metrics["recall"], np.zeros(4))
+    np.testing.assert_array_equal(duration_mae_by_outcome(labels, torch.empty(0), torch.empty(0)), np.zeros(4))
+
+
+def test_calibration_diagnostics_report_exact_sparse_values():
+    logits = torch.zeros((2, 4), dtype=torch.float32)
+    labels = torch.tensor([Outcome.VIOLATION, Outcome.TARGET])
+    reliability = violation_reliability_bins(logits, labels, n_bins=4)
+    np.testing.assert_array_equal(reliability["count"], [0, 2, 0, 0])
+    np.testing.assert_allclose(reliability["predicted"], [0.0, 0.25, 0.0, 0.0])
+    np.testing.assert_allclose(reliability["empirical"], [0.0, 0.5, 0.0, 0.0])
+
+    metrics = confusion_matrix_and_classification_metrics(
+        torch.tensor([0, 0, 1, 3]), torch.tensor([0, 1, 1, 3])
+    )
+    np.testing.assert_array_equal(metrics["matrix"], [[1, 0, 0, 0], [1, 1, 0, 0], [0, 0, 0, 0], [0, 0, 0, 1]])
+    np.testing.assert_allclose(metrics["precision"], [0.5, 1.0, 0.0, 1.0])
+    np.testing.assert_allclose(metrics["recall"], [1.0, 0.5, 0.0, 1.0])
+    np.testing.assert_allclose(
+        duration_mae_by_outcome(
+            torch.tensor([0, 0, 1, 2, 3]),
+            torch.tensor([1.0, 5.0, 6.0, 8.0, 10.0]),
+            torch.tensor([2.0, 3.0, 2.0, 5.0, 6.0]),
+        ),
+        [1.5, 4.0, 3.0, 4.0],
+    )
+
+
+@pytest.mark.parametrize(
+    ("function", "args"),
+    [
+        (fit_temperature, (torch.tensor([[float("nan"), 0.0, 0.0, 0.0]]), torch.tensor([0]))),
+        (expected_calibration_error, (torch.zeros((1, 4)), torch.tensor([float("nan")]))),
+        (violation_reliability_bins, (torch.zeros((1, 4)), torch.tensor([float("inf")]))),
+        (confusion_matrix_and_classification_metrics, (torch.tensor([0]), torch.tensor([float("nan")]))),
+        (duration_mae_by_outcome, (torch.tensor([0]), torch.tensor([float("nan")]), torch.tensor([1.0]))),
+    ],
+)
+def test_calibration_diagnostics_reject_nonfinite_inputs(function, args):
+    with pytest.raises(ValueError, match="finite"):
+        function(*args)
