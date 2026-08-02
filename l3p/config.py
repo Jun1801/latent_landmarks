@@ -8,6 +8,8 @@ handful of values for Point-Maze / Ant-Maze / Fetch tasks.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+from math import isfinite
+from numbers import Integral, Real
 from typing import Optional
 
 
@@ -275,6 +277,29 @@ def validate_pn_config(cfg: Config) -> None:
         "pn_cost_critic_train_after", "pn_landmark_refresh_interval",
         "pn_min_attempts_per_common_action_bucket",
     )
+    integer_names = positive_counts + nonnegative_counts + ("pn_k_min", "pn_k_max")
+    numeric_names = (
+        *integer_names,
+        "pn_positive_assignment_radius", "pn_cost_critic_weight", "pn_cost_critic_lr",
+        "pn_macro_lr", "pn_beta_duration", "pn_calibration_validation_split",
+        "pn_calibration_temperature_min", "pn_calibration_temperature_max",
+        "pn_outcome_target_probability", "pn_outcome_drift_or_stuck_probability",
+        "pn_outcome_violation_probability", "pn_c_puct", "pn_prior_epsilon",
+        "pn_beta_distance", "pn_beta_risk", "pn_epsilon_edge_train",
+        "pn_epsilon_edge_eval", "pn_search_risk_limit", "pn_root_risk_limit",
+        "pn_risk_pseudocount", "pn_risk_z", "pn_lambda_search_risk",
+        "pn_stuck_penalty", "pn_violation_penalty", "pn_loop_penalty",
+        "pn_time_penalty", "pn_lambda_stuck_leaf", "pn_lambda_violation_leaf",
+        "pn_leaf_temperature", "pn_leaf_epsilon", "pn_probability_mcg_search",
+        "pn_probability_original_planner", "pn_probability_direct_goal",
+    )
+    for name in numeric_names:
+        value = getattr(cfg, name)
+        if isinstance(value, bool) or not isinstance(value, Real) or not isfinite(value):
+            raise ValueError(f"{name} must be a finite real value")
+    for name in integer_names:
+        if not isinstance(getattr(cfg, name), Integral):
+            raise ValueError(f"{name} must be an integer")
     for name in positive_counts:
         if getattr(cfg, name) <= 0:
             raise ValueError(f"{name} must be positive")

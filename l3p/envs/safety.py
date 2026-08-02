@@ -107,7 +107,9 @@ def normalize_step_result(
         adapter_cost = collision_adapter.cost_from_info(info) if collision_adapter else None
         safety_cost = 0.0 if adapter_cost is None else _binarize_cost(adapter_cost)
 
-    goal_reached = bool(info.get("goal_reached", info.get("is_success", False)))
+    goal_reached = bool(
+        info.get("goal_reached", info.get("is_success", info.get("success", False)))
+    )
     info["safety_cost"] = safety_cost
     info["goal_reached"] = goal_reached
     info["termination_reason"] = _termination_reason(

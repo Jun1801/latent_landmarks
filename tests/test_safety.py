@@ -32,6 +32,13 @@ def test_normalize_legacy_step_copies_info_and_sets_contract_fields():
     assert result.info["safety_cost"] == 0.0
 
 
+def test_normalize_gymnasium_success_metadata_sets_goal_termination():
+    result = normalize_step_result(("obs", -1.0, True, False, {"success": 1.0}))
+
+    assert result.info["goal_reached"] is True
+    assert result.info["termination_reason"] == "goal"
+
+
 def test_normalize_gymnasium_timeout_is_not_a_violation():
     result = normalize_step_result(("obs", -1.0, False, True, {}))
 
@@ -231,3 +238,19 @@ def test_pn_config_defaults_and_validation():
     for overrides in invalid_overrides:
         with pytest.raises(ValueError):
             get_config("PointMaze", **overrides)
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"pn_num_simulations": 1.5},
+        {"pn_num_simulations": True},
+        {"pn_k_max": float("nan")},
+        {"pn_k_max": float("inf")},
+        {"pn_probability_mcg_search": float("nan")},
+        {"pn_search_risk_limit": float("nan")},
+    ],
+)
+def test_pn_config_rejects_non_integral_and_nonfinite_values(overrides):
+    with pytest.raises(ValueError):
+        get_config("PointMaze", **overrides)
