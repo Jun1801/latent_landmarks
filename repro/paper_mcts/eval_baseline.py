@@ -32,12 +32,20 @@ PICK_FLAGS = [
 
 def main():
     p = argparse.ArgumentParser()
+    p.add_argument("--repo", default="/kaggle/working/wmag",
+                   help="paper repo root (added to sys.path so `import rl` works)")
     p.add_argument("--resume_ckpt", default="fetch_s967")
     p.add_argument("--save_dir", default="/kaggle/working/experiments")
     p.add_argument("--episodes", type=int, default=5, help="plan-eval passes (each = n_test_rollouts)")
     p.add_argument("--n_test_rollouts", type=int, default=30)
     p.add_argument("--no_cuda", action="store_true")
     a = p.parse_args()
+
+    # Running `python /abs/path/eval_baseline.py` puts THIS file's dir on sys.path,
+    # not the paper repo -- so `import rl` fails even after `cd wmag`. Put the repo
+    # first and chdir into it (paper code reads some assets relative to cwd).
+    sys.path.insert(0, a.repo)
+    os.chdir(a.repo)
 
     argv = ["eval"] + PICK_FLAGS + [
         "--resume_ckpt", a.resume_ckpt, "--ckpt_name", "eval_tmp",
