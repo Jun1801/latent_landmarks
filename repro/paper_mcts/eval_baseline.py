@@ -48,8 +48,9 @@ def main():
     os.chdir(a.repo)
 
     argv = ["eval"] + PICK_FLAGS + [
-        "--resume_ckpt", a.resume_ckpt, "--ckpt_name", "eval_tmp",
-        "--save_dir", a.save_dir, "--n_test_rollouts", str(a.n_test_rollouts),
+        "--ckpt_name", "eval_tmp",       # NOT --resume_ckpt: the paper's resume loads the
+        "--save_dir", a.save_dir,        # 835MB replay + learner too; eval needs neither.
+        "--n_test_rollouts", str(a.n_test_rollouts),
     ]
     if not a.no_cuda:
         argv.append("--cuda")
@@ -60,8 +61,20 @@ def main():
     import numpy as np
 
     args = get_args()
-    print(f"[eval] reconstructing agent, resuming {a.resume_ckpt} from {a.save_dir} ...", flush=True)
-    algo = launch(args)                      # builds env/agent/planner + loads the checkpoint
+    print("[eval] reconstructing agent (no training, no resume) ...", flush=True)
+    algo = launch(args)                      # builds env/agent/planner; no resume -> no replay load
+
+    # Load ONLY the trained networks: agent.pt (actor/critic/vf/ae/cluster) is
+    # required; algo.pt (total_timesteps/normalizer) is best-effort. This skips
+    # the 835MB replay_0.pt + learner.pt that the paper's load_all also pulls in,
+    # so a replay-free 19MB checkpoint is enough for eval.
+    state_path = os.path.join(a.save_dir, args.env_name, a.resume_ckpt, "state")
+    print(f"[eval] loading trained networks (no replay) from {state_path} ...", flush=True)
+    try:
+        algo.load(state_path)                # algo.pt
+    except Exception as e:
+        print(f"  (algo.pt state skipped: {e})", flush=True)
+    algo.agent.load(state_path)              # agent.pt -- the trained model
 
     # `run_test_env_plan_eval` needs the trained clusters; the loaded agent already
     # carries them, so we do NOT re-initialize. If the repo gates it on a runtime
