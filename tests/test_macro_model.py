@@ -18,7 +18,12 @@ from l3p.pn_lmcgs.macro_replay import (
     label_macro_attempts,
     stratified_macro_indices,
 )
-from l3p.pn_lmcgs.macro_transition_model import MacroLabels, MacroTransitionModel, macro_model_loss
+from l3p.pn_lmcgs.macro_transition_model import (
+    MacroLabels,
+    MacroTransitionModel,
+    MacroTransitionOutput,
+    macro_model_loss,
+)
 
 
 def attempt(value=0.0, *, target=False, violation=False, violation_goal=None, episode=1):
@@ -57,8 +62,8 @@ def test_attempt_validation_and_buffer_fifo_copy_split_and_atomic_load():
     train, validation = replay.train_indices, replay.validation_indices
     assert set(train).isdisjoint(validation)
     assert sorted(np.concatenate([train, validation]).tolist()) == [0, 1]
-    np.testing.assert_array_equal(replay.sample_train(4, np.random.default_rng(3))["start_goal"][:, 0], [2, 2, 2, 2])
-    np.testing.assert_array_equal(replay.sample_validation(4, np.random.default_rng(3))["start_goal"][:, 0], [3, 3, 3, 3])
+    np.testing.assert_array_equal(replay.sample_train(4, np.random.default_rng(3))["start_goal"][:, 0], [3, 3, 3, 3])
+    np.testing.assert_array_equal(replay.sample_validation(4, np.random.default_rng(3))["start_goal"][:, 0], [2, 2, 2, 2])
 
     clone = MacroAttemptBuffer(capacity=2, validation_fraction=0.5, split_seed=5)
     state = replay.state_dict()
@@ -75,6 +80,82 @@ def test_attempt_validation_and_buffer_fifo_copy_split_and_atomic_load():
     with pytest.raises(ValueError, match="duration"):
         clone.load_state_dict(nested_bad)
     np.testing.assert_array_equal(clone.state_dict()["attempts"][0]["start_goal"], before["attempts"][0]["start_goal"])
+
+
+def test_replay_split_membership_survives_fifo_eviction_and_state_roundtrip():
+    replay = MacroAttemptBuffer(capacity=3, validation_fraction=0.5, split_seed=11)
+    memberships = {}
+    for value in range(6):
+        replay.add(attempt(value))
+        state = replay.state_dict()
+        current = {
+            int(item["start_goal"][0]): is_validation
+            for item, is_validation in zip(state["attempts"], state["validation_membership"])
+        }
+        for identity, is_validation in current.items():
+            if identity in memberships:
+                assert is_validation == memberships[identity]
+        memberships.update(current)
+        expected_validation_size = min(
+            max(1, int(np.floor(len(replay) * 0.5))) if len(replay) > 1 else 0,
+            len(replay) - 1,
+        )
+        assert sum(state["validation_membership"]) == expected_validation_size
+
+    restored = MacroAttemptBuffer(capacity=3, validation_fraction=0.5, split_seed=11)
+    restored.load_state_dict(replay.state_dict())
+    restored_state, replay_state = restored.state_dict(), replay.state_dict()
+    assert restored_state["validation_membership"] == replay_state["validation_membership"]
+    for restored_item, replay_item in zip(restored_state["attempts"], replay_state["attempts"]):
+        np.testing.assert_array_equal(restored_item["start_goal"], replay_item["start_goal"])
+    for sampler in ("sample_train", "sample_validation"):
+        np.testing.assert_array_equal(
+            getattr(restored, sampler)(8, np.random.default_rng(7))["start_goal"],
+            getattr(replay, sampler)(8, np.random.default_rng(7))["start_goal"],
+        )
+
+
+def test_replay_sampling_uses_cached_partition_slots_and_load_is_atomic():
+    replay = MacroAttemptBuffer(capacity=4, validation_fraction=0.5, split_seed=3)
+    replay.extend([attempt(value) for value in range(4)])
+    assert len(replay.train_indices) == len(replay.validation_indices) == 2
+
+    class SamplingRng(np.random.Generator):
+        def __init__(self):
+            super().__init__(np.random.PCG64(1))
+
+        def integers(self, high, size):
+            return np.zeros(size, dtype=np.int64)
+
+        def permutation(self, *_args, **_kwargs):
+            raise AssertionError("sampling must not rebuild a split permutation")
+
+    replay.sample_train(3, SamplingRng())
+    replay.sample_validation(3, SamplingRng())
+
+    class NoMaterializeSlots(list):
+        def __array__(self, *_args, **_kwargs):
+            raise AssertionError("sampling must not materialize the whole partition")
+
+    replay._train_slots = NoMaterializeSlots(replay._train_slots[:])
+    replay.sample_train(3, SamplingRng())
+    before = replay.state_dict()
+    malformed = copy.deepcopy(before)
+    malformed["validation_membership"][0] = "not-a-boolean"
+    with pytest.raises(ValueError, match="membership"):
+        replay.load_state_dict(malformed)
+    np.testing.assert_array_equal(replay.state_dict()["attempts"][0]["start_goal"], before["attempts"][0]["start_goal"])
+    assert replay.state_dict()["validation_membership"] == before["validation_membership"]
+    malformed_cache = copy.deepcopy(before)
+    malformed_cache["partition_order"]["train"].append(0)
+    with pytest.raises(ValueError, match="partition order"):
+        replay.load_state_dict(malformed_cache)
+    assert replay.state_dict()["validation_membership"] == before["validation_membership"]
+
+    replay.add(attempt(4))
+    state = replay.state_dict()
+    assert len(replay.train_indices) == len(replay.validation_indices) == 2
+    assert sum(state["validation_membership"]) == 2
 
 
 def test_stratification_is_exact_sized_and_handles_absent_classes():
@@ -228,6 +309,21 @@ def test_loss_uses_conditional_terms_and_rejects_invalid_active_ids():
     invalid_negative = MacroLabels(labels.outcome, labels.positive_id, torch.tensor([-1, -1, 1]), labels.duration)
     with pytest.raises(ValueError, match="negative"):
         macro_model_loss(output, invalid_negative, k_max=4)
+
+
+def test_macro_model_loss_rejects_empty_batch_before_cross_entropy():
+    output = MacroTransitionOutput(
+        outcome_logits=torch.empty(0, 4), outcome_probs=torch.empty(0, 4),
+        positive_logits=torch.empty(0, 0), positive_probs=torch.empty(0, 0),
+        negative_logits=torch.empty(0, 0), negative_probs=torch.empty(0, 0),
+        duration_by_outcome=torch.empty(0, 4),
+    )
+    labels = MacroLabels(
+        torch.empty(0, dtype=torch.long), torch.empty(0, dtype=torch.long),
+        torch.empty(0, dtype=torch.long), torch.empty(0),
+    )
+    with pytest.raises(ValueError, match="batch size must be positive"):
+        macro_model_loss(output, labels)
 
 
 def test_mixed_outcome_loss_composes_components_and_reaches_every_trainable_head():

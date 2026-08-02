@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections import deque
 from dataclasses import dataclass
 from enum import IntEnum
 from typing import Callable, Iterable, Optional, Sequence
@@ -94,12 +93,18 @@ class MacroAttemptBuffer:
             raise ValueError("validation_fraction must be finite and in [0, 1)")
         self.validation_fraction = float(validation_fraction)
         self.split_seed = _integer(split_seed, "split_seed")
-        self._attempts: deque[MacroAttempt] = deque()
+        self._slots: list[Optional[MacroAttempt]] = [None] * self.capacity
+        self._slot_validation: list[Optional[bool]] = [None] * self.capacity
+        self._head = 0
+        self._size = 0
+        self._train_slots: list[int] = []
+        self._validation_slots: list[int] = []
+        self._slot_partition_positions = np.full(self.capacity, -1, dtype=np.int64)
         self._goal_dim: Optional[int] = None
         self._context_dim: Optional[int] = None
 
     def __len__(self) -> int:
-        return len(self._attempts)
+        return self._size
 
     @property
     def size(self) -> int:
@@ -107,15 +112,15 @@ class MacroAttemptBuffer:
 
     @property
     def attempts(self) -> list[MacroAttempt]:
-        return [attempt.copy() for attempt in self._attempts]
+        return [self._attempt_at_slot(slot).copy() for slot in self._chronological_slots()]
 
     @property
     def train_indices(self) -> np.ndarray:
-        return self._split_indices()[0]
+        return self._partition_indices(self._train_slots)
 
     @property
     def validation_indices(self) -> np.ndarray:
-        return self._split_indices()[1]
+        return self._partition_indices(self._validation_slots)
 
     def add(self, attempt: MacroAttempt) -> None:
         if not isinstance(attempt, MacroAttempt):
@@ -126,9 +131,20 @@ class MacroAttemptBuffer:
             raise ValueError("attempt goal dimension does not match buffer")
         if self._context_dim is not None and context_dim != self._context_dim:
             raise ValueError("attempt context dimension does not match buffer")
-        if len(self._attempts) == self.capacity:
-            self._attempts.popleft()
-        self._attempts.append(candidate)
+        if self._size == self.capacity:
+            slot = self._head
+            self._remove_slot_from_partition(slot)
+            self._slots[slot] = None
+            self._slot_validation[slot] = None
+            self._head = (self._head + 1) % self.capacity
+            self._size -= 1
+        else:
+            slot = (self._head + self._size) % self.capacity
+        validation = self._validation_size(self._size + 1) > len(self._validation_slots)
+        self._slots[slot] = candidate
+        self._slot_validation[slot] = validation
+        self._add_slot_to_partition(slot, validation)
+        self._size += 1
         self._goal_dim, self._context_dim = goal_dim, context_dim
 
     def extend(self, attempts: Iterable[MacroAttempt]) -> None:
@@ -140,23 +156,28 @@ class MacroAttemptBuffer:
             self.add(attempt)
 
     def sample_train(self, batch_size: int, rng: Optional[np.random.Generator] = None) -> dict[str, np.ndarray]:
-        return self._sample_from_indices(self.train_indices, batch_size, rng)
+        return self._sample_from_slots(self._train_slots, batch_size, rng)
 
     def sample_validation(self, batch_size: int, rng: Optional[np.random.Generator] = None) -> dict[str, np.ndarray]:
-        return self._sample_from_indices(self.validation_indices, batch_size, rng)
+        return self._sample_from_slots(self._validation_slots, batch_size, rng)
 
     def state_dict(self) -> dict[str, object]:
         return {
             "capacity": self.capacity,
             "validation_fraction": self.validation_fraction,
             "split_seed": self.split_seed,
-            "attempts": [self._attempt_state(attempt) for attempt in self._attempts],
+            "attempts": [self._attempt_state(self._attempt_at_slot(slot)) for slot in self._chronological_slots()],
+            "validation_membership": [bool(self._slot_validation[slot]) for slot in self._chronological_slots()],
+            "partition_order": {
+                "train": self._partition_indices(self._train_slots).tolist(),
+                "validation": self._partition_indices(self._validation_slots).tolist(),
+            },
         }
 
     def load_state_dict(self, state: dict[str, object]) -> None:
         if not isinstance(state, dict):
             raise ValueError("buffer state must be a dictionary")
-        required = {"capacity", "validation_fraction", "split_seed", "attempts"}
+        required = {"capacity", "validation_fraction", "split_seed", "attempts", "validation_membership", "partition_order"}
         missing = required.difference(state)
         if missing:
             raise ValueError(f"buffer state missing keys: {sorted(missing)}")
@@ -168,39 +189,49 @@ class MacroAttemptBuffer:
         if not isinstance(raw_attempts, Sequence) or len(raw_attempts) > self.capacity:
             raise ValueError("buffer state attempts is invalid or exceeds capacity")
         candidates = [self._attempt_from_state(item) for item in raw_attempts]
+        raw_membership = state["validation_membership"]
+        if isinstance(raw_membership, (str, bytes)) or not isinstance(raw_membership, Sequence):
+            raise ValueError("buffer state membership is invalid")
+        if len(raw_membership) != len(candidates):
+            raise ValueError("buffer state membership length does not match attempts")
+        membership = [_boolean(value, "buffer state membership") for value in raw_membership]
+        if sum(membership) != self._validation_size(len(candidates)):
+            raise ValueError("buffer state membership has invalid partition size")
+        train_order, validation_order = self._partition_order_from_state(
+            state["partition_order"], membership, len(candidates)
+        )
         if candidates:
             goal_dim, context_dim = len(candidates[0].start_goal), len(candidates[0].context)
             if any(len(x.start_goal) != goal_dim or len(x.context) != context_dim for x in candidates):
                 raise ValueError("buffer state attempt dimensions are inconsistent")
         else:
             goal_dim = context_dim = None
-        self._attempts = deque(attempt.copy() for attempt in candidates)
+        slots: list[Optional[MacroAttempt]] = [None] * self.capacity
+        slot_validation: list[Optional[bool]] = [None] * self.capacity
+        for slot, (candidate, validation) in enumerate(zip(candidates, membership)):
+            slots[slot] = candidate.copy()
+            slot_validation[slot] = validation
+        positions = np.full(self.capacity, -1, dtype=np.int64)
+        for position, slot in enumerate(train_order):
+            positions[slot] = position
+        for position, slot in enumerate(validation_order):
+            positions[slot] = position
+        self._slots, self._slot_validation = slots, slot_validation
+        self._head, self._size = 0, len(candidates)
+        self._train_slots, self._validation_slots = train_order, validation_order
+        self._slot_partition_positions = positions
         self._goal_dim, self._context_dim = goal_dim, context_dim
 
-    def _split_indices(self) -> tuple[np.ndarray, np.ndarray]:
-        size = len(self)
-        if not size:
-            return np.empty(0, dtype=np.int64), np.empty(0, dtype=np.int64)
-        validation_size = int(np.floor(size * self.validation_fraction))
-        if self.validation_fraction > 0 and size > 1:
-            validation_size = max(1, validation_size)
-        validation_size = min(validation_size, max(0, size - 1))
-        permutation = np.random.default_rng(self.split_seed).permutation(size)
-        validation = np.sort(permutation[:validation_size]).astype(np.int64)
-        mask = np.ones(size, dtype=bool)
-        mask[validation] = False
-        return np.flatnonzero(mask).astype(np.int64), validation
-
-    def _sample_from_indices(self, indices: np.ndarray, batch_size: int,
+    def _sample_from_slots(self, slots: Sequence[int], batch_size: int,
                              rng: Optional[np.random.Generator]) -> dict[str, np.ndarray]:
         batch_size = _integer(batch_size, "batch_size", minimum=1)
-        if len(indices) == 0:
+        if len(slots) == 0:
             raise ValueError("requested replay split is empty")
         rng = np.random.default_rng() if rng is None else rng
         if not isinstance(rng, np.random.Generator):
             raise ValueError("rng must be a numpy Generator")
-        selected = indices[rng.integers(len(indices), size=batch_size)]
-        picked = [self._attempts[int(index)] for index in selected]
+        selected_positions = rng.integers(len(slots), size=batch_size)
+        picked = [self._attempt_at_slot(slots[int(position)]) for position in selected_positions]
         violation_goals = np.full((batch_size, self._goal_dim), np.nan, dtype=np.float32)
         violation_goal_present = np.zeros(batch_size, dtype=bool)
         for index, item in enumerate(picked):
@@ -221,6 +252,57 @@ class MacroAttemptBuffer:
             "start_t": np.asarray([x.start_t for x in picked], dtype=np.int64),
             "end_t": np.asarray([x.end_t for x in picked], dtype=np.int64),
         }
+
+    def _validation_size(self, size: int) -> int:
+        validation_size = int(np.floor(size * self.validation_fraction))
+        if self.validation_fraction > 0 and size > 1:
+            validation_size = max(1, validation_size)
+        return min(validation_size, max(0, size - 1))
+
+    def _chronological_slots(self) -> list[int]:
+        return [(self._head + index) % self.capacity for index in range(self._size)]
+
+    def _partition_indices(self, slots: Sequence[int]) -> np.ndarray:
+        return np.asarray([(slot - self._head) % self.capacity for slot in slots], dtype=np.int64)
+
+    def _attempt_at_slot(self, slot: int) -> MacroAttempt:
+        attempt = self._slots[slot]
+        if attempt is None:
+            raise RuntimeError("replay partition references an empty slot")
+        return attempt
+
+    def _add_slot_to_partition(self, slot: int, validation: bool) -> None:
+        partition = self._validation_slots if validation else self._train_slots
+        self._slot_partition_positions[slot] = len(partition)
+        partition.append(slot)
+
+    def _remove_slot_from_partition(self, slot: int) -> None:
+        validation = self._slot_validation[slot]
+        if validation is None:
+            raise RuntimeError("cannot remove an empty replay slot")
+        partition = self._validation_slots if validation else self._train_slots
+        position = int(self._slot_partition_positions[slot])
+        last_slot = partition.pop()
+        if position < len(partition):
+            partition[position] = last_slot
+            self._slot_partition_positions[last_slot] = position
+        self._slot_partition_positions[slot] = -1
+
+    @staticmethod
+    def _partition_order_from_state(raw_order: object, membership: Sequence[bool], size: int) -> tuple[list[int], list[int]]:
+        if not isinstance(raw_order, dict) or set(raw_order) != {"train", "validation"}:
+            raise ValueError("buffer state partition order is invalid")
+        orders: list[list[int]] = []
+        for name, is_validation in (("train", False), ("validation", True)):
+            raw_partition = raw_order[name]
+            if isinstance(raw_partition, (str, bytes)) or not isinstance(raw_partition, Sequence):
+                raise ValueError("buffer state partition order is invalid")
+            partition = [_integer(value, "buffer state partition index") for value in raw_partition]
+            expected = [index for index, value in enumerate(membership) if value == is_validation]
+            if sorted(partition) != expected:
+                raise ValueError("buffer state partition order does not match membership")
+            orders.append(partition)
+        return orders[0], orders[1]
 
     @staticmethod
     def _attempt_state(attempt: MacroAttempt) -> dict[str, object]:

@@ -101,6 +101,8 @@ def macro_model_loss(output: MacroTransitionOutput, labels: MacroLabels, beta_du
     if not isinstance(beta_duration, (float, int)) or not math.isfinite(beta_duration) or beta_duration < 0:
         raise ValueError("beta_duration must be finite and non-negative")
     batch = output.outcome_logits.shape[0]
+    if batch == 0:
+        raise ValueError("batch size must be positive")
     if output.outcome_logits.shape != (batch, 4) or output.duration_by_outcome.shape != (batch, 4):
         raise ValueError("output has invalid outcome or duration shapes")
     device = output.outcome_logits.device
