@@ -50,11 +50,26 @@ def main():
                    help="HER hindsight range (shorter -> low-level only learns short hops)")
     p.add_argument("--eval-episodes", type=int, default=None,
                    help="episodes per evaluation (more -> smoother success-rate curve)")
+    p.add_argument("--device", type=str, default=None,
+                   help="torch device override, e.g. cpu or cuda")
     p.add_argument("--save", type=str, default="l3p_pointmaze.pt")
+    p.add_argument("--load", type=str, default=None,
+                   help="resume from a saved checkpoint before training")
+    p.add_argument("--save-training-state", action="store_true",
+                   help="include replay buffer, optimizer state, counters, and RNG in checkpoints")
     p.add_argument("--save-every", type=int, default=0,
                    help="also save a checkpoint every N env steps (0 = only at end)")
+    p.add_argument("--time-limit-hours", type=float, default=None,
+                   help="stop training gracefully after this many hours")
     p.add_argument("--log-file", type=str, default="logs/pointmaze.log",
                    help="file to append all training logs to (set '' to disable)")
+    p.add_argument("--value-contrastive", action="store_true",
+                   help="enable InfoNCE negative-sampling loss for V(g1,g2)")
+    p.add_argument("--value-contrastive-lambda", type=float, default=None)
+    p.add_argument("--value-contrastive-temperature", type=float, default=None)
+    p.add_argument("--n-value-negatives", type=int, default=None)
+    p.add_argument("--negative-sampling-strategy", choices=["random", "cross_episode"],
+                   default=None)
     p.add_argument("--short", action="store_true",
                    help="tiny config for a fast smoke test")
     args = p.parse_args()
@@ -75,6 +90,18 @@ def main():
         overrides["hindsight_range"] = args.hindsight
     if args.eval_episodes is not None:
         overrides["eval_episodes"] = args.eval_episodes
+    if args.device is not None:
+        overrides["device"] = args.device
+    if args.value_contrastive:
+        overrides["use_value_contrastive"] = True
+    if args.value_contrastive_lambda is not None:
+        overrides["value_contrastive_lambda"] = args.value_contrastive_lambda
+    if args.value_contrastive_temperature is not None:
+        overrides["value_contrastive_temperature"] = args.value_contrastive_temperature
+    if args.n_value_negatives is not None:
+        overrides["n_value_negatives"] = args.n_value_negatives
+    if args.negative_sampling_strategy is not None:
+        overrides["negative_sampling_strategy"] = args.negative_sampling_strategy
 
     if args.short:
         overrides.update(
@@ -88,12 +115,22 @@ def main():
     cfg = get_config("PointMaze", **overrides)
     env = make_vec_env(cfg, cfg.n_workers, cfg.seed)
     trainer = L3PTrainer(env, cfg)
+    if args.load:
+        trainer.load(args.load, restore_training_state=True)
+        print(f"Loaded checkpoint from {args.load} "
+              f"(env_steps={trainer.total_env_steps}, episodes={trainer.episodes_collected})")
 
     print(f"Training L3P on PointMaze-Hard | steps={cfg.total_steps} "
           f"workers={cfg.n_workers} landmarks={cfg.n_landmarks}")
+    print(f"Value contrastive={'on' if cfg.use_value_contrastive else 'off'} "
+          f"lambda={cfg.value_contrastive_lambda} temp={cfg.value_contrastive_temperature} "
+          f"K={cfg.n_value_negatives} negatives={cfg.negative_sampling_strategy}")
     trainer.train(checkpoint_path=args.save if args.save_every else None,
-                  checkpoint_every=args.save_every)
-    trainer.save(args.save)
+                  checkpoint_every=args.save_every,
+                  save_training_state=args.save_training_state,
+                  time_limit_seconds=(args.time_limit_hours * 3600
+                                      if args.time_limit_hours is not None else None))
+    trainer.save(args.save, include_training_state=args.save_training_state)
     print(f"Saved model to {args.save}")
 
     sr = trainer.evaluate(cfg.eval_episodes)

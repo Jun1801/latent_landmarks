@@ -24,12 +24,21 @@ import numpy as np
 class HERReplayBuffer:
     def __init__(self, size_episodes: int, horizon: int, obs_dim: int, goal_dim: int,
                  act_dim: int, compute_reward: Callable[[np.ndarray, np.ndarray], np.ndarray],
-                 her_ratio: float = 0.85, hindsight_range: int = 80):
+                 her_ratio: float = 0.85, hindsight_range: int = 80,
+                 n_value_negatives: int = 0, negative_sampling_strategy: str = "random"):
         self.size = size_episodes
         self.T = horizon
         self.compute_reward = compute_reward
         self.her_ratio = her_ratio
         self.hindsight_range = hindsight_range
+        self.n_value_negatives = n_value_negatives
+        self.negative_sampling_strategy = negative_sampling_strategy
+        if n_value_negatives < 0:
+            raise ValueError("n_value_negatives must be >= 0")
+        if negative_sampling_strategy not in {"random", "cross_episode"}:
+            raise ValueError(
+                "negative_sampling_strategy must be 'random' or 'cross_episode'"
+            )
 
         self.obs = np.zeros((size_episodes, horizon + 1, obs_dim), dtype=np.float32)
         self.ag = np.zeros((size_episodes, horizon + 1, goal_dim), dtype=np.float32)
@@ -63,6 +72,23 @@ class HERReplayBuffer:
         offset = (rng.random(t.shape) * (high - t)).astype(np.int64) + 1
         return np.minimum(t + offset, self.T)
 
+    def _negative_achieved_goals(self, ep_idx: np.ndarray,
+                                 rng: np.random.Generator) -> np.ndarray:
+        """Sample unrelated achieved goals for contrastive value learning."""
+        batch_size = ep_idx.shape[0]
+        K = self.n_value_negatives
+        neg_ep_idx = rng.integers(0, self.n_episodes, size=(batch_size, K))
+        if self.negative_sampling_strategy == "cross_episode" and self.n_episodes > 1:
+            same_episode = neg_ep_idx == ep_idx[:, None]
+            while same_episode.any():
+                neg_ep_idx[same_episode] = rng.integers(
+                    0, self.n_episodes, size=int(same_episode.sum())
+                )
+                same_episode = neg_ep_idx == ep_idx[:, None]
+
+        neg_t = rng.integers(0, self.T + 1, size=(batch_size, K))
+        return self.ag[neg_ep_idx, neg_t]
+
     def sample(self, batch_size: int, rng: np.random.Generator = None) -> Dict[str, np.ndarray]:
         if rng is None:
             rng = np.random.default_rng()
@@ -88,8 +114,11 @@ class HERReplayBuffer:
 
         reward = self.compute_reward(next_ag, g).astype(np.float32)
 
-        return dict(obs=obs, next_obs=next_obs, ag=ag, next_ag=next_ag, act=act,
-                    g=g, future_ag=future_ag_v, reward=reward)
+        sample = dict(obs=obs, next_obs=next_obs, ag=ag, next_ag=next_ag, act=act,
+                      g=g, future_ag=future_ag_v, reward=reward)
+        if self.n_value_negatives > 0:
+            sample["neg_ag"] = self._negative_achieved_goals(ep_idx, rng)
+        return sample
 
     def sample_achieved_goals(self, n: int, rng: np.random.Generator = None) -> np.ndarray:
         """Sample a flat batch of achieved goals (used by the AE and GLS)."""
@@ -98,3 +127,26 @@ class HERReplayBuffer:
         ep_idx = rng.integers(0, self.n_episodes, size=n)
         t = rng.integers(0, self.T + 1, size=n)
         return self.ag[ep_idx, t]
+
+    def state_dict(self) -> dict:
+        """Serialize only the filled part of the buffer for compact checkpoints."""
+        n = self.n_episodes
+        return dict(
+            ptr=self.ptr,
+            n_episodes=n,
+            obs=self.obs[:n].copy(),
+            ag=self.ag[:n].copy(),
+            g=self.g[:n].copy(),
+            act=self.act[:n].copy(),
+        )
+
+    def load_state_dict(self, d: dict) -> None:
+        n = int(d["n_episodes"])
+        if n > self.size:
+            raise ValueError(f"checkpoint has {n} episodes, buffer capacity is {self.size}")
+        self.obs[:n] = d["obs"]
+        self.ag[:n] = d["ag"]
+        self.g[:n] = d["g"]
+        self.act[:n] = d["act"]
+        self.ptr = int(d["ptr"]) % self.size
+        self.n_episodes = n

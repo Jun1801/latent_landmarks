@@ -37,6 +37,35 @@ python scripts/train_pointmaze.py --steps 500000
 python scripts/eval.py --load l3p_pointmaze.pt --episodes 50 --show-landmarks
 ```
 
+### Contrastive value-loss experiment
+
+The baseline remains the default. To compare the new negative-sampling loss,
+run matched seeds and only change `--value-contrastive`:
+
+```bash
+# quick smoke comparison
+python scripts/train_pointmaze.py --short --seed 0 \
+  --log-file logs/pm_base_s0.log --save logs/pm_base_s0.pt
+python scripts/train_pointmaze.py --short --seed 0 --value-contrastive \
+  --value-contrastive-lambda 0.1 --n-value-negatives 4 \
+  --log-file logs/pm_contrast_s0.log --save logs/pm_contrast_s0.pt
+
+# longer comparison; repeat for several seeds
+python scripts/train_pointmaze.py --steps 500000 --seed 0 \
+  --log-file logs/pm_base_s0_500k.log --save logs/pm_base_s0_500k.pt
+python scripts/train_pointmaze.py --steps 500000 --seed 0 --value-contrastive \
+  --value-contrastive-lambda 0.1 --value-contrastive-temperature 1.0 \
+  --n-value-negatives 4 --negative-sampling-strategy random \
+  --log-file logs/pm_contrast_s0_500k.log --save logs/pm_contrast_s0_500k.pt
+```
+
+Use the eval success-rate lines in the logs, or plot several seeds with
+`scripts/plot_seeds.py`.
+
+For time-limited CPU sessions, add `--save-training-state --save-every 50000
+--time-limit-hours 5.25`; the next run can continue with `--load path/to.pt`
+as long as the env/config flags match.
+
 ---
 
 ## How the code maps to the paper

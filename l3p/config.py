@@ -42,6 +42,13 @@ class Config:
     action_noise: float = 0.2           # gaussian exploration noise std (per-env below)
     grad_norm_clip: Optional[float] = None  # Ant-Maze uses 15.0
 
+    # ---- optional value-function contrastive loss ----
+    use_value_contrastive: bool = False
+    value_contrastive_lambda: float = 0.1
+    value_contrastive_temperature: float = 1.0
+    n_value_negatives: int = 4
+    negative_sampling_strategy: str = "random"  # random | cross_episode
+
     # ---- Latent Landmarks & Auto-encoder (common table) ----
     ae_hidden_layers: int = 2
     ae_hidden_units: int = 128

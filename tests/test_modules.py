@@ -12,12 +12,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 import torch
 
+from l3p.agent.ddpg import DDPGAgent, value_contrastive_loss
 from l3p.config import get_config
 from l3p.models.autoencoder import ReachabilityAutoEncoder
 from l3p.models.landmarks import LatentLandmarks, greedy_latent_sparsification
 from l3p.models.networks import Critic, ValueFunction
 from l3p.planning.graph_search import GraphSearch
 from l3p.planning.planner import LatentPlanner
+from l3p.replay.her_buffer import HERReplayBuffer
 from l3p.losses import ae_losses
 
 
@@ -52,6 +54,82 @@ def test_value_regression():
             first = loss.item()
     assert loss.item() < 0.3 * first, (first, loss.item())
     print("ok  test_value_regression")
+
+
+def test_replay_samples_negative_goals():
+    """Replay can attach K contrastive negative achieved goals per transition."""
+    T, obs_dim, goal_dim, act_dim = 5, 3, 2, 1
+
+    def reward(ag, g):
+        return -(np.linalg.norm(ag - g, axis=-1) > 0.1).astype(np.float32)
+
+    buf = HERReplayBuffer(
+        size_episodes=4, horizon=T, obs_dim=obs_dim, goal_dim=goal_dim,
+        act_dim=act_dim, compute_reward=reward, n_value_negatives=3,
+        negative_sampling_strategy="cross_episode",
+    )
+    for ep_id in range(4):
+        obs = np.zeros((T + 1, obs_dim), dtype=np.float32)
+        ag = np.zeros((T + 1, goal_dim), dtype=np.float32)
+        ag[:, 0] = ep_id
+        ag[:, 1] = np.arange(T + 1)
+        g = np.zeros((T, goal_dim), dtype=np.float32)
+        act = np.zeros((T, act_dim), dtype=np.float32)
+        buf.store_episode(dict(obs=obs, ag=ag, g=g, act=act))
+
+    sample = buf.sample(batch_size=8, rng=np.random.default_rng(0))
+    assert sample["neg_ag"].shape == (8, 3, goal_dim)
+    assert sample["neg_ag"].dtype == np.float32
+    # The cross-episode strategy should not sample negatives from the anchor's episode.
+    assert (sample["neg_ag"][:, :, 0] != sample["ag"][:, None, 0]).all()
+    print("ok  test_replay_samples_negative_goals")
+
+
+def test_value_contrastive_loss_orders_goals():
+    """InfoNCE teaches V(anchor, positive) < V(anchor, negative) on a line."""
+    torch.manual_seed(0)
+    V = ValueFunction(goal_dim=1, hidden_units=64, hidden_layers=2)
+    opt = torch.optim.Adam(V.parameters(), lr=3e-3)
+
+    B, K = 128, 4
+    anchor = torch.linspace(-1.0, 1.0, B).unsqueeze(1)
+    positive = anchor + 0.02 * torch.randn(B, 1)
+    offsets = torch.linspace(2.0, 5.0, K).view(1, K, 1)
+    negatives = anchor[:, None, :] + offsets
+
+    first = None
+    for i in range(400):
+        loss = value_contrastive_loss(V, anchor, positive, negatives, temperature=0.5)
+        opt.zero_grad(); loss.backward(); opt.step()
+        if i == 0:
+            first = loss.item()
+
+    with torch.no_grad():
+        pos = V(anchor, positive).mean().item()
+        neg = V(anchor[:, None, :].expand(B, K, 1).reshape(B * K, 1),
+                negatives.reshape(B * K, 1)).mean().item()
+    assert loss.item() < 0.3 * first, (first, loss.item())
+    assert pos < neg, (pos, neg)
+    print(f"ok  test_value_contrastive_loss_orders_goals (pos={pos:.2f}, neg={neg:.2f})")
+
+
+def test_update_value_without_negatives_when_disabled():
+    """The original value-regression path must not require neg_ag."""
+    torch.manual_seed(0)
+    cfg = get_config("PointMaze", hidden_units=16, hidden_layers=1,
+                     use_value_contrastive=False)
+    agent = DDPGAgent(obs_dim=3, goal_dim=2, act_dim=1, max_action=1.0, cfg=cfg)
+    batch = dict(
+        obs=torch.randn(8, 3),
+        act=torch.randn(8, 1),
+        next_ag=torch.randn(8, 2),
+        future_ag=torch.randn(8, 2),
+        future_ag_norm=torch.randn(8, 2),
+    )
+    loss = agent.update_value(batch)
+    assert isinstance(loss, float)
+    assert np.isfinite(loss)
+    print("ok  test_update_value_without_negatives_when_disabled")
 
 
 class _ScaledV:
@@ -208,6 +286,9 @@ def test_planner_commitment_and_masking():
 ALL_TESTS = [
     test_q_from_distance,
     test_value_regression,
+    test_replay_samples_negative_goals,
+    test_value_contrastive_loss_orders_goals,
+    test_update_value_without_negatives_when_disabled,
     test_autoencoder_reachability,
     test_gls_and_elbo,
     test_soft_floyd_and_dmax,

@@ -25,9 +25,42 @@ from typing import Dict
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from l3p.agent.normalizer import Normalizer
 from l3p.models.networks import Actor, Critic, ValueFunction
+
+
+def value_contrastive_loss(value_fn, anchor: torch.Tensor, positive: torch.Tensor,
+                           negatives: torch.Tensor, temperature: float,
+                           pos_dist: torch.Tensor = None) -> torch.Tensor:
+    """InfoNCE loss over goal-to-goal distances.
+
+    Smaller V means closer / more reachable, so logits use negative distances.
+    The positive goal is stored at class index 0 for every anchor.
+    """
+    if temperature <= 0:
+        raise ValueError("value_contrastive_temperature must be > 0")
+    if negatives.ndim != 3:
+        raise ValueError("negatives must have shape [batch, n_negatives, goal_dim]")
+
+    B, K, G = negatives.shape
+    if K < 1:
+        raise ValueError("n_value_negatives must be >= 1 when contrastive loss is enabled")
+    if anchor.shape != positive.shape or anchor.shape[0] != B or anchor.shape[-1] != G:
+        raise ValueError("anchor, positive, and negatives have incompatible shapes")
+
+    if pos_dist is None:
+        pos_dist = value_fn(anchor, positive)
+    pos_dist = pos_dist.reshape(B, 1)
+
+    neg_anchor = anchor[:, None, :].expand(B, K, G).reshape(B * K, G)
+    neg_goal = negatives.reshape(B * K, G)
+    neg_dist = value_fn(neg_anchor, neg_goal).view(B, K)
+
+    logits = -torch.cat([pos_dist, neg_dist], dim=1) / temperature
+    labels = torch.zeros(B, dtype=torch.long, device=logits.device)
+    return F.cross_entropy(logits, labels)
 
 
 class DDPGAgent:
@@ -172,7 +205,17 @@ class DDPGAgent:
         with torch.no_grad():
             target = self.critic.distance(obs, act, batch["future_ag_norm"])
         pred = self.value(next_ag, future_ag)
-        loss = ((pred - target) ** 2).mean()
+        mse_loss = ((pred - target) ** 2).mean()
+        loss = mse_loss
+
+        if self.cfg.use_value_contrastive:
+            if "neg_ag" not in batch:
+                raise KeyError("batch must contain 'neg_ag' when use_value_contrastive=True")
+            contrastive_loss = value_contrastive_loss(
+                self.value, next_ag, future_ag, batch["neg_ag"],
+                self.cfg.value_contrastive_temperature, pos_dist=pred
+            )
+            loss = mse_loss + self.cfg.value_contrastive_lambda * contrastive_loss
 
         self.value_opt.zero_grad()
         loss.backward()

@@ -70,10 +70,18 @@ class L3PTrainer:
         self.ae_opt = torch.optim.Adam(self.ae.parameters(), lr=cfg.ae_lr)
         self.landmark_opt = torch.optim.Adam(self.landmarks.parameters(), lr=cfg.landmark_lr)
 
+        if cfg.use_value_contrastive:
+            if cfg.n_value_negatives < 1:
+                raise ValueError("n_value_negatives must be >= 1 when use_value_contrastive=True")
+            if cfg.value_contrastive_temperature <= 0:
+                raise ValueError("value_contrastive_temperature must be > 0")
+
         self.buffer = HERReplayBuffer(
             size_episodes=100_000, horizon=self.T, obs_dim=od, goal_dim=gd, act_dim=ad,
             compute_reward=vec_env.compute_reward, her_ratio=cfg.her_ratio,
-            hindsight_range=cfg.hindsight_range)
+            hindsight_range=cfg.hindsight_range,
+            n_value_negatives=cfg.n_value_negatives if cfg.use_value_contrastive else 0,
+            negative_sampling_strategy=cfg.negative_sampling_strategy)
 
         self.total_env_steps = 0
         self.episodes_collected = 0
@@ -151,7 +159,7 @@ class L3PTrainer:
     # ------------------------------------------------------------------ optimization
     def _make_batch(self, raw: Dict[str, np.ndarray]) -> Dict[str, torch.Tensor]:
         a = self.agent
-        return dict(
+        batch = dict(
             obs=a.norm_obs(raw["obs"]),
             next_obs=a.norm_obs(raw["next_obs"]),
             g=a.norm_goal(raw["g"]),
@@ -161,6 +169,9 @@ class L3PTrainer:
             future_ag=a.to_tensor(raw["future_ag"]),      # raw goal space for V
             future_ag_norm=a.norm_goal(raw["future_ag"]),  # normalized for the critic
         )
+        if "neg_ag" in raw:
+            batch["neg_ag"] = a.to_tensor(raw["neg_ag"])  # raw goal space for V
+        return batch
 
     def update(self, n_steps: int) -> Dict[str, float]:
         logs = {"critic": 0.0, "value": 0.0, "actor": 0.0, "ae_rec": 0.0,
@@ -231,12 +242,18 @@ class L3PTrainer:
 
     # ------------------------------------------------------------------ main loop
     def train(self, total_steps: Optional[int] = None,
-              checkpoint_path: Optional[str] = None, checkpoint_every: int = 0) -> None:
+              checkpoint_path: Optional[str] = None, checkpoint_every: int = 0,
+              save_training_state: bool = False,
+              time_limit_seconds: Optional[float] = None) -> None:
         total_steps = total_steps or self.cfg.total_steps
         t0 = time.time()
+        deadline = t0 + time_limit_seconds if time_limit_seconds is not None else None
         last_log = 0
         last_ckpt = 0
         while self.total_env_steps < total_steps:
+            if deadline is not None and time.time() >= deadline:
+                print(f"    >> time limit reached @ {self.total_env_steps} steps", flush=True)
+                break
             self.collect()
 
             if self.total_env_steps >= self.cfg.train_after and len(self.buffer) > 1:
@@ -261,15 +278,32 @@ class L3PTrainer:
             if checkpoint_path and checkpoint_every and \
                     self.total_env_steps - last_ckpt >= checkpoint_every:
                 last_ckpt = self.total_env_steps
-                self.save(checkpoint_path)
+                self.save(checkpoint_path, include_training_state=save_training_state)
                 print(f"    >> checkpoint saved @ {self.total_env_steps} steps", flush=True)
 
-    def save(self, path: str) -> None:
-        torch.save(dict(agent=self.agent.state_dict(), ae=self.ae.state_dict(),
-                        landmarks=self.landmarks.state_dict(),
-                        centroids_initialized=self.centroids_initialized), path)
+    def save(self, path: str, include_training_state: bool = False) -> None:
+        d = dict(agent=self.agent.state_dict(), ae=self.ae.state_dict(),
+                 landmarks=self.landmarks.state_dict(),
+                 centroids_initialized=self.centroids_initialized)
+        if include_training_state:
+            d["training_state"] = dict(
+                total_env_steps=self.total_env_steps,
+                episodes_collected=self.episodes_collected,
+                grad_step_count=self.grad_step_count,
+                trainer_rng_state=self.rng.bit_generator.state,
+                torch_rng_state=torch.get_rng_state(),
+                buffer=self.buffer.state_dict(),
+                actor_opt=self.agent.actor_opt.state_dict(),
+                critic_opt=self.agent.critic_opt.state_dict(),
+                value_opt=self.agent.value_opt.state_dict(),
+                ae_opt=self.ae_opt.state_dict(),
+                landmark_opt=self.landmark_opt.state_dict(),
+            )
+            if torch.cuda.is_available():
+                d["training_state"]["torch_cuda_rng_state"] = torch.cuda.get_rng_state_all()
+        torch.save(d, path)
 
-    def load(self, path: str) -> None:
+    def load(self, path: str, restore_training_state: bool = False) -> None:
         # weights_only=False: the checkpoint stores numpy normalizer statistics.
         d = torch.load(path, map_location=self.device, weights_only=False)
         self.agent.load_state_dict(d["agent"])
@@ -281,3 +315,26 @@ class L3PTrainer:
             self.planner.landmarks = self.landmarks
         self.landmarks.load_state_dict(d["landmarks"])
         self.centroids_initialized = d["centroids_initialized"]
+        if restore_training_state and "training_state" in d:
+            ts = d["training_state"]
+            self.total_env_steps = int(ts.get("total_env_steps", self.total_env_steps))
+            self.episodes_collected = int(ts.get("episodes_collected", self.episodes_collected))
+            self.grad_step_count = int(ts.get("grad_step_count", self.grad_step_count))
+            if "trainer_rng_state" in ts:
+                self.rng.bit_generator.state = ts["trainer_rng_state"]
+            if "torch_rng_state" in ts:
+                torch.set_rng_state(ts["torch_rng_state"].cpu())
+            if "torch_cuda_rng_state" in ts and torch.cuda.is_available():
+                torch.cuda.set_rng_state_all(ts["torch_cuda_rng_state"])
+            if "buffer" in ts:
+                self.buffer.load_state_dict(ts["buffer"])
+            if "actor_opt" in ts:
+                self.agent.actor_opt.load_state_dict(ts["actor_opt"])
+            if "critic_opt" in ts:
+                self.agent.critic_opt.load_state_dict(ts["critic_opt"])
+            if "value_opt" in ts:
+                self.agent.value_opt.load_state_dict(ts["value_opt"])
+            if "ae_opt" in ts:
+                self.ae_opt.load_state_dict(ts["ae_opt"])
+            if "landmark_opt" in ts:
+                self.landmark_opt.load_state_dict(ts["landmark_opt"])
