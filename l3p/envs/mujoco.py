@@ -25,6 +25,7 @@ from __future__ import annotations
 import numpy as np
 
 from l3p.config import env_spec, resolve_env, list_envs
+from l3p.envs.safety import CollisionCostAdapter, normalize_step_result
 
 _INSTALL_MSG = (
     "The MuJoCo environments ({env}) require a physics backend that is not "
@@ -124,6 +125,11 @@ class GymGoalEnvWrapper:  # pragma: no cover - requires MuJoCo
         self.max_action = float(env.action_space.high[0])
         self.max_episode_steps = cfg.max_episode_steps
         self.eval_mode = False
+        self.collision_cost_adapter = CollisionCostAdapter(
+            enabled=getattr(cfg, "pn_collision_cost_enabled", False),
+            info_key=getattr(cfg, "pn_collision_cost_info_key", ""),
+            unsafe_value=getattr(cfg, "pn_collision_cost_unsafe_value", None),
+        )
         # Different envs use different sparse-reward conventions: Fetch gives
         # {-1 (fail), 0 (success)} while the gymnasium maze envs give
         # {0 (fail), 1 (success)}. L3P's distance parameterization assumes the
@@ -149,11 +155,11 @@ class GymGoalEnvWrapper:  # pragma: no cover - requires MuJoCo
         return self._unpack(self.env.reset())
 
     def step(self, action):
-        ret = self.env.step(action)
-        if len(ret) == 5:                       # gymnasium: obs, rew, term, trunc, info
-            obs, reward, term, trunc, info = ret
-            return obs, reward, term or trunc, info
-        return ret                               # gym: obs, rew, done, info
+        normalized = normalize_step_result(
+            self.env.step(action),
+            collision_adapter=self.collision_cost_adapter,
+        )
+        return normalized.observation, normalized.reward, normalized.done, normalized.info
 
     def compute_reward(self, achieved_goal, desired_goal, info=None):
         # the sparse GoalEnv reward lives on the unwrapped env; normalize to the

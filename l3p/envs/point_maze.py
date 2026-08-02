@@ -35,6 +35,25 @@ def _build_serpentine(size: int = 11) -> np.ndarray:
     return maze
 
 
+def _build_two_route(size: int = 11) -> tuple[np.ndarray, np.ndarray]:
+    """Build a short hazardous middle route and a longer upper detour."""
+    if size < 7:
+        raise ValueError("two-route PointMaze requires maze_size >= 7")
+    maze = np.ones((size, size), dtype=np.int8)
+    hazard_mask = np.zeros((size, size), dtype=bool)
+    middle, upper = size // 2, 1
+    left, right = 1, size - 2
+
+    # The two horizontal corridors share endpoint regions only through the two
+    # side connectors, yielding exactly a direct path and an upper detour.
+    maze[middle, left:right + 1] = 0
+    maze[upper, left:right + 1] = 0
+    maze[upper:middle + 1, left] = 0
+    maze[upper:middle + 1, right] = 0
+    hazard_mask[middle, left + 2:right - 1] = True
+    return maze, hazard_mask
+
+
 class PointMazeEnv:
     metadata = {"render.modes": []}
 
@@ -42,7 +61,12 @@ class PointMazeEnv:
                  maze_size: int = 11, seed: Optional[int] = None):
         if cfg is not None:
             maze_size = getattr(cfg, "maze_size", maze_size)
-        self.maze = _build_serpentine(maze_size)
+        hazard_enabled = bool(getattr(cfg, "pn_pointmaze_hazard_enabled", False))
+        if hazard_enabled:
+            self.maze, self.hazard_mask = _build_two_route(maze_size)
+        else:
+            self.maze = _build_serpentine(maze_size)
+            self.hazard_mask = np.zeros_like(self.maze, dtype=bool)
         self.H, self.W = self.maze.shape
         self.goal_threshold = getattr(cfg, "goal_threshold", goal_threshold) if cfg else goal_threshold
         self.max_vel = max_vel
@@ -52,13 +76,18 @@ class PointMazeEnv:
         self.free_cells = np.argwhere(self.maze == 0)  # (row, col)
         # Longest-path endpoints for evaluation: first and last corridor.
         corridors = list(range(1, self.W - 1, 2))
-        self._start_cell = (1, corridors[0])
-        self._goal_cell = (1, corridors[-1])
+        if hazard_enabled:
+            endpoint_row = self.H // 2
+            self._start_cell = (endpoint_row, 1)
+            self._goal_cell = (endpoint_row, self.W - 2)
+        else:
+            self._start_cell = (1, corridors[0])
+            self._goal_cell = (1, corridors[-1])
         # For evaluation we sample start/goal from the two end corridors (rather
         # than two fixed points), so repeated eval episodes genuinely differ and
         # the success rate is a smooth average rather than all-or-nothing.
-        self._start_region = self.free_cells[self.free_cells[:, 1] == corridors[0]]
-        self._goal_region = self.free_cells[self.free_cells[:, 1] == corridors[-1]]
+        self._start_region = self.free_cells[self.free_cells[:, 1] == self._start_cell[1]]
+        self._goal_region = self.free_cells[self.free_cells[:, 1] == self._goal_cell[1]]
 
         self.obs_dim = 2
         self.goal_dim = 2
@@ -130,7 +159,14 @@ class PointMazeEnv:
         reward = float(self.compute_reward(obs["achieved_goal"], obs["desired_goal"], None))
         success = reward == 0.0
         done = self._steps >= self.max_episode_steps
-        info = {"is_success": float(success)}
+        row, col = int(np.floor(self._pos[1])), int(np.floor(self._pos[0]))
+        safety_cost = float(self.hazard_mask[row, col])
+        info = {
+            "is_success": float(success),
+            "goal_reached": bool(success),
+            "safety_cost": safety_cost,
+            "termination_reason": "timeout" if done else ("goal" if success else "other"),
+        }
         return obs, reward, done, info
 
     def compute_reward(self, achieved_goal: np.ndarray, desired_goal: np.ndarray,

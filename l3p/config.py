@@ -73,6 +73,86 @@ class Config:
     seed: int = 0
     device: str = "cpu"
 
+    # ---- Positive-Negative Landmark MCGS (opt-in) ----
+    # Environment / feature flags. Collision labels remain opt-in because
+    # ordinary contact is not a portable definition of a safety violation.
+    pn_lmcgs_enabled: bool = False
+    pn_pointmaze_hazard_enabled: bool = False
+    pn_collision_cost_enabled: bool = False
+    pn_collision_cost_info_key: str = ""
+    pn_collision_cost_unsafe_value: Optional[object] = None
+
+    # Positive / negative landmark memories and activation gates.
+    pn_num_positive_landmarks: int = 50
+    pn_num_negative_landmarks: int = 10
+    pn_positive_memory_capacity: int = 100_000
+    pn_negative_memory_capacity: int = 100_000
+    pn_min_positive_samples: int = 500
+    pn_min_positive_episodes: int = 20
+    pn_min_negative_samples: int = 100
+    pn_min_negative_episodes: int = 20
+    pn_positive_assignment_radius: float = 1.0
+    pn_landmark_refresh_interval: int = 1_000
+
+    # Goal-conditioned violation critic.
+    pn_cost_critic_weight: float = 5.0
+    pn_cost_critic_lr: float = 3e-4
+    pn_cost_critic_batch_size: int = 256
+    pn_cost_critic_train_after: int = 1_000
+
+    # Macro attempts, model, and calibration.
+    pn_k_min: int = 5
+    pn_k_max: int = 50
+    pn_macro_replay_capacity: int = 100_000
+    pn_macro_hidden_dim: int = 256
+    pn_macro_batch_size: int = 256
+    pn_macro_lr: float = 3e-4
+    pn_beta_duration: float = 0.1
+    pn_calibrate_temperature: bool = True
+    pn_calibration_validation_split: float = 0.2
+    pn_calibration_temperature_min: float = 0.5
+    pn_calibration_temperature_max: float = 5.0
+    pn_calibration_grid_size: int = 91
+    pn_calibration_interval: int = 5_000
+    pn_outcome_target_probability: float = 0.50
+    pn_outcome_drift_or_stuck_probability: float = 0.25
+    pn_outcome_violation_probability: float = 0.25
+
+    # MCGS candidates, risk, PUCT, penalties, and leaf heuristic.
+    pn_top_k: int = 5
+    pn_macro_depth: int = 6
+    pn_num_simulations: int = 256
+    pn_c_puct: float = 1.5
+    pn_prior_epsilon: float = 0.001
+    pn_beta_distance: float = 0.05
+    pn_beta_risk: float = 2.0
+    pn_epsilon_edge_train: float = 0.30
+    pn_epsilon_edge_eval: float = 0.20
+    pn_search_risk_limit: float = 0.20
+    pn_root_risk_limit: float = 0.10
+    pn_risk_pseudocount: float = 4.0
+    pn_risk_z: float = 1.645
+    pn_lambda_search_risk: float = 1.0
+    pn_stuck_penalty: float = 0.2
+    pn_violation_penalty: float = 1.0
+    pn_loop_penalty: float = 0.2
+    pn_time_penalty: float = 0.05
+    pn_lambda_stuck_leaf: float = 0.2
+    pn_lambda_violation_leaf: float = 1.0
+    pn_leaf_temperature: float = 1.0
+    pn_leaf_epsilon: float = 1e-6
+
+    # Training gates, collection mix, diagnostics, and explicit fallback.
+    pn_min_macro_attempts: int = 5_000
+    pn_min_attempts_per_common_action_bucket: int = 20
+    pn_probability_mcg_search: float = 0.50
+    pn_probability_original_planner: float = 0.25
+    pn_probability_direct_goal: float = 0.25
+    pn_training_unsafe_fallback: bool = False
+    pn_diagnostics_enabled: bool = True
+    pn_diagnostic_interval: int = 2_000
+    pn_calibration_bins: int = 10
+
     def scaled_neg_reward(self) -> float:
         return -1.0
 
@@ -178,6 +258,69 @@ def list_envs() -> list:
     return list(ENV_SPECS.keys())
 
 
+def validate_pn_config(cfg: Config) -> None:
+    """Validate opt-in PN-LMCGS settings without changing baseline defaults."""
+    positive_counts = (
+        "pn_num_positive_landmarks", "pn_num_negative_landmarks",
+        "pn_positive_memory_capacity", "pn_negative_memory_capacity",
+        "pn_cost_critic_batch_size", "pn_macro_replay_capacity",
+        "pn_macro_hidden_dim", "pn_macro_batch_size", "pn_top_k",
+        "pn_macro_depth", "pn_num_simulations", "pn_min_macro_attempts",
+        "pn_calibration_grid_size", "pn_calibration_interval",
+        "pn_diagnostic_interval", "pn_calibration_bins",
+    )
+    nonnegative_counts = (
+        "pn_min_positive_samples", "pn_min_positive_episodes",
+        "pn_min_negative_samples", "pn_min_negative_episodes",
+        "pn_cost_critic_train_after", "pn_landmark_refresh_interval",
+        "pn_min_attempts_per_common_action_bucket",
+    )
+    for name in positive_counts:
+        if getattr(cfg, name) <= 0:
+            raise ValueError(f"{name} must be positive")
+    for name in nonnegative_counts:
+        if getattr(cfg, name) < 0:
+            raise ValueError(f"{name} must be non-negative")
+
+    if cfg.pn_k_min <= 0 or cfg.pn_k_max < cfg.pn_k_min:
+        raise ValueError("pn_k_min and pn_k_max must satisfy 0 < pn_k_min <= pn_k_max")
+    if not 0.0 < cfg.pn_calibration_validation_split < 1.0:
+        raise ValueError("pn_calibration_validation_split must be between 0 and 1")
+    if not 0.0 < cfg.pn_calibration_temperature_min <= cfg.pn_calibration_temperature_max:
+        raise ValueError("calibration temperature bounds must be positive and ordered")
+
+    probability_names = (
+        "pn_probability_mcg_search", "pn_probability_original_planner",
+        "pn_probability_direct_goal", "pn_outcome_target_probability",
+        "pn_outcome_drift_or_stuck_probability", "pn_outcome_violation_probability",
+    )
+    for name in probability_names:
+        if not 0.0 <= getattr(cfg, name) <= 1.0:
+            raise ValueError(f"{name} must be between 0 and 1")
+    if abs(
+        cfg.pn_probability_mcg_search + cfg.pn_probability_original_planner
+        + cfg.pn_probability_direct_goal - 1.0
+    ) > 1e-8:
+        raise ValueError("PN collection probabilities must sum to one")
+    if abs(
+        cfg.pn_outcome_target_probability + cfg.pn_outcome_drift_or_stuck_probability
+        + cfg.pn_outcome_violation_probability - 1.0
+    ) > 1e-8:
+        raise ValueError("PN macro outcome probabilities must sum to one")
+
+    risk_bounds = (
+        "pn_epsilon_edge_train", "pn_epsilon_edge_eval",
+        "pn_search_risk_limit", "pn_root_risk_limit",
+    )
+    for name in risk_bounds:
+        if not 0.0 <= getattr(cfg, name) <= 1.0:
+            raise ValueError(f"{name} must be between 0 and 1")
+    if cfg.pn_root_risk_limit > cfg.pn_search_risk_limit:
+        raise ValueError("pn_root_risk_limit must not exceed pn_search_risk_limit")
+    if cfg.pn_pointmaze_hazard_enabled and not cfg.pn_lmcgs_enabled:
+        raise ValueError("pn_pointmaze_hazard_enabled requires pn_lmcgs_enabled=True")
+
+
 def get_config(env_name: str = "PointMaze", **overrides) -> Config:
     """Build a Config for `env_name`: apply the Appendix-E hyper-parameters for
     its family, then the env-specific structural settings, then any explicit
@@ -192,4 +335,5 @@ def get_config(env_name: str = "PointMaze", **overrides) -> Config:
                    place_inside_box_ratio=spec.get("place_inside_box_ratio", 0.2))
     if overrides:
         base = replace(base, **overrides)
+    validate_pn_config(base)
     return base
