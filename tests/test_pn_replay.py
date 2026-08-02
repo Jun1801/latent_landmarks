@@ -252,3 +252,70 @@ def test_store_episode_rejects_scalar_structured_fields(name):
 def test_store_episode_rejects_non_integer_or_out_of_range_termination_reason(reason):
     with pytest.raises(ValueError, match="termination_reason"):
         buffer(horizon=3).store_episode(episode(2, termination_reason=reason))
+
+
+def test_store_episode_rejection_leaves_replay_slot_byte_for_byte_unchanged():
+    replay = buffer(size=2, horizon=3)
+    first = episode(
+        3,
+        obs=np.array([[10.], [11.], [12.], [13.]], dtype=np.float32),
+        ag=np.array([[20.], [21.], [22.], [23.]], dtype=np.float32),
+        g=np.array([[30.], [31.], [32.]], dtype=np.float32),
+        act=np.array([[40.], [41.], [42.]], dtype=np.float32),
+        cmd_g=np.array([[50.], [51.], [52.]], dtype=np.float32),
+        cost=np.array([1., 0., 1.], dtype=np.float32),
+        violation=np.array([True, False, True]),
+        goal_reached=np.array([False, True, False]),
+        terminated=np.array([False, False, True]),
+        truncated=np.array([False, False, False]),
+        termination_reason=np.array([3, 1, 2]),
+    )
+    replay.store_episode(first)
+    replay.store_episode(episode(2, obs=np.array([[60.], [61.], [62.]], dtype=np.float32)))
+    before = {
+        name: getattr(replay, name).tobytes()
+        for name in ("obs", "ag", "g", "cmd_g", "act", "cost", "violation",
+                     "goal_reached", "terminated", "truncated", "termination_reason",
+                     "valid", "episode_lengths")
+    }
+    metadata = (replay.ptr, replay.n_episodes)
+
+    with pytest.raises(ValueError, match="termination_reason"):
+        replay.store_episode(episode(2, termination_reason=np.array([0., 1.5])))
+
+    assert (replay.ptr, replay.n_episodes) == metadata
+    for name, expected in before.items():
+        assert getattr(replay, name).tobytes() == expected
+
+
+def test_memory_rejection_leaves_existing_memories_and_counts_unchanged():
+    memory = manager()
+    memory.ingest_episode(
+        episode(2, ag=np.array([[1.], [2.], [3.]], dtype=np.float32),
+                cmd_g=np.array([[8.], [8.]], dtype=np.float32),
+                goal_reached=np.array([False, True]),
+                cost=np.array([0., 1.], dtype=np.float32)),
+        episode_id=11,
+    )
+    before = memory.state_dict()
+    before_counts = memory._negative_episode_counts.copy()
+
+    # The violation endpoint would be appended before the malformed command goal is checked.
+    malformed = episode(
+        2,
+        ag=np.array([[10.], [11.], [12.]], dtype=np.float32),
+        cost=np.array([0., 1.], dtype=np.float32),
+        cmd_g=np.array([7., 7.], dtype=np.float32),
+        goal_reached=np.array([False, True]),
+    )
+    with pytest.raises(ValueError, match="cmd_g"):
+        memory.ingest_episode(malformed, episode_id=99)
+
+    after = memory.state_dict()
+    assert after.keys() == before.keys()
+    for name, expected in before.items():
+        if isinstance(expected, np.ndarray):
+            assert after[name].tobytes() == expected.tobytes()
+        else:
+            assert after[name] == expected
+    assert memory._negative_episode_counts == before_counts

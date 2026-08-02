@@ -71,32 +71,50 @@ class HERReplayBuffer:
 
     def store_episode(self, ep: Dict[str, np.ndarray]) -> None:
         length = self._episode_length(ep)
+        obs = np.asarray(self._field(
+            ep, "obs", length + 1, self.obs.shape[2:], allow_scalar=False, exact=True
+        ), dtype=self.obs.dtype)
+        ag = np.asarray(self._field(
+            ep, "ag", length + 1, self.ag.shape[2:], allow_scalar=False, exact=True
+        ), dtype=self.ag.dtype)
+        g = np.asarray(self._field(
+            ep, "g", length, self.g.shape[2:], allow_scalar=False, exact=True
+        ), dtype=self.g.dtype)
+        act = np.asarray(self._field(
+            ep, "act", length, self.act.shape[2:], allow_scalar=False, exact=True
+        ), dtype=self.act.dtype)
+        cmd_g_source = ep if "cmd_g" in ep else {"cmd_g": ep["g"]}
+        cmd_g = np.asarray(self._field(
+            cmd_g_source, "cmd_g", length, self.cmd_g.shape[2:], allow_scalar=False, exact=True
+        ), dtype=self.cmd_g.dtype)
+        cost = np.asarray(self._field(ep, "cost", length, (), default=0.0), dtype=self.cost.dtype)
+        violation = np.asarray(self._field(
+            ep, "violation", length, (), default=cost > 0
+        ), dtype=self.violation.dtype)
+        goal_reached = np.asarray(
+            self._field(ep, "goal_reached", length, (), default=False), dtype=self.goal_reached.dtype
+        )
+        terminated = np.asarray(
+            self._field(ep, "terminated", length, (), default=False), dtype=self.terminated.dtype
+        )
+        truncated = np.asarray(
+            self._field(ep, "truncated", length, (), default=False), dtype=self.truncated.dtype
+        )
+        termination_reason = self._reason_field(ep, length)
+
         i = self.ptr
         self._clear_slot(i)
-        self.obs[i, :length + 1] = self._field(
-            ep, "obs", length + 1, self.obs.shape[2:], allow_scalar=False, exact=True
-        )
-        self.ag[i, :length + 1] = self._field(
-            ep, "ag", length + 1, self.ag.shape[2:], allow_scalar=False, exact=True
-        )
-        self.g[i, :length] = self._field(
-            ep, "g", length, self.g.shape[2:], allow_scalar=False, exact=True
-        )
-        self.act[i, :length] = self._field(
-            ep, "act", length, self.act.shape[2:], allow_scalar=False, exact=True
-        )
-        cmd_g_source = ep if "cmd_g" in ep else {"cmd_g": ep["g"]}
-        self.cmd_g[i, :length] = self._field(
-            cmd_g_source, "cmd_g", length, self.cmd_g.shape[2:], allow_scalar=False, exact=True
-        )
-        self.cost[i, :length] = self._field(ep, "cost", length, (), default=0.0)
-        self.violation[i, :length] = self._field(
-            ep, "violation", length, (), default=self.cost[i, :length] > 0
-        ).astype(bool)
-        self.goal_reached[i, :length] = self._field(ep, "goal_reached", length, (), default=False).astype(bool)
-        self.terminated[i, :length] = self._field(ep, "terminated", length, (), default=False).astype(bool)
-        self.truncated[i, :length] = self._field(ep, "truncated", length, (), default=False).astype(bool)
-        self.termination_reason[i, :length] = self._reason_field(ep, length)
+        self.obs[i, :length + 1] = obs
+        self.ag[i, :length + 1] = ag
+        self.g[i, :length] = g
+        self.act[i, :length] = act
+        self.cmd_g[i, :length] = cmd_g
+        self.cost[i, :length] = cost
+        self.violation[i, :length] = violation
+        self.goal_reached[i, :length] = goal_reached
+        self.terminated[i, :length] = terminated
+        self.truncated[i, :length] = truncated
+        self.termination_reason[i, :length] = termination_reason
         self.valid[i, :length] = True
         self.episode_lengths[i] = length
         self.ptr = (self.ptr + 1) % self.size

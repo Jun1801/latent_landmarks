@@ -49,19 +49,23 @@ class LandmarkMemoryManager:
 
     def ingest_episode(self, ep: Dict[str, np.ndarray], episode_id: int) -> None:
         length = self._episode_length(ep)
-        ag = self._field(ep, "ag", length + 1)
+        ag = np.asarray(self._field(ep, "ag", length + 1), dtype=np.float32)
         cost = self._transition_field(ep, "cost", length, default=0.0).astype(np.float32)
         post_available = self._transition_field(ep, "post_state_available", length, default=True).astype(bool)
-
-        for t in np.flatnonzero(cost > 0):
-            is_preimpact = not post_available[t]
-            self._append_negative(ag[t] if is_preimpact else ag[t + 1], episode_id, is_preimpact)
+        episode_id = int(episode_id)
+        negative_entries = [
+            (ag[t] if not post_available[t] else ag[t + 1], not post_available[t])
+            for t in np.flatnonzero(cost > 0)
+        ]
 
         # Positives require an explicitly recorded low-level command; task g is not a substitute.
         if "cmd_g" not in ep:
+            for goal, is_preimpact in negative_entries:
+                self._append_negative(goal, episode_id, is_preimpact)
             return
         cmd_g = self._field(ep, "cmd_g", length)
         reached = self._transition_field(ep, "goal_reached", length, default=False).astype(bool)
+        positive_goals = []
         start = 0
         while start < length:
             end = start + 1
@@ -73,8 +77,12 @@ class LandmarkMemoryManager:
                 if len(later):
                     goal_time = int(later[0])
                     if cost[t:goal_time + 1].sum() == 0:
-                        self._append_positive(ag[t])
+                        positive_goals.append(ag[t])
             start = end
+        for goal, is_preimpact in negative_entries:
+            self._append_negative(goal, episode_id, is_preimpact)
+        for goal in positive_goals:
+            self._append_positive(goal)
 
     def sample_positive(self, n: int, rng: np.random.Generator = None) -> np.ndarray:
         if not self._positive:
