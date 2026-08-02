@@ -28,6 +28,7 @@ from l3p.agent.ddpg import DDPGAgent
 from l3p.losses import ae_losses
 from l3p.models.autoencoder import ReachabilityAutoEncoder
 from l3p.models.landmarks import LatentLandmarks, greedy_latent_sparsification
+from l3p.envs.safety import CollisionCostAdapter, normalize_step_result
 from l3p.planning.graph_search import GraphSearch
 from l3p.planning.planner import LatentPlanner
 from l3p.replay.her_buffer import HERReplayBuffer
@@ -93,6 +94,86 @@ class L3PTrainer:
         return z[idx].detach()
 
     def collect_episode(self, env, use_planning: bool, random_actions: bool) -> Dict[str, np.ndarray]:
+        if not self.cfg.pn_lmcgs_enabled:
+            return self._collect_baseline_episode(env, use_planning, random_actions)
+
+        obs_dict = env.reset()
+        goal = obs_dict["desired_goal"].astype(np.float32)
+        obs_buf = np.zeros((self.T + 1, self.env.obs_dim), dtype=np.float32)
+        ag_buf = np.zeros((self.T + 1, self.env.goal_dim), dtype=np.float32)
+        g_buf = np.zeros((self.T, self.env.goal_dim), dtype=np.float32)
+        cmd_g_buf = np.zeros((self.T, self.env.goal_dim), dtype=np.float32)
+        act_buf = np.zeros((self.T, self.env.act_dim), dtype=np.float32)
+        cost_buf = np.zeros(self.T, dtype=np.float32)
+        violation_buf = np.zeros(self.T, dtype=bool)
+        goal_reached_buf = np.zeros(self.T, dtype=bool)
+        terminated_buf = np.zeros(self.T, dtype=bool)
+        truncated_buf = np.zeros(self.T, dtype=bool)
+        reason_buf = np.full(self.T, "other", dtype=object)
+        collision_adapter = CollisionCostAdapter(
+            enabled=getattr(self.cfg, "pn_collision_cost_enabled", False),
+            info_key=getattr(self.cfg, "pn_collision_cost_info_key", ""),
+            unsafe_value=getattr(self.cfg, "pn_collision_cost_unsafe_value", None),
+        )
+
+        planning = use_planning and self.centroids_initialized
+        if planning:
+            extra = self._sample_random_landmarks(self.cfg.random_landmarks_train)
+            self.planner.reset(goal, extra)
+
+        length = 0
+        for t in range(self.T):
+            obs_buf[t] = obs_dict["observation"]
+            ag_buf[t] = obs_dict["achieved_goal"]
+            g_buf[t] = goal
+            if random_actions:
+                command_goal = goal
+                a = self.rng.uniform(-env.max_action, env.max_action, size=self.env.act_dim)
+            elif planning:
+                a = self.planner.act(obs_dict["observation"], self.cfg.action_noise,
+                                     self.cfg.random_action_prob)
+                command_goal = self.planner._current_subgoal()
+            else:
+                command_goal = goal
+                a = self.agent.act(obs_dict["observation"], goal, self.cfg.action_noise,
+                                   self.cfg.random_action_prob)
+            command_goal = np.asarray(command_goal, dtype=np.float32)
+            cmd_g_buf[t] = command_goal
+            act_buf[t] = a
+
+            step = normalize_step_result(env.step(a), collision_adapter=collision_adapter)
+            obs_dict = step.observation
+            cost_buf[t] = step.safety_cost
+            violation_buf[t] = step.safety_cost > 0.0
+            goal_reached_buf[t] = bool(np.all(
+                np.asarray(env.compute_reward(obs_dict["achieved_goal"], command_goal)) == 0.0
+            ))
+            terminated_buf[t] = step.terminated
+            truncated_buf[t] = step.truncated
+            if violation_buf[t]:
+                reason_buf[t] = "violation"
+            elif goal_reached_buf[t]:
+                reason_buf[t] = "goal"
+            elif step.truncated:
+                reason_buf[t] = "timeout"
+            elif step.terminated:
+                reason_buf[t] = "other"
+            length = t + 1
+            if step.done:
+                break
+
+        obs_buf[length] = obs_dict["observation"]
+        ag_buf[length] = obs_dict["achieved_goal"]
+        return dict(
+            obs=obs_buf[:length + 1], ag=ag_buf[:length + 1], g=g_buf[:length],
+            cmd_g=cmd_g_buf[:length], act=act_buf[:length], cost=cost_buf[:length],
+            violation=violation_buf[:length], goal_reached=goal_reached_buf[:length],
+            terminated=terminated_buf[:length], truncated=truncated_buf[:length],
+            termination_reason=reason_buf[:length], length=length,
+        )
+
+    def _collect_baseline_episode(self, env, use_planning: bool,
+                                  random_actions: bool) -> Dict[str, np.ndarray]:
         obs_dict = env.reset()
         goal = obs_dict["desired_goal"].astype(np.float32)
 
@@ -132,9 +213,13 @@ class L3PTrainer:
             use_planning = self.rng.random() < self.cfg.search_prob_train
             ep = self.collect_episode(env, use_planning, random_actions)
             self.buffer.store_episode(ep)
-            self.agent.update_normalizers(ep["obs"][:-1], ep["g"])
+            if self.cfg.pn_lmcgs_enabled:
+                length = ep["length"]
+                self.agent.update_normalizers(ep["obs"][:length], ep["g"][:length])
+            else:
+                self.agent.update_normalizers(ep["obs"][:-1], ep["g"])
             self.episodes_collected += 1
-            self.total_env_steps += self.T
+            self.total_env_steps += ep["length"] if self.cfg.pn_lmcgs_enabled else self.T
 
         # Initialize latent centroids via GLS once enough warm-up data is in.
         if not self.centroids_initialized and self.episodes_collected >= self.cfg.n_warmup_trajs:
@@ -176,12 +261,21 @@ class L3PTrainer:
         for _ in range(n_steps):
             raw = self.buffer.sample(self.cfg.batch_size, self.rng)
             batch = self._make_batch(raw)
+            cost_critic_ready = (
+                self.cfg.pn_lmcgs_enabled
+                and self.total_env_steps >= self.cfg.pn_cost_critic_train_after
+            )
 
             logs["value"] += self.agent.update_value(batch)
             logs["critic"] += self.agent.update_critic(batch)
-            if self.cfg.pn_lmcgs_enabled:
-                logs["cost_critic"] += self.agent.update_cost_critic(batch)
-            logs["actor"] += self.agent.update_actor(batch)
+            if cost_critic_ready:
+                if self.cfg.pn_cost_critic_batch_size == self.cfg.batch_size:
+                    cost_batch = batch
+                else:
+                    cost_raw = self.buffer.sample(self.cfg.pn_cost_critic_batch_size, self.rng)
+                    cost_batch = self._make_batch(cost_raw)
+                logs["cost_critic"] += self.agent.update_cost_critic(cost_batch)
+            logs["actor"] += self.agent.update_actor(batch, use_cost_critic=cost_critic_ready)
 
             # Auto-encoder (Eq. 2) on a fresh batch of achieved goals.
             goals = self.buffer.sample_achieved_goals(self.cfg.batch_size, self.rng)

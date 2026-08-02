@@ -173,13 +173,13 @@ class DDPGAgent:
         self.critic_opt.step()
         return float(loss.item())
 
-    def update_actor(self, batch: Dict[str, torch.Tensor]) -> float:
+    def update_actor(self, batch: Dict[str, torch.Tensor], use_cost_critic: bool = True) -> float:
         """Actor loss: maximize Q(s, pi(s,g), g) with an L2 penalty on actions."""
         obs, g = batch["obs"], batch["g"]
         a = self.actor(obs, g)
         q = self.critic(obs, a, g, self.gamma)
         loss = -q.mean() + self.cfg.action_l2 * (a / self.max_action).pow(2).mean()
-        if self.pn_lmcgs_enabled:
+        if self.pn_lmcgs_enabled and use_cost_critic:
             self.cost_critic_opt.zero_grad(set_to_none=True)
             with self._freeze_cost_critic():
                 risk = self.cost_critic(obs, a, g)

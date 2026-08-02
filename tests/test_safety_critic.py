@@ -1,6 +1,7 @@
 """Goal-conditioned violation critic and safe actor regression tests."""
 
 import numpy as np
+import pytest
 import torch
 
 from l3p.agent.ddpg import DDPGAgent
@@ -165,3 +166,217 @@ def test_trainer_batch_and_update_integrate_replay_cost_and_stop_fields():
     assert set(("cost", "stop", "ag", "cmd_g", "ag_norm", "cmd_g_norm")) <= set(batch)
     assert torch.equal(batch["cost"], torch.tensor([0.0, 1.0]))
     assert torch.equal(batch["stop"], torch.tensor([0.0, 1.0]))
+
+
+def _goal_observation(achieved, goal=5.0):
+    return {
+        "observation": np.array([achieved, -achieved], dtype=np.float32),
+        "achieved_goal": np.array([achieved], dtype=np.float32),
+        "desired_goal": np.array([goal], dtype=np.float32),
+    }
+
+
+class _ScriptedRawEnv:
+    obs_dim, goal_dim, act_dim, max_action = 2, 1, 1, 1.0
+
+    def __init__(self, steps):
+        self.steps = list(steps)
+        self.step_calls = 0
+
+    def reset(self):
+        self.step_calls = 0
+        return _goal_observation(0.0)
+
+    def step(self, action):
+        spec = self.steps[self.step_calls]
+        self.step_calls += 1
+        observation = _goal_observation(spec["achieved"])
+        info = dict(spec.get("info", {}))
+        kind = spec["kind"]
+        if kind == "legacy":
+            if spec.get("truncated", False):
+                info["TimeLimit.truncated"] = True
+            return observation, -1.0, spec.get("done", False), info
+        if kind == "gymnasium":
+            return observation, -1.0, spec.get("terminated", False), spec.get("truncated", False), info
+        return (observation, -1.0, spec.get("cost", 0.0),
+                spec.get("terminated", False), spec.get("truncated", False), info)
+
+    def compute_reward(self, achieved_goal, desired_goal, info=None):
+        achieved_goal = np.asarray(achieved_goal)
+        desired_goal = np.asarray(desired_goal)
+        return np.where(np.all(np.isclose(achieved_goal, desired_goal), axis=-1), 0.0, -1.0)
+
+
+class _ScriptedVecEnv:
+    def __init__(self, env, horizon=3):
+        self.envs = [env]
+        self.n = 1
+        self.obs_dim = env.obs_dim
+        self.goal_dim = env.goal_dim
+        self.act_dim = env.act_dim
+        self.max_action = env.max_action
+        self.max_episode_steps = horizon
+
+    def compute_reward(self, achieved_goal, desired_goal, info=None):
+        return self.envs[0].compute_reward(achieved_goal, desired_goal, info)
+
+
+def _collection_trainer(env, *, enabled=True, horizon=3, **overrides):
+    cfg = make_cfg(
+        enabled,
+        max_episode_steps=horizon,
+        test_episode_steps=horizon,
+        her_ratio=0.0,
+        n_warmup_trajs=999,
+        random_landmarks_train=0,
+        pn_collision_cost_enabled=True,
+        pn_collision_cost_info_key="collision",
+        pn_collision_cost_unsafe_value="hit",
+        **overrides,
+    )
+    return L3PTrainer(_ScriptedVecEnv(env, horizon), cfg)
+
+
+@pytest.mark.parametrize(
+    "step",
+    [
+        {"kind": "legacy", "achieved": 5.0, "done": True, "info": {"collision": "hit"}},
+        {"kind": "gymnasium", "achieved": 5.0, "terminated": True, "info": {"cost": 1.0}},
+        {"kind": "safety", "achieved": 5.0, "terminated": True, "cost": 1.0},
+    ],
+)
+def test_enabled_collection_persists_normalized_safety_metadata_and_real_length(step):
+    env = _ScriptedRawEnv([step])
+    trainer = _collection_trainer(env)
+
+    trainer.collect()
+
+    assert env.step_calls == 1
+    assert trainer.total_env_steps == 1
+    assert trainer.buffer.episode_lengths[0] == 1
+    assert trainer.buffer.valid[0, 0]
+    assert not trainer.buffer.valid[0, 1:].any()
+    assert trainer.buffer.cost[0, 0] == 1.0
+    assert trainer.buffer.violation[0, 0]
+    assert trainer.buffer.goal_reached[0, 0]
+    assert trainer.buffer.termination_reason[0, 0] == trainer.buffer.REASON_VIOLATION
+    assert trainer.agent.o_norm.count == pytest.approx(1.0001)
+    assert trainer.agent.g_norm.count == pytest.approx(1.0001)
+    sampled = trainer.buffer.sample(8, np.random.default_rng(7))
+    assert np.all(sampled["cost"] == 1.0)
+    assert np.all(sampled["termination_reason"] == trainer.buffer.REASON_VIOLATION)
+
+
+def test_enabled_collection_records_planner_command_goal_and_command_success():
+    env = _ScriptedRawEnv([{"kind": "gymnasium", "achieved": 2.0, "terminated": True}])
+    trainer = _collection_trainer(env)
+
+    class _Planner:
+        def reset(self, goal, extra=None):
+            pass
+
+        def act(self, observation, noise_scale, random_prob):
+            return np.zeros(1, dtype=np.float32)
+
+        def _current_subgoal(self):
+            return np.array([2.0], dtype=np.float32)
+
+    trainer.planner = _Planner()
+    trainer.centroids_initialized = True
+    episode = trainer.collect_episode(env, use_planning=True, random_actions=False)
+
+    assert episode["length"] == 1
+    np.testing.assert_array_equal(episode["g"][0], np.array([5.0], dtype=np.float32))
+    np.testing.assert_array_equal(episode["cmd_g"][0], np.array([2.0], dtype=np.float32))
+    assert episode["goal_reached"][0]
+    assert episode["termination_reason"][0] == "goal"
+
+
+def test_disabled_collection_preserves_legacy_keys_and_fixed_horizon_behavior():
+    env = _ScriptedRawEnv([
+        {"kind": "legacy", "achieved": 1.0, "done": True},
+        {"kind": "legacy", "achieved": 2.0, "done": True},
+        {"kind": "legacy", "achieved": 3.0, "done": True},
+    ])
+    trainer = _collection_trainer(env, enabled=False)
+
+    episode = trainer.collect_episode(env, use_planning=False, random_actions=False)
+    trainer.collect()
+
+    assert set(episode) == {"obs", "ag", "g", "act"}
+    assert env.step_calls == trainer.T
+    assert trainer.total_env_steps == trainer.T
+    assert trainer.buffer.episode_lengths[0] == trainer.T
+    assert trainer.buffer.valid[0].all()
+
+
+def _update_raw_batch(batch_size):
+    return {
+        "obs": np.zeros((batch_size, 2), dtype=np.float32),
+        "next_obs": np.ones((batch_size, 2), dtype=np.float32),
+        "g": np.zeros((batch_size, 1), dtype=np.float32),
+        "act": np.zeros((batch_size, 1), dtype=np.float32),
+        "reward": np.zeros(batch_size, dtype=np.float32),
+        "next_ag": np.zeros((batch_size, 1), dtype=np.float32),
+        "future_ag": np.ones((batch_size, 1), dtype=np.float32),
+        "ag": np.zeros((batch_size, 1), dtype=np.float32),
+        "cmd_g": np.zeros((batch_size, 1), dtype=np.float32),
+        "cost": np.zeros(batch_size, dtype=np.float32),
+        "stop": np.zeros(batch_size, dtype=bool),
+    }
+
+
+def test_trainer_cost_critic_threshold_batch_size_and_actor_risk_gate(monkeypatch):
+    import l3p.trainer as trainer_module
+
+    agent = make_agent(True)
+    trainer = L3PTrainer.__new__(L3PTrainer)
+    trainer.cfg = make_cfg(True, pn_cost_critic_batch_size=7, pn_cost_critic_train_after=5)
+    trainer.agent = agent
+    trainer.rng = np.random.default_rng(0)
+    trainer.total_env_steps = 4
+    trainer.centroids_initialized = False
+    trainer.grad_step_count = 0
+
+    class _Buffer:
+        def __init__(self):
+            self.sample_sizes = []
+
+        def sample(self, size, rng):
+            self.sample_sizes.append(size)
+            return _update_raw_batch(size)
+
+        def sample_achieved_goals(self, size, rng):
+            return np.zeros((size, 1), dtype=np.float32)
+
+    trainer.buffer = _Buffer()
+    parameter = torch.nn.Parameter(torch.tensor(0.0))
+    trainer.ae_opt = torch.optim.SGD([parameter], lr=0.1)
+    trainer.landmark_opt = torch.optim.SGD([torch.nn.Parameter(torch.tensor(0.0))], lr=0.1)
+    trainer.ae = object()
+    trainer.landmarks = object()
+    monkeypatch.setattr(trainer_module, "ae_losses", lambda *args: (
+        parameter * 0, parameter * 0, parameter * 0,
+    ))
+    agent.update_value = lambda batch: 0.0
+    agent.update_critic = lambda batch: 0.0
+    cost_batch_sizes = []
+    actor_cost_flags = []
+    agent.update_cost_critic = lambda batch: cost_batch_sizes.append(batch["obs"].shape[0]) or 1.0
+    agent.update_actor = lambda batch, use_cost_critic=True: actor_cost_flags.append(use_cost_critic) or 1.0
+    agent.update_targets = lambda: None
+
+    cold_logs = trainer.update(1)
+    assert trainer.buffer.sample_sizes == [trainer.cfg.batch_size]
+    assert cost_batch_sizes == []
+    assert actor_cost_flags == [False]
+    assert cold_logs["cost_critic"] == 0.0
+
+    trainer.total_env_steps = 5
+    trainer.buffer.sample_sizes.clear()
+    warm_logs = trainer.update(1)
+    assert trainer.buffer.sample_sizes == [trainer.cfg.batch_size, 7]
+    assert cost_batch_sizes == [7]
+    assert actor_cost_flags == [False, True]
+    assert warm_logs["cost_critic"] == 1.0
