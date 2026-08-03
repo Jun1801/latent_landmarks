@@ -92,15 +92,33 @@ class LatentPlanner:
         return self.landmark_goals[self.subg_idx]
 
     @torch.no_grad()
+    def select_command(self, obs: np.ndarray) -> tuple[np.ndarray, int]:
+        """Advance one primitive planning step and return a copied command.
+
+        The counter update deliberately mirrors the historical ``act`` method:
+        a direct-goal baseline never starts a commitment, while a graph plan
+        decrements an existing commitment or computes a fresh one.
+        """
+        if self.n_landmarks == 0:
+            return self.goal.copy(), 0
+        if self.cnt > 1.0:
+            self.cnt -= 1.0
+        else:
+            self._replan(obs)
+        return self.current_command(), int(round(self.cnt))
+
+    def current_command(self) -> np.ndarray:
+        """Return an owned copy of the currently selected raw sub-goal."""
+        return np.asarray(self._current_subgoal(), dtype=np.float32).copy()
+
+    @torch.no_grad()
+    def act_for_current_command(self, obs: np.ndarray, noise_scale: float = 0.0,
+                                random_prob: float = 0.0) -> np.ndarray:
+        """Act toward the current command without changing commitment state."""
+        return self.agent.act(obs, self._current_subgoal(), noise_scale, random_prob)
+
+    @torch.no_grad()
     def act(self, obs: np.ndarray, noise_scale: float = 0.0, random_prob: float = 0.0) -> np.ndarray:
         """Return the low-level action for the current state under the plan."""
-        if self.n_landmarks == 0:            # no graph yet -> direct goal reaching
-            return self.agent.act(obs, self.goal, noise_scale, random_prob)
-
-        if self.cnt > 1.0:                   # commit: do not re-plan (Alg 1, lines 4-5)
-            self.cnt -= 1.0
-        else:                                # re-plan (Alg 1, lines 6-13)
-            self._replan(obs)
-
-        subgoal = self._current_subgoal()
-        return self.agent.act(obs, subgoal, noise_scale, random_prob)
+        self.select_command(obs)
+        return self.act_for_current_command(obs, noise_scale, random_prob)
