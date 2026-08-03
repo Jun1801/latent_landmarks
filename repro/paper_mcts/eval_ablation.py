@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Route A, Step 2: MCTS-vs-softFloyd ablation on a TRAINED paper agent, under a
-shared per-episode noisy world model. Works for both Fetch (rl.main_latent_fetch)
-and AntMaze (rl.main_latent) -- pass --env. AntMaze is the long-horizon env where
-landmark planning is load-bearing (test-plan >> HER), so it is the meaningful test.
+shared per-episode noisy world model. Works for Fetch (rl.main_latent_fetch),
+AntMaze (rl.main_latent), and BoxDistractor (rl.main_latent_robot) -- pass --env.
+AntMaze (nav) and BoxDistractor (manip) are the long-horizon envs where landmark
+planning is load-bearing (test-plan >> HER), so they are the meaningful tests.
 
 Loads networks only (no replay), swaps algo.planner.__class__ in place, and runs
 run_test_env_plan_eval for soft_floyd + MCTS variants over a sigma sweep.
@@ -36,6 +37,15 @@ ENV_CFG = {
                "--latent_batch_size", "256", "--batch_size", "1000",
                "--grad_value_clipping", "-1.0", "--grad_norm_clipping", "15.0",
                "--action_l2", "0.05", "--optimize_every", "2",
+               "--n_workers", "1", "--play"]),
+    "boxdistractor": dict(
+        get_args="rl.main_latent_robot", launch="rl.launcher_latent_robot",
+        env_name="Box-aside-v0", ckpt="boxdistractor_s829",
+        flags=["--env_name", "Box-aside-v0", "--test_env_name", "Box-aside-v0",
+               "--seed", "829", "--n_cycles", "15", "--clip_inputs", "--normalize_inputs",
+               "--gamma", "0.99", "--n_initial_rollouts", "0", "--plan_eps", "0.5",
+               "--n_latent_landmarks", "80", "--latent_batch_size", "150", "--n_extra_landmark", "20",
+               "--dist_clip", "-15.0", "--start_planning_n_traj", "6000", "--use_forward_empty_step",
                "--n_workers", "1", "--play"]),
 }
 
