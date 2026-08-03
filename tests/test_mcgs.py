@@ -45,6 +45,7 @@ class _Callbacks:
         self.d_calls = []
         self.v_calls = []
         self.e_calls = []
+        self.e_batches = []
 
     def root(self, state, targets):
         self.d_calls.append(np.asarray(targets).copy())
@@ -60,6 +61,7 @@ class _Callbacks:
     def edge(self, starts, commands, context):
         pairs = [(int(start[0]), int(command[0])) for start, command in zip(starts, commands)]
         self.e_calls.extend(pairs)
+        self.e_batches.append(pairs)
         return [self.predictions[pair] for pair in pairs]
 
 
@@ -410,28 +412,59 @@ def test_unreachable_leaf_uses_zero_reward_and_unit_risk():
     assert planner.last_leaf_risk[0] == 1.0
 
 
-def test_directed_callback_caches_are_per_plan_and_preserve_d_v_sources():
-    distances = _complete_distances()
+def test_callback_batches_cover_every_directed_edge_and_reset_per_plan():
+    positives = tuple(range(20))
+    goal_id = len(positives)
+    nodes = (ROOT, *positives, goal_id)
+    distances = _complete_distances(nodes=nodes)
+    predictions = {(source, target): _prediction()
+                   for source in nodes for target in nodes
+                   if target != source and target != ROOT}
+    planner, callbacks, _ = _planner(distances, predictions, pn_num_simulations=20)
+    state, achieved, goal, positive_goals = _inputs(positives, goal_id)
+
+    planner.plan(state, achieved, goal, positive_goals)
+
+    root_pairs = {(ROOT, target) for target in (*positives, goal_id)}
+    internal_pairs = {(source, target) for source in positives
+                      for target in (*positives, goal_id) if target != source}
+    expected_pairs = root_pairs | internal_pairs
+    assert len(callbacks.d_calls) == 1
+    assert len(callbacks.v_calls) == 1
+    assert len(callbacks.e_batches) == 1
+    assert callbacks.d_calls[0].dtype == np.float32
+    assert callbacks.v_calls[0][0].dtype == callbacks.v_calls[0][1].dtype == np.float32
+    assert {(ROOT, int(target[0])) for target in callbacks.d_calls[0]} == root_pairs
+    assert {(int(source[0]), int(target[0])) for source, target in zip(*callbacks.v_calls[0])} == internal_pairs
+    assert set(callbacks.e_calls) == expected_pairs
+    assert len(callbacks.e_calls) == len(expected_pairs)
+    assert planner._distance(ROOT, 7) == pytest.approx(distances[(ROOT, 7)])
+    assert planner._distance(7, 11) == pytest.approx(distances[(7, 11)])
+    assert planner._prediction(7, 11).p_target == pytest.approx(predictions[(7, 11)].p_target)
+
+    first_batches = (len(callbacks.d_calls), len(callbacks.v_calls), len(callbacks.e_batches))
+    for _ in range(20):
+        planner._distance(ROOT, 7)
+        planner._distance(7, 11)
+        planner._prediction(7, 11)
+    assert (len(callbacks.d_calls), len(callbacks.v_calls), len(callbacks.e_batches)) == first_batches
+
+    planner.plan(state, achieved, goal, positive_goals)
+    assert (len(callbacks.d_calls), len(callbacks.v_calls), len(callbacks.e_batches)) == (2, 2, 2)
+
+
+def test_callback_batches_reject_wrong_shapes_before_publishing_caches():
+    distances = _complete_distances(nodes=(ROOT, 0, 1))
     predictions = {(source, target): _prediction()
                    for source, target in distances if source != target}
-    planner, callbacks, _ = _planner(distances, predictions, pn_num_simulations=12)
-    state, achieved, goal, positives = _inputs()
+    planner, _, _ = _planner(distances, predictions)
+    planner.edge_prediction_fn = lambda starts, commands, context: _prediction()
 
-    planner.plan(state, achieved, goal, positives)
+    with pytest.raises(ValueError, match="one prediction per input row"):
+        planner.plan(*_inputs((0,), 1))
 
-    first_edges = list(callbacks.e_calls)
-    first_root = [int(target[0, 0]) for target in callbacks.d_calls]
-    first_value = [(int(source[0, 0]), int(target[0, 0])) for source, target in callbacks.v_calls]
-    assert len(first_edges) == len(set(first_edges))
-    assert len(first_root) == len(set(first_root))
-    assert len(first_value) == len(set(first_value))
-    assert all(source != ROOT and target != ROOT for source, target in first_value)
-
-    planner.plan(state, achieved, goal, positives)
-
-    assert callbacks.e_calls[len(first_edges):] == first_edges
-    assert [int(target[0, 0]) for target in callbacks.d_calls[len(first_root):]] == first_root
-    assert [(int(source[0, 0]), int(target[0, 0])) for source, target in callbacks.v_calls[len(first_value):]] == first_value
+    assert planner._distance_cache == {}
+    assert planner._prediction_cache == {}
 
 
 @pytest.mark.parametrize("argument, value, message", [
@@ -463,8 +496,8 @@ def test_plan_rejects_invalid_callback_shapes_and_drift_distributions():
                    for source, target in distances if source != target}
     planner, _, graph = _planner(distances, predictions)
     state, achieved, goal, positives = _inputs((0,), 1)
-    planner.root_distance_fn = lambda state, targets: np.array([1.0, 2.0])
-    with pytest.raises(ValueError, match="distance callback"):
+    planner.root_distance_fn = lambda state, targets: np.array([1.0, 2.0, 3.0])
+    with pytest.raises(ValueError, match="root_distance_fn"):
         planner.plan(state, achieved, goal, positives)
     assert planner.last_table == {}
 
@@ -491,7 +524,7 @@ def test_diagnostics_report_requested_and_completed_simulations_with_finite_metr
 
     diagnostics = result.diagnostics
     assert diagnostics["requested_simulations"] == diagnostics["completed_simulations"] == 3
-    for name in ("latency", "branch_before", "branch_after", "transposition_count",
+    for name in ("latency", "branch_before", "branch_eligible", "branch_after", "transposition_count",
                  "simulated_safe_successes", "simulated_violations", "cycles", "leaf_uses"):
         assert np.isfinite(diagnostics[name]) and diagnostics[name] >= 0
     assert diagnostics["no_safe_plan"] is False
@@ -524,3 +557,35 @@ def test_edge_stats_posterior_math():
     edge.update(0.5, 1.0)
     assert edge.q_reward == pytest.approx(0.5)
     assert edge.q_risk == pytest.approx(3 / 7)
+
+
+@pytest.mark.parametrize("p_violation", [0.0, 0.25, 0.75, 1.0])
+@pytest.mark.parametrize("outcomes", [(), (0.0,), (1.0,), (0.0, 1.0, 1.0)])
+def test_edge_upper_risk_never_understates_posterior_mean(p_violation, outcomes):
+    edge = EdgeStats(target_id=0, prediction=_prediction(target=1.0 - p_violation,
+                                                           violation=p_violation),
+                     prior_score=0.0, pseudocount=4.0, risk_z=1.645)
+    for safety in outcomes:
+        edge.update(reward_return=0.0, safety_return=safety)
+    assert edge.upper_risk >= edge.q_risk
+
+
+def test_root_branch_after_reflects_risk_filtered_dynamic_top_k_frontier():
+    positives = (0, 1, 2, 3, 4)
+    goal_id = len(positives)
+    nodes = (ROOT, *positives, goal_id)
+    distances = _complete_distances(nodes=nodes)
+    predictions = {(source, target): _prediction()
+                   for source in nodes for target in nodes
+                   if target != source and target != ROOT}
+    predictions[(ROOT, 3)] = _prediction(target=0.5, violation=0.5)
+    predictions[(ROOT, 4)] = _prediction(target=0.5, violation=0.5)
+    planner, _, _ = _planner(distances, predictions, pn_num_simulations=1, pn_top_k=2,
+                              pn_search_risk_limit=0.2, pn_root_risk_limit=0.2,
+                              pn_epsilon_edge_eval=1.0)
+
+    result = planner.plan(*_inputs(positives, goal_id))
+
+    assert result.diagnostics["branch_before"] == 6
+    assert result.diagnostics["branch_eligible"] == 4
+    assert result.diagnostics["branch_after"] == 2

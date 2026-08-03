@@ -267,6 +267,15 @@ def test_pn_config_defaults_and_validation():
             get_config("PointMaze", **overrides)
 
 
+@pytest.mark.parametrize("risk_z", [-1.0, -0.0, 0.0, 1.645])
+def test_pn_config_requires_nonnegative_risk_z(risk_z):
+    if risk_z < 0.0:
+        with pytest.raises(ValueError, match="pn_risk_z"):
+            get_config("PointMaze", pn_risk_z=risk_z)
+    else:
+        assert get_config("PointMaze", pn_risk_z=risk_z).pn_risk_z == risk_z
+
+
 @pytest.mark.parametrize("info_key", ["", "   "])
 def test_pn_config_requires_nonempty_collision_key_when_enabled(info_key):
     with pytest.raises(ValueError, match="pn_collision_cost_info_key"):

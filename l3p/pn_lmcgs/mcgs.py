@@ -227,12 +227,16 @@ class RiskConstrainedMCGS:
         self._diagnostics = {"simulations": 0, "requested_simulations": requested_simulations,
                              "completed_simulations": 0, "cycles": 0, "leaf_uses": 0,
                              "simulated_safe_successes": 0, "simulated_violations": 0,
-                             "branch_before": 0, "branch_after": 0}
+                             "branch_before": 0, "branch_eligible": 0, "branch_after": 0}
+        self._prepare_callback_caches()
         self._build_leaf_tables()
         root_key = NodeKey(ROOT, int(self.cfg.pn_macro_depth))
         root = self._node(root_key)
         self._diagnostics["branch_before"] = self._root_raw_count()
-        self._diagnostics["branch_after"] = len(root.edges)
+        initial_eligible = [edge for edge in root.edges
+                            if edge.feasibility_risk <= self.cfg.pn_search_risk_limit]
+        self._diagnostics["branch_eligible"] = len(initial_eligible)
+        self._diagnostics["branch_after"] = min(len(initial_eligible), int(self.cfg.pn_top_k))
         for _ in range(requested_simulations):
             reward, safety, selected, parents = self._simulate(root_key, frozenset({ROOT}), 0.0)
             for edge in selected:
@@ -277,24 +281,80 @@ class RiskConstrainedMCGS:
             return self._goal.copy()
         return self._positives[node_id].copy()
 
+    def _prepare_callback_caches(self) -> None:
+        """Evaluate the complete directed planning graph once for this plan.
+
+        The distance callbacks return one finite non-negative scalar per batch
+        row. ``edge_prediction_fn`` returns a sequence of one EdgePrediction
+        per paired ``starts``/``commands`` row, including a one-row batch.
+        All callback inputs are owned float32 arrays; no cache is published
+        until every callback result has passed validation.
+        """
+        targets = tuple(range(self._goal_id + 1))
+        root_pairs = [(ROOT, target) for target in targets]
+        internal_pairs = [(source, target) for source in range(self._goal_id)
+                          for target in targets if target != source]
+        root_targets = np.asarray([self._node_goal(target) for _, target in root_pairs],
+                                  dtype=np.float32).copy()
+        root_values = self._validated_distances(
+            self.root_distance_fn(self._state.astype(np.float32, copy=True), root_targets),
+            len(root_pairs), "root_distance_fn")
+
+        if internal_pairs:
+            sources = np.asarray([self._node_goal(source) for source, _ in internal_pairs],
+                                 dtype=np.float32).copy()
+            targets_array = np.asarray([self._node_goal(target) for _, target in internal_pairs],
+                                       dtype=np.float32).copy()
+            internal_values = self._validated_distances(
+                self.value_distance_fn(sources, targets_array), len(internal_pairs), "value_distance_fn")
+        else:
+            internal_values = np.empty(0, dtype=np.float64)
+
+        pairs = root_pairs + internal_pairs
+        starts = np.asarray([self._node_goal(source) for source, _ in pairs], dtype=np.float32).copy()
+        commands = np.asarray([self._node_goal(target) for _, target in pairs], dtype=np.float32).copy()
+        predictions = self._validated_predictions(
+            self.edge_prediction_fn(starts, commands, self._context), len(pairs))
+
+        distances = {pair: float(value) for pair, value in zip(root_pairs, root_values)}
+        distances.update({pair: float(value) for pair, value in zip(internal_pairs, internal_values)})
+        prepared_predictions: dict[tuple[int, int], EdgePrediction] = {}
+        for pair, prediction in zip(pairs, predictions):
+            if (prediction.positive_drift_distribution is not None
+                    and len(prediction.positive_drift_distribution) != self._goal_id):
+                raise ValueError("positive_drift_distribution must match positive_goals")
+            prepared_predictions[pair] = replace(prediction, local_distance=distances[pair])
+        self._distance_cache = distances
+        self._prediction_cache = prepared_predictions
+
+    @staticmethod
+    def _validated_distances(values: Any, length: int, callback_name: str) -> np.ndarray:
+        result = np.asarray(values, dtype=np.float64)
+        if result.shape != (length,):
+            raise ValueError(f"{callback_name} must return one finite non-negative distance per input row")
+        if not np.isfinite(result).all() or np.any(result < 0.0):
+            raise ValueError(f"{callback_name} must return finite non-negative distances")
+        return result.copy()
+
+    def _validated_predictions(self, values: Any, length: int) -> list[EdgePrediction]:
+        if isinstance(values, EdgePrediction):
+            raise ValueError("edge_prediction_fn must return one prediction per input row")
+        try:
+            predictions = list(values)
+        except TypeError as error:
+            raise ValueError("edge_prediction_fn must return one prediction per input row") from error
+        if len(predictions) != length:
+            raise ValueError("edge_prediction_fn must return one prediction per input row")
+        if not all(isinstance(prediction, EdgePrediction) for prediction in predictions):
+            raise ValueError("edge_prediction_fn must return EdgePrediction values")
+        return predictions
+
     def _distance(self, source_id: int, target_id: int) -> float:
         key = (source_id, target_id)
-        if key in self._distance_cache:
+        try:
             return self._distance_cache[key]
-        target = self._node_goal(target_id)[None, :]
-        if source_id == ROOT:
-            values = self.root_distance_fn(self._state, target)
-        else:
-            source = self._node_goal(source_id)[None, :]
-            values = self.value_distance_fn(source, target)
-        result = np.asarray(values, dtype=np.float64)
-        if result.shape != (1,):
-            raise ValueError("distance callbacks must return one finite non-negative distance")
-        value = float(result[0])
-        if not isfinite(value) or value < 0.0:
-            raise ValueError("distance callbacks must return finite non-negative distances")
-        self._distance_cache[key] = value
-        return value
+        except KeyError as error:
+            raise RuntimeError("distance cache missing prepared directed pair") from error
 
     def _remaining(self, node_id: int) -> float:
         if node_id not in self._remaining_cache:
@@ -303,24 +363,10 @@ class RiskConstrainedMCGS:
 
     def _prediction(self, source_id: int, target_id: int) -> EdgePrediction:
         key = (source_id, target_id)
-        if key not in self._prediction_cache:
-            starts = self._node_goal(source_id)[None, :]
-            commands = self._node_goal(target_id)[None, :]
-            values = self.edge_prediction_fn(starts, commands, self._context)
-            if isinstance(values, EdgePrediction):
-                prediction = values
-            else:
-                values = list(values)
-                if len(values) != 1:
-                    raise ValueError("edge_prediction_fn must return one prediction per input row")
-                prediction = values[0]
-            if not isinstance(prediction, EdgePrediction):
-                raise ValueError("edge_prediction_fn must return EdgePrediction values")
-            if (prediction.positive_drift_distribution is not None
-                    and len(prediction.positive_drift_distribution) != self._goal_id):
-                raise ValueError("positive_drift_distribution must match positive_goals")
-            self._prediction_cache[key] = replace(prediction, local_distance=self._distance(source_id, target_id))
-        return self._prediction_cache[key]
+        try:
+            return self._prediction_cache[key]
+        except KeyError as error:
+            raise RuntimeError("prediction cache missing prepared directed pair") from error
 
     def _candidate_edges(self, key: NodeKey) -> list[EdgeStats]:
         source = key.node_id

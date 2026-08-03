@@ -342,6 +342,8 @@ def validate_pn_config(cfg: Config) -> None:
             raise ValueError(f"{name} must be between 0 and 1")
     if cfg.pn_root_risk_limit > cfg.pn_search_risk_limit:
         raise ValueError("pn_root_risk_limit must not exceed pn_search_risk_limit")
+    if cfg.pn_risk_z < 0.0:
+        raise ValueError("pn_risk_z must be non-negative")
     if cfg.pn_collision_cost_enabled and (
         not isinstance(cfg.pn_collision_cost_info_key, str)
         or not cfg.pn_collision_cost_info_key.strip()
