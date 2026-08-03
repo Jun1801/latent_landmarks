@@ -16,6 +16,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
+import torch
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from l3p.config import get_config, list_envs, resolve_env
@@ -83,6 +85,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--env", default="PointMaze", choices=list_envs())
     parser.add_argument("--steps", type=int, default=1_000_000)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--device", choices=("auto", "cpu", "cuda"), default="auto",
+        help="training device; auto selects CUDA when Kaggle provides an accelerator",
+    )
     parser.add_argument("--workers", type=int, default=None)
     parser.add_argument("--eval-episodes", type=int, default=None)
     parser.add_argument("--save-every", type=int, default=0)
@@ -109,6 +115,15 @@ def _validate_positive(value: int | None, name: str, *, allow_zero: bool = False
         raise ValueError(f"{name} must be {qualifier}")
 
 
+def resolve_device(requested: str) -> str:
+    cuda_available = torch.cuda.is_available()
+    if requested == "auto":
+        return "cuda" if cuda_available else "cpu"
+    if requested == "cuda" and not cuda_available:
+        raise ValueError("--device cuda requires an enabled CUDA accelerator")
+    return requested
+
+
 def build_config(args: argparse.Namespace):
     if args.hazardous_pointmaze and resolve_env(args.env) != "PointMaze":
         raise ValueError("--hazardous-pointmaze is only valid for the PointMaze environment")
@@ -117,7 +132,11 @@ def build_config(args: argparse.Namespace):
     _validate_positive(args.eval_episodes, "--eval-episodes")
     _validate_positive(args.save_every, "--save-every", allow_zero=True)
 
-    overrides: dict[str, Any] = {"seed": args.seed, "total_steps": args.steps}
+    overrides: dict[str, Any] = {
+        "seed": args.seed,
+        "total_steps": args.steps,
+        "device": resolve_device(args.device),
+    }
     if args.workers is not None:
         overrides["n_workers"] = args.workers
     if args.eval_episodes is not None:
@@ -215,7 +234,10 @@ def main(argv=None) -> None:
     active_error = None
     try:
         with Tee(run_dir / "train.log"):
-            print(f"===== L3P on {cfg.env_name} | steps={cfg.total_steps} seed={cfg.seed} =====")
+            print(
+                f"===== L3P on {cfg.env_name} | steps={cfg.total_steps} "
+                f"seed={cfg.seed} device={cfg.device} =====",
+            )
             print(f"(artifacts -> {run_dir})")
             env = make_vec_env(cfg, cfg.n_workers, cfg.seed)
             trainer = L3PTrainer(env, cfg, metrics_callback=sink)

@@ -88,6 +88,9 @@ The launcher accepts every supported `--env`, stores `config.json`, `train.log`,
 interval `checkpoint.pt` files, and the final `model.pt` under
 `/kaggle/working/l3p_runs/<run-name>/` (or `l3p_runs/` outside Kaggle). Use
 `--output-dir`, `--run-name`, and `--save-every` to control those artifacts.
+The default `--device auto` uses CUDA when a Kaggle T4/GPU accelerator is
+enabled and falls back to CPU otherwise; use `--device cuda` to require a GPU
+or `--device cpu` for a CPU-only smoke run.
 
 Set `WANDB_API_KEY` through Kaggle Secrets before selecting
 `--wandb-mode online`. The default `--wandb-mode offline` writes a local W&B run

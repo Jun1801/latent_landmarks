@@ -38,6 +38,27 @@ def test_kaggle_config_keeps_baseline_default_and_wires_hazard_mode(tmp_path):
     assert hazardous.pn_pointmaze_hazard_enabled
 
 
+def test_kaggle_device_auto_uses_cuda_when_available(monkeypatch):
+    kaggle = _load_kaggle_script()
+    monkeypatch.setattr(kaggle.torch.cuda, "is_available", lambda: True)
+
+    cfg = kaggle.build_config(
+        kaggle.build_parser().parse_args(["--device", "auto"]),
+    )
+
+    assert cfg.device == "cuda"
+
+
+def test_kaggle_device_auto_falls_back_to_cpu_and_cuda_requires_accelerator(monkeypatch):
+    kaggle = _load_kaggle_script()
+    monkeypatch.setattr(kaggle.torch.cuda, "is_available", lambda: False)
+
+    auto_cfg = kaggle.build_config(kaggle.build_parser().parse_args(["--device", "auto"]))
+    assert auto_cfg.device == "cpu"
+    with pytest.raises(ValueError, match="--device cuda"):
+        kaggle.build_config(kaggle.build_parser().parse_args(["--device", "cuda"]))
+
+
 def test_kaggle_main_rejects_invalid_counts_and_hazard_environment(capsys):
     kaggle = _load_kaggle_script()
 
