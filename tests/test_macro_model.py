@@ -223,6 +223,39 @@ def test_replay_sampling_uses_cached_partition_slots_and_load_is_atomic():
     assert len(replay.validation_indices) == 0
 
 
+def test_candidate_sampling_keeps_rare_raw_outcomes_in_the_pool():
+    replay = MacroAttemptBuffer(capacity=100, validation_fraction=0.2, split_seed=0)
+    replay.add(attempt(0, violation=True, violation_goal=np.ones(2, dtype=np.float32)))
+    replay.add(attempt(1, target=True))
+    replay.extend(attempt(value) for value in range(2, 100))
+    train_attempts = [replay.attempts[index] for index in replay.train_indices]
+    assert sum(item.violation for item in train_attempts) == 1
+    assert sum(item.target_reached for item in train_attempts) == 1
+
+    candidates = replay.sample_train_attempts(16, np.random.default_rng(0))
+
+    assert any(item.violation for item in candidates)
+    assert any(item.target_reached for item in candidates)
+
+    for value in range(100, 140):
+        replay.add(attempt(
+            value,
+            target=value == 110,
+            violation=value == 121,
+            violation_goal=(
+                np.ones(2, dtype=np.float32) if value == 121 else None
+            ),
+        ))
+    restored = MacroAttemptBuffer(capacity=100, validation_fraction=0.2, split_seed=0)
+    restored.load_state_dict(replay.state_dict())
+    for seed in range(4):
+        expected = replay.sample_train_attempts(16, np.random.default_rng(seed))
+        actual = restored.sample_train_attempts(16, np.random.default_rng(seed))
+        assert [item.episode_id for item in actual] == [
+            item.episode_id for item in expected
+        ]
+
+
 def test_stratification_is_exact_sized_and_handles_absent_classes():
     labels = np.array([Outcome.TARGET, Outcome.TARGET, Outcome.STUCK])
     indices = stratified_macro_indices(labels, 12, np.random.default_rng(4))

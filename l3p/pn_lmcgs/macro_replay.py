@@ -110,6 +110,8 @@ class MacroAttemptBuffer:
         self._train_slots: list[int] = []
         self._validation_slots: list[int] = []
         self._slot_partition_positions = np.full(self.capacity, -1, dtype=np.int64)
+        self._train_outcome_slots: list[list[int]] = [[], [], []]
+        self._train_outcome_heads = np.zeros(3, dtype=np.int64)
         self._goal_dim: Optional[int] = None
         self._context_dim: Optional[int] = None
 
@@ -119,6 +121,10 @@ class MacroAttemptBuffer:
     @property
     def size(self) -> int:
         return len(self)
+
+    @property
+    def train_size(self) -> int:
+        return len(self._train_slots)
 
     @property
     def attempts(self) -> list[MacroAttempt]:
@@ -157,6 +163,8 @@ class MacroAttemptBuffer:
         self._slot_validation[slot] = validation
         self._slot_uids[slot] = uid
         self._add_slot_to_partition(slot, validation)
+        if not validation:
+            self._add_slot_to_train_outcome(slot, candidate)
         self._size += 1
         self._next_uid = uid + 1
         self._goal_dim, self._context_dim = goal_dim, context_dim
@@ -171,6 +179,48 @@ class MacroAttemptBuffer:
 
     def sample_train(self, batch_size: int, rng: Optional[np.random.Generator] = None) -> dict[str, np.ndarray]:
         return self._sample_from_slots(self._train_slots, batch_size, rng)
+
+    def sample_train_attempts(
+            self, sample_size: int,
+            rng: Optional[np.random.Generator] = None,
+    ) -> list[MacroAttempt]:
+        sample_size = _integer(sample_size, "sample_size", minimum=1)
+        if sample_size > self.train_size:
+            raise ValueError("sample_size exceeds the training split size")
+        rng = np.random.default_rng() if rng is None else rng
+        if not isinstance(rng, np.random.Generator):
+            raise ValueError("rng must be a numpy Generator")
+        requested = np.asarray([
+            int(round(sample_size * 0.50)),
+            int(round(sample_size * 0.25)),
+        ], dtype=np.int64)
+        requested = np.append(requested, sample_size - requested.sum())
+        available = np.asarray([
+            len(slots) - int(self._train_outcome_heads[index])
+            for index, slots in enumerate(self._train_outcome_slots)
+        ], dtype=np.int64)
+        counts = np.minimum(requested, available)
+        remaining_capacity = available - counts
+        for _ in range(sample_size - int(counts.sum())):
+            total_remaining = int(remaining_capacity.sum())
+            draw = int(rng.integers(total_remaining))
+            bucket_index = int(np.searchsorted(
+                np.cumsum(remaining_capacity), draw, side="right",
+            ))
+            counts[bucket_index] += 1
+            remaining_capacity[bucket_index] -= 1
+
+        selected_slots: list[int] = []
+        for bucket_index, count_value in enumerate(counts):
+            count = int(count_value)
+            if count == 0:
+                continue
+            head = int(self._train_outcome_heads[bucket_index])
+            slots = self._train_outcome_slots[bucket_index]
+            positions = rng.choice(available[bucket_index], size=count, replace=False)
+            selected_slots.extend(slots[head + int(position)] for position in positions)
+        order = rng.permutation(len(selected_slots))
+        return [self._attempt_at_slot(selected_slots[int(index)]).copy() for index in order]
 
     def sample_validation(self, batch_size: int, rng: Optional[np.random.Generator] = None) -> dict[str, np.ndarray]:
         return self._sample_from_slots(self._validation_slots, batch_size, rng)
@@ -251,10 +301,16 @@ class MacroAttemptBuffer:
             positions[slot] = position
         for position, slot in enumerate(validation_order):
             positions[slot] = position
+        train_outcome_slots: list[list[int]] = [[], [], []]
+        for slot, (candidate, validation) in enumerate(zip(candidates, membership)):
+            if not validation:
+                train_outcome_slots[self._raw_outcome_bucket(candidate)].append(slot)
         self._slots, self._slot_validation, self._slot_uids = slots, slot_validation, slot_uids
         self._head, self._size, self._next_uid = 0, len(candidates), next_uid
         self._train_slots, self._validation_slots = train_order, validation_order
         self._slot_partition_positions = positions
+        self._train_outcome_slots = train_outcome_slots
+        self._train_outcome_heads = np.zeros(3, dtype=np.int64)
         self._goal_dim, self._context_dim = goal_dim, context_dim
 
     def _sample_from_slots(self, slots: Sequence[int], batch_size: int,
@@ -325,6 +381,8 @@ class MacroAttemptBuffer:
         validation = self._slot_validation[slot]
         if validation is None:
             raise RuntimeError("cannot remove an empty replay slot")
+        if not validation:
+            self._remove_slot_from_train_outcome(slot)
         partition = self._validation_slots if validation else self._train_slots
         position = int(self._slot_partition_positions[slot])
         last_slot = partition.pop()
@@ -332,6 +390,29 @@ class MacroAttemptBuffer:
             partition[position] = last_slot
             self._slot_partition_positions[last_slot] = position
         self._slot_partition_positions[slot] = -1
+
+    @staticmethod
+    def _raw_outcome_bucket(attempt: MacroAttempt) -> int:
+        if attempt.violation:
+            return 2
+        if attempt.target_reached:
+            return 0
+        return 1
+
+    def _add_slot_to_train_outcome(self, slot: int, attempt: MacroAttempt) -> None:
+        self._train_outcome_slots[self._raw_outcome_bucket(attempt)].append(slot)
+
+    def _remove_slot_from_train_outcome(self, slot: int) -> None:
+        bucket_index = self._raw_outcome_bucket(self._attempt_at_slot(slot))
+        slots = self._train_outcome_slots[bucket_index]
+        head = int(self._train_outcome_heads[bucket_index])
+        if head >= len(slots) or slots[head] != slot:
+            raise RuntimeError("training outcome cache is inconsistent with replay FIFO")
+        head += 1
+        if head >= 1024 and head * 2 >= len(slots):
+            del slots[:head]
+            head = 0
+        self._train_outcome_heads[bucket_index] = head
 
     @staticmethod
     def _partition_order_from_state(raw_order: object, membership: Sequence[bool], size: int) -> tuple[list[int], list[int]]:
