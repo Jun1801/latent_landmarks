@@ -67,10 +67,16 @@ def from_dump(path, pct, worm_frac=0.5):
     np.fill_diagonal(D, np.inf)
     adm = D <= np.percentile(D[np.isfinite(D)], pct)
     worm = adm & (Dn < worm_frac * D)            # edge looks >= 1/worm_frac x shorter
-    sub = f"({d['regime']}, sigma={d['sigma']})"
-    subg = [s for s in (d.get("subgoals") or []) if s < n]   # drop the goal node (idx n)
+    if "planners" in d:                          # --dump-plans format: reuse graph + one route
+        pk = "soft_floyd" if "soft_floyd" in d["planners"] else list(d["planners"])[0]
+        p = d["planners"][pk]; traj = p.get("traj"); raw_sub = p.get("subgoals")
+        sub = f"({d['regime']}, sigma={d['sigma']}, {pk})"
+    else:                                        # single --dump format
+        traj = d.get("traj"); raw_sub = d.get("subgoals")
+        sub = f"({d['regime']}, sigma={d['sigma']})"
+    subg = [s for s in (raw_sub or []) if s < n]   # drop the goal node (idx n)
     return dict(xy=xy, D=D, Dn=Dn, adm=adm, worm=worm, goal=np.asarray(d["goal"]),
-                start=np.asarray(d["start"]), traj=d.get("traj"), subg=subg, subtitle=sub)
+                start=np.asarray(d["start"]), traj=traj, subg=subg, subtitle=sub)
 
 
 def from_checkpoint(a):
