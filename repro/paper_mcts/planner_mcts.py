@@ -57,6 +57,8 @@ class PaperMCTSPlanner(Planner):
         self._r_max = r_max
         self._noise_seed = int(noise_seed)
         self._rng = np.random.default_rng(noise_seed + 1)
+        self.search_seconds = 0.0            # accumulated MCTS latency (--latency)
+        self.search_calls = 0
 
     # ---- graph build helpers ----
     def _clamp_dtg(self, M_land):
@@ -181,6 +183,8 @@ class PaperMCTSPlanner(Planner):
                             d_c2g_heuristic=heur, cfg=self._mcts_cfg, rng=self._rng,
                             admissible=adm)
         idx, _ = mcts.search(d_s2c, mask=self._mask(env_id))
+        self.search_seconds += float(getattr(mcts, "last_search_seconds", 0.0))
+        self.search_calls += 1
         return n if idx is None else int(idx)
 
     def _softfloyd_select(self, env_id, d_s2c_row, heur_row):
