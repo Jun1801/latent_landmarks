@@ -42,6 +42,8 @@ ENV_CFG = {
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--env", choices=list(ENV_CFG), default="antmaze")
+    p.add_argument("--regime", choices=["e1a", "e1c"], default="e1a",
+                   help="e1a=stochastic (paper eval loop); e1c=fixed bias + execution feedback")
     p.add_argument("--repo", default="/kaggle/working/wmag")
     p.add_argument("--paper_mcts_dir", default="/kaggle/working/latent_landmarks/repro/paper_mcts")
     p.add_argument("--resume_ckpt", default=None, help="default = env's standard ckpt name")
@@ -85,31 +87,60 @@ def main():
     if hasattr(algo, "_clusters_initialized"):
         algo._clusters_initialized = True
 
-    def eval_mean(passes):
+    def eval_paper(passes):                    # E1a: paper's own plan-eval loop
         return float(np.mean([algo.run_test_env_plan_eval() for _ in range(passes)]))
 
-    algo.planner.__class__ = Planner
-    print(f"\nsoft_floyd (clean):            {eval_mean(a.episodes):.3f}", flush=True)
+    def eval_feedback(passes):                 # E1c: custom loop passing achieved_goal
+        env = algo.test_env if hasattr(algo, "test_env") else algo.env
+        means = []
+        for _ in range(passes):
+            succ = trials = 0
+            for _r in range(a.n_test_rollouts):
+                o = env.reset(); ob, bg, ag = o['observation'], o['desired_goal'], o['achieved_goal']
+                algo.planner.reset(); algo.planner.update(goals=bg.copy(), test_time=True)
+                info = None
+                for _t in range(env._max_episode_steps):
+                    sub = algo.planner.get_subgoals(ob, bg.copy(), achieved_goal=ag.copy())
+                    act = algo.agent.get_actions(ob, sub)
+                    o, _, _, info = env.step(act)
+                    ob, bg, ag = o['observation'], o['desired_goal'], o['achieved_goal']
+                if getattr(algo, "num_envs", 1) > 1:
+                    for pe in info:
+                        trials += 1; succ += int(pe['is_success'] == 1.0)
+                else:
+                    trials += 1; succ += int(info['is_success'] == 1.0)
+            means.append(succ / max(1, trials))
+        return float(np.mean(means))
 
-    variants = [
-        ("soft_floyd",   "softfloyd", dict()),
-        ("mcts",         "mcts",      dict()),
-        ("mcts+suffix",  "mcts",      dict(suffix_backup=True)),
-        ("mcts+pw",      "mcts",      dict(progressive_widening=True)),
-        ("mcts+bayes",   "mcts",      dict(uncertainty_mode="bayes")),
-    ]
-    print(f"\n{'variant':16}" + "".join(f"  s={s}".ljust(9) for s in a.sigmas), flush=True)
-    for name, mode, kw in variants:
+    runner = eval_feedback if a.regime == "e1c" else eval_paper
+
+    algo.planner.__class__ = Planner
+    print(f"\nsoft_floyd (clean):            {eval_paper(a.episodes):.3f}", flush=True)
+
+    if a.regime == "e1a":                      # (name, select_mode, feedback, kw)
+        variants = [("soft_floyd", "softfloyd", False, dict()),
+                    ("mcts",        "mcts",      False, dict()),
+                    ("mcts+suffix", "mcts",      False, dict(suffix_backup=True)),
+                    ("mcts+pw",     "mcts",      False, dict(progressive_widening=True)),
+                    ("mcts+bayes",  "mcts",      False, dict(uncertainty_mode="bayes"))]
+    else:                                      # e1c: bias + execution feedback
+        variants = [("soft_floyd", "softfloyd", False, dict()),
+                    ("mcts_nofb",  "mcts",      False, dict()),
+                    ("mcts_fb",    "mcts",      True,  dict())]
+
+    print(f"\n[{a.regime}] {'variant':14}" + "".join(f"  s={s}".ljust(9) for s in a.sigmas), flush=True)
+    for name, mode, fb, kw in variants:
         row = []
         for s in a.sigmas:
             algo.planner.__class__ = PaperMCTSPlanner
-            algo.planner.configure_mcts(MctsCfg(n_simulations=a.sims, **kw),
-                                        sigma=float(s), select_mode=mode, noise_seed=0)
-            row.append(eval_mean(a.episodes))
-        print(f"{name:16}" + "".join(f"  {v:.3f}".ljust(9) for v in row), flush=True)
+            algo.planner.configure_mcts(MctsCfg(n_simulations=a.sims, **kw), sigma=float(s),
+                                        select_mode=mode, regime=a.regime, feedback=fb, noise_seed=0)
+            row.append(runner(a.episodes))
+        print(f"     {name:14}" + "".join(f"  {v:.3f}".ljust(9) for v in row), flush=True)
 
-    print("\nSANITY: at s=0 all ~match soft_floyd(clean). Under s>0: does MCTS hold "
-          "success better than static soft_floyd on this long-horizon env?", flush=True)
+    print(f"\nSANITY (s=0): all ~match soft_floyd(clean). Under s>0: "
+          + ("MCTS holds vs static soft_floyd?" if a.regime == "e1a"
+             else "mcts_fb detects+routes around the bias vs soft_floyd/mcts_nofb?"), flush=True)
 
 
 if __name__ == "__main__":
