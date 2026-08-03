@@ -8,6 +8,7 @@ optional W&B integration without changing the normal local training scripts.
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import os
 import sys
@@ -18,6 +19,48 @@ from typing import Any, Mapping
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from l3p.config import get_config, list_envs, resolve_env
+
+
+class WandbSink:
+    """Translate scalar trainer events into a single W&B run."""
+
+    def __init__(self, wandb, run, run_name: str):
+        self.wandb = wandb
+        self.run = run
+        self.run_name = run_name
+
+    def __call__(self, event: str, step: int, metrics: Mapping[str, float]) -> None:
+        values = {f"{event}/{name}": float(value) for name, value in metrics.items()}
+        self.wandb.log(values, step=int(step))
+
+    def finish(self) -> None:
+        self.wandb.finish()
+
+    def log_model(self, model_path: Path) -> None:
+        artifact = self.wandb.Artifact(f"{self.run_name}-model", type="model")
+        artifact.add_file(str(model_path))
+        self.run.log_artifact(artifact)
+
+
+def create_wandb_sink(mode: str, project: str, entity: str | None,
+                      run_name: str, config: Mapping[str, Any]) -> WandbSink | None:
+    if mode == "disabled":
+        return None
+    try:
+        wandb = importlib.import_module("wandb")
+    except ModuleNotFoundError as error:
+        raise RuntimeError(
+            "W&B is unavailable; run 'pip install -r requirements-kaggle.txt' "
+            "or pass --wandb-mode disabled",
+        ) from error
+    run = wandb.init(
+        project=project,
+        entity=entity,
+        name=run_name,
+        config=dict(config),
+        mode=mode,
+    )
+    return WandbSink(wandb, run, run_name)
 
 
 def default_output_dir() -> Path:

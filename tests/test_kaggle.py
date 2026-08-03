@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import importlib.util
+import importlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -63,3 +65,72 @@ def test_prepare_run_directory_writes_resolved_config_under_output_root(tmp_path
     with pytest.raises(FileExistsError, match="--overwrite"):
         kaggle.prepare_run_directory(tmp_path, "pointmaze-seed0", config)
     assert kaggle.prepare_run_directory(tmp_path, "pointmaze-seed0", config, overwrite=True) == run_dir
+
+
+class _FakeWandb:
+    def __init__(self):
+        self.logged = []
+        self.init_kwargs = None
+        self.finished = False
+        self.artifacts = []
+        self.run = SimpleNamespace(log_artifact=self.artifacts.append)
+
+    def init(self, **kwargs):
+        self.init_kwargs = kwargs
+        return self.run
+
+    def log(self, values, *, step):
+        self.logged.append((dict(values), step))
+
+    def finish(self):
+        self.finished = True
+
+    class Artifact:
+        def __init__(self, name, type):
+            self.name = name
+            self.type = type
+            self.files = []
+
+        def add_file(self, path):
+            self.files.append(path)
+
+
+def test_disabled_wandb_never_imports_sdk(monkeypatch):
+    kaggle = _load_kaggle_script()
+    monkeypatch.setattr(importlib, "import_module", pytest.fail)
+
+    assert kaggle.create_wandb_sink("disabled", "project", None, "run", {}) is None
+
+
+def test_wandb_sink_prefixes_event_metrics_and_uses_global_step(monkeypatch):
+    kaggle = _load_kaggle_script()
+    fake = _FakeWandb()
+    monkeypatch.setattr(importlib, "import_module", lambda name: fake)
+
+    sink = kaggle.create_wandb_sink("offline", "project", None, "run", {"seed": 0})
+    sink("evaluation", 42, {"success_rate": 0.5})
+
+    assert fake.init_kwargs == {
+        "project": "project", "entity": None, "name": "run",
+        "config": {"seed": 0}, "mode": "offline",
+    }
+    assert fake.logged == [({"evaluation/success_rate": 0.5}, 42)]
+    sink.finish()
+    assert fake.finished
+
+
+def test_wandb_sink_logs_final_model_as_artifact(monkeypatch, tmp_path):
+    kaggle = _load_kaggle_script()
+    fake = _FakeWandb()
+    model_path = tmp_path / "model.pt"
+    model_path.write_bytes(b"model")
+    monkeypatch.setattr(importlib, "import_module", lambda name: fake)
+    sink = kaggle.create_wandb_sink("offline", "project", None, "run", {})
+
+    sink.log_model(model_path)
+
+    assert len(fake.artifacts) == 1
+    artifact = fake.artifacts[0]
+    assert artifact.name == "run-model"
+    assert artifact.type == "model"
+    assert artifact.files == [str(model_path)]
