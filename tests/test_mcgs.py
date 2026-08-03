@@ -285,7 +285,17 @@ def test_no_feasible_root_and_training_fallback_rules():
                               pn_training_unsafe_fallback=True)
     state, achieved, goal, positives = _inputs((0,), 3)
     assert planner.plan(state, achieved, goal, positives, training=False).status is PlanStatus.NO_SAFE_PLAN
-    assert planner.plan(state, achieved, goal, positives, training=True).status is PlanStatus.ACTION
+
+    result = planner.plan(state, achieved, goal, positives, training=True)
+
+    assert result.status is PlanStatus.ACTION
+    assert {"unsafe_fallback", "chosen_p_violation", "chosen_q_risk", "chosen_upper_risk",
+            "chosen_node_id", "chosen_command_goal"} <= result.diagnostics.keys()
+    assert result.diagnostics["unsafe_fallback"] is True
+    assert result.diagnostics["chosen_node_id"] == result.node_id
+    assert np.array_equal(result.diagnostics["chosen_command_goal"], result.command_goal)
+    assert all(np.isfinite(result.diagnostics[name])
+               for name in ("chosen_p_violation", "chosen_q_risk", "chosen_upper_risk"))
 
 
 def test_cold_start_uses_immediate_risk_but_root_uses_posterior_upper_bound():
@@ -310,7 +320,7 @@ def test_root_selection_breaks_ties_by_visits_reward_posterior_risk_then_id():
 
     def edge(target, visits, reward_sum, posterior_risk, immediate_risk):
         result = EdgeStats(target, _prediction(target=1 - immediate_risk, violation=immediate_risk),
-                           prior=1, pseudocount=0, risk_z=0)
+                           prior_score=0, pseudocount=0, risk_z=0)
         result.visits = visits
         result.reward_sum = reward_sum
         result.alpha, result.beta = posterior_risk * 10, (1 - posterior_risk) * 10
@@ -341,9 +351,34 @@ def test_candidates_topk_prior_final_goal_and_cycle_filtering():
     state, achieved, goal, positives = _inputs((0, 1, 2), 3)
     planner.plan(state, achieved, goal, positives)
     root_edges = planner.last_table[NodeKey(ROOT, 3)].edges
-    assert [edge.target_id for edge in root_edges] == [1, 2]
-    assert sum(edge.prior for edge in root_edges) == pytest.approx(1.0)
+    assert [edge.target_id for edge in root_edges] == [1, 2, 0, 3]
     assert (ROOT, GOAL) in callbacks.e_calls
+
+
+def test_top_k_is_applied_after_path_masking_with_local_normalized_priors():
+    distances = _complete_distances(nodes=(-1, 0, 1, 2, 3), default=99)
+    distances.update({(JOIN, 0): 1, (JOIN, 1): 1, (JOIN, GOAL): 1,
+                      (0, GOAL): 0, (1, GOAL): 0})
+    predictions = {(source, target): _prediction()
+                   for source, target in distances if source != target}
+    predictions[(JOIN, GOAL)] = _prediction(target=0.5, stuck=0.5)
+    planner, _, _ = _planner(distances, predictions, d_max=1, pn_top_k=2,
+                              pn_num_simulations=1)
+    state, achieved, goal, positives = _inputs((0, 1, JOIN), GOAL)
+
+    planner.plan(state, achieved, goal, positives)
+    join = planner._node(NodeKey(JOIN, 1))
+    masked_path = frozenset({ROOT, 0, 1, JOIN})
+
+    assert [edge.target_id for edge in join.edges] == [0, 1, GOAL]
+    scores = [edge.prior_score for edge in join.edges]
+    partially_masked = planner._selection_priors(join, frozenset({ROOT, 0, JOIN}))
+    assert [edge.target_id for edge, _ in partially_masked] == [1, GOAL]
+    assert sum(prior for _, prior in partially_masked) == pytest.approx(1.0)
+    assert partially_masked[0][1] > partially_masked[1][1]
+    assert planner._selection_priors(join, masked_path) == [(join.edges[-1], 1.0)]
+    assert planner._select(join, masked_path).target_id == GOAL
+    assert [edge.prior_score for edge in join.edges] == scores
 
 
 def test_leaf_soft_floyd_once_and_exact_risk_no_path_values():
@@ -482,7 +517,7 @@ def test_prediction_validation_and_seeded_outcomes_are_deterministic():
 
 
 def test_edge_stats_posterior_math():
-    edge = EdgeStats(target_id=0, prediction=_prediction(target=0.75, violation=0.25), prior=1.0,
+    edge = EdgeStats(target_id=0, prediction=_prediction(target=0.75, violation=0.25), prior_score=0.0,
                      pseudocount=4.0, risk_z=1.0)
     assert edge.alpha == pytest.approx(2.0)
     assert edge.beta == pytest.approx(4.0)

@@ -112,7 +112,7 @@ class EdgePrediction:
 class EdgeStats:
     target_id: int
     prediction: EdgePrediction
-    prior: float
+    prior_score: float
     pseudocount: float
     risk_z: float
     visits: int = 0
@@ -121,11 +121,11 @@ class EdgeStats:
     beta: float = field(init=False)
 
     def __post_init__(self) -> None:
-        self.prior = float(self.prior)
+        self.prior_score = float(self.prior_score)
         self.pseudocount = float(self.pseudocount)
         self.risk_z = float(self.risk_z)
-        if not isfinite(self.prior) or self.prior < 0.0 or not isfinite(self.pseudocount) or self.pseudocount < 0.0:
-            raise ValueError("prior and pseudocount must be finite and non-negative")
+        if not isfinite(self.prior_score) or not isfinite(self.pseudocount) or self.pseudocount < 0.0:
+            raise ValueError("prior_score must be finite and pseudocount must be finite and non-negative")
         self.alpha = 1.0 + self.pseudocount * self.prediction.p_violation
         self.beta = 1.0 + self.pseudocount * (1.0 - self.prediction.p_violation)
 
@@ -250,12 +250,19 @@ class RiskConstrainedMCGS:
         if result is not None:
             diagnostics.update({"chosen_p_violation": result.prediction.p_violation,
                                 "chosen_q_risk": result.q_risk,
-                                "chosen_upper_risk": result.upper_risk})
+                                "chosen_upper_risk": result.upper_risk,
+                                "chosen_node_id": result.target_id,
+                                "chosen_command_goal": self._node_goal(result.target_id)})
             plan_result = PlanResult(PlanStatus.ACTION, self._node_goal(result.target_id), result.target_id, diagnostics)
         else:
             fallback = self._fallback(training)
             if fallback is not None:
-                diagnostics["unsafe_fallback"] = True
+                diagnostics.update({"unsafe_fallback": True,
+                                    "chosen_p_violation": fallback.prediction.p_violation,
+                                    "chosen_q_risk": fallback.q_risk,
+                                    "chosen_upper_risk": fallback.upper_risk,
+                                    "chosen_node_id": fallback.target_id,
+                                    "chosen_command_goal": self._node_goal(fallback.target_id)})
                 plan_result = PlanResult(PlanStatus.ACTION, self._node_goal(fallback.target_id), fallback.target_id, diagnostics)
             else:
                 plan_result = PlanResult(PlanStatus.NO_SAFE_PLAN, self._goal, None, diagnostics)
@@ -331,14 +338,8 @@ class RiskConstrainedMCGS:
                      - self.cfg.pn_beta_risk * prediction.p_violation)
             items.append((score, target, prediction))
         items.sort(key=lambda item: (-item[0], item[1]))
-        items = items[:int(self.cfg.pn_top_k)]
-        if not items:
-            return []
-        scores = np.asarray([item[0] for item in items], dtype=np.float64)
-        priors = np.exp(scores - scores.max())
-        priors /= priors.sum()
-        return [EdgeStats(target, prediction, float(prior), self.cfg.pn_risk_pseudocount, self.cfg.pn_risk_z)
-                for (_, target, prediction), prior in zip(items, priors)]
+        return [EdgeStats(target, prediction, score, self.cfg.pn_risk_pseudocount, self.cfg.pn_risk_z)
+                for score, target, prediction in items]
 
     def _node(self, key: NodeKey) -> SearchNode:
         node = self._table.get(key)
@@ -347,18 +348,29 @@ class RiskConstrainedMCGS:
             self._table[key] = node
         return node
 
-    def _select(self, node: SearchNode, path: frozenset[int]) -> Optional[EdgeStats]:
+    def _selection_priors(self, node: SearchNode, path: frozenset[int]) -> list[tuple[EdgeStats, float]]:
         # A transposition can be reached through several histories, so this
         # check cannot be frozen when its reusable node object is created.
         feasible = [edge for edge in node.edges
                     if edge.target_id not in path and edge.feasibility_risk <= self.cfg.pn_search_risk_limit]
+        feasible.sort(key=lambda edge: (-edge.prior_score, edge.target_id))
+        feasible = feasible[:int(self.cfg.pn_top_k)]
         if not feasible:
+            return []
+        scores = np.asarray([edge.prior_score for edge in feasible], dtype=np.float64)
+        priors = np.exp(scores - scores.max())
+        priors /= priors.sum()
+        return list(zip(feasible, priors.tolist()))
+
+    def _select(self, node: SearchNode, path: frozenset[int]) -> Optional[EdgeStats]:
+        local_priors = self._selection_priors(node, path)
+        if not local_priors:
             return None
         scale = sqrt(max(node.visits, 1))
-        def score(edge: EdgeStats) -> float:
+        def score(edge: EdgeStats, prior: float) -> float:
             return (edge.q_reward - self.cfg.pn_lambda_search_risk * edge.q_risk
-                    + self.cfg.pn_c_puct * edge.prior * scale / (1 + edge.visits))
-        return min(feasible, key=lambda edge: (-score(edge), edge.target_id))
+                    + self.cfg.pn_c_puct * prior * scale / (1 + edge.visits))
+        return min(local_priors, key=lambda item: (-score(*item), item[0].target_id))[0]
 
     def _simulate(self, key: NodeKey, path: frozenset[int], elapsed: float) -> tuple[float, float, list[EdgeStats], list[SearchNode]]:
         node = self._node(key)
