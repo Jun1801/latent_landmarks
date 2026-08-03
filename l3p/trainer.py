@@ -23,7 +23,7 @@ import hashlib
 import time
 from contextlib import contextmanager
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 import numpy as np
 import torch
@@ -160,9 +160,11 @@ def _episode_success(info: dict, reward: float) -> float:
 
 
 class L3PTrainer:
-    def __init__(self, vec_env, cfg):
+    def __init__(self, vec_env, cfg,
+                 metrics_callback: Optional[Callable[[str, int, Dict[str, float]], None]] = None):
         self.env = vec_env
         self.cfg = cfg
+        self.metrics_callback = metrics_callback
         self.device = torch.device(cfg.device)
         self.rng = np.random.default_rng(cfg.seed)
         torch.manual_seed(cfg.seed)
@@ -1716,6 +1718,18 @@ class L3PTrainer:
         return float(goal_successes / denominator)
 
     # ------------------------------------------------------------------ main loop
+    def _emit_metrics(self, event: str, metrics: Dict[str, float]) -> None:
+        """Send finite scalar diagnostics to an optional external metrics sink."""
+        if self.metrics_callback is None:
+            return
+        scalars = {}
+        for name, value in metrics.items():
+            scalar = float(value)
+            if not np.isfinite(scalar):
+                raise ValueError(f"metric {name!r} must be finite")
+            scalars[str(name)] = scalar
+        self.metrics_callback(str(event), int(self.total_env_steps), scalars)
+
     def train(self, total_steps: Optional[int] = None,
               checkpoint_path: Optional[str] = None, checkpoint_every: int = 0) -> None:
         total_steps = total_steps or self.cfg.total_steps
@@ -1742,16 +1756,28 @@ class L3PTrainer:
                 if logs:
                     msg += " | " + " ".join(f"{k}={v:.3f}" for k, v in logs.items())
                 print(msg, flush=True)
+                train_metrics = dict(logs)
+                train_metrics.update(
+                    episodes_collected=float(self.episodes_collected),
+                    centroids_initialized=float(self.centroids_initialized),
+                    elapsed_seconds=float(time.time() - t0),
+                )
+                self._emit_metrics("train", train_metrics)
 
             if self.total_env_steps % self.cfg.eval_interval < self.env.n * self.T:
                 sr = self.evaluate(self.cfg.eval_episodes)
                 print(f"    >> eval success rate (long-horizon test): {sr:.2f}", flush=True)
+                evaluation_metrics = {"success_rate": float(sr)}
+                if self.cfg.pn_lmcgs_enabled:
+                    evaluation_metrics.update(self.last_eval_metrics)
+                self._emit_metrics("evaluation", evaluation_metrics)
 
             if checkpoint_path and checkpoint_every and \
                     self.total_env_steps - last_ckpt >= checkpoint_every:
                 last_ckpt = self.total_env_steps
                 self.save(checkpoint_path)
                 print(f"    >> checkpoint saved @ {self.total_env_steps} steps", flush=True)
+                self._emit_metrics("checkpoint", {"checkpoint_saved": 1.0})
 
     def _pn_current_config_snapshot(self) -> dict:
         state = vars(self.cfg)

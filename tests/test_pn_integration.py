@@ -611,6 +611,75 @@ def test_train_raises_after_empty_no_safe_plan_collection(monkeypatch):
     assert calls == 1
 
 
+def _metrics_trainer(*, pn_lmcgs_enabled, metrics_callback):
+    source = _tiny_trainer(
+        pn_lmcgs_enabled=pn_lmcgs_enabled,
+        train_after=10,
+        log_interval=1,
+        eval_interval=1,
+        eval_episodes=1,
+    )
+    return L3PTrainer(
+        _TinyVecEnv(), source.cfg, metrics_callback=metrics_callback,
+    )
+
+
+def _advance_one_train_step(trainer):
+    def collect_once():
+        trainer.total_env_steps += 1
+        trainer.episodes_collected += 1
+        return 1
+
+    return collect_once
+
+
+def test_train_callback_emits_scalar_train_and_checkpoint_metrics(monkeypatch, tmp_path):
+    events = []
+    trainer = _metrics_trainer(
+        pn_lmcgs_enabled=False,
+        metrics_callback=lambda event, step, metrics: events.append(
+            (event, step, dict(metrics)),
+        ),
+    )
+    monkeypatch.setattr(trainer, "collect", _advance_one_train_step(trainer))
+    monkeypatch.setattr(trainer, "evaluate", lambda _episodes: 0.5)
+    monkeypatch.setattr(trainer, "save", lambda _path: None)
+
+    trainer.train(total_steps=1, checkpoint_path=str(tmp_path / "checkpoint.pt"),
+                  checkpoint_every=1)
+
+    train_event = next(event for event in events if event[0] == "train")
+    assert train_event[1] == 1
+    assert train_event[2]["episodes_collected"] == 1.0
+    assert train_event[2]["elapsed_seconds"] >= 0.0
+    assert all(isinstance(value, float) for value in train_event[2].values())
+    assert ("checkpoint", 1, {"checkpoint_saved": 1.0}) in events
+
+
+def test_pn_evaluation_callback_includes_safety_metrics(monkeypatch):
+    events = []
+    trainer = _metrics_trainer(
+        pn_lmcgs_enabled=True,
+        metrics_callback=lambda event, step, metrics: events.append(
+            (event, step, dict(metrics)),
+        ),
+    )
+    trainer.last_eval_metrics.update(
+        safe_success_rate=0.75,
+        episode_violation_rate=0.25,
+    )
+    monkeypatch.setattr(trainer, "collect", _advance_one_train_step(trainer))
+    monkeypatch.setattr(trainer, "evaluate", lambda _episodes: 0.8)
+
+    trainer.train(total_steps=1)
+
+    evaluation_event = next(event for event in events if event[0] == "evaluation")
+    assert evaluation_event[1] == 1
+    assert evaluation_event[2]["success_rate"] == 0.8
+    assert evaluation_event[2]["safe_success_rate"] == 0.75
+    assert evaluation_event[2]["episode_violation_rate"] == 0.25
+
+
 def _store_primitive_pn_episode(trainer):
     trainer.buffer.store_episode({
         "obs": np.asarray([[0.0, 0.0], [1.0, 1.0]], dtype=np.float32),
