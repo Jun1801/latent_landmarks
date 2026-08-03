@@ -182,3 +182,30 @@ def test_main_requires_wandb_api_key_for_online_mode(monkeypatch, tmp_path, caps
 
     assert error.value.code == 2
     assert "WANDB_API_KEY" in capsys.readouterr().err
+
+
+def test_wandb_finish_failure_does_not_mask_training_failure(tmp_path, monkeypatch):
+    kaggle = _load_kaggle_script()
+
+    class FailingTrainer:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def train(self, **_kwargs):
+            raise ValueError("training failed")
+
+    class FailingSink:
+        def __call__(self, *_args):
+            pass
+
+        def finish(self):
+            raise RuntimeError("W&B finish failed")
+
+    monkeypatch.setattr(kaggle, "make_vec_env", lambda *_args: object())
+    monkeypatch.setattr(kaggle, "L3PTrainer", FailingTrainer)
+    monkeypatch.setattr(kaggle, "create_wandb_sink", lambda *_args: FailingSink())
+
+    with pytest.raises(ValueError, match="training failed"):
+        kaggle.main([
+            "--output-dir", str(tmp_path), "--run-name", "failure", "--wandb-mode", "offline",
+        ])

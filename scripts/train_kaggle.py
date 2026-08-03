@@ -202,6 +202,7 @@ def main(argv=None) -> None:
         args.wandb_run_name or run_name,
         run_config,
     )
+    active_error = None
     try:
         with Tee(run_dir / "train.log"):
             print(f"===== L3P on {cfg.env_name} | steps={cfg.total_steps} seed={cfg.seed} =====")
@@ -227,9 +228,17 @@ def main(argv=None) -> None:
                 except Exception as error:
                     print(f"W&B artifact upload failed; local model preserved: {error}")
             print(f"Final test success rate: {success_rate:.2f}")
+    except BaseException as error:
+        active_error = error
+        raise
     finally:
         if sink is not None:
-            sink.finish()
+            try:
+                sink.finish()
+            except Exception as error:
+                if active_error is None:
+                    raise
+                print(f"W&B cleanup failed after training error: {error}", file=sys.stderr)
 
 
 if __name__ == "__main__":
