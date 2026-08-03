@@ -467,6 +467,90 @@ def test_callback_batches_reject_wrong_shapes_before_publishing_caches():
     assert planner._prediction_cache == {}
 
 
+def test_zero_positive_plan_accepts_single_scalar_edge_prediction():
+    distances = {(ROOT, 0): 1.0}
+    predictions = {(ROOT, 0): _prediction()}
+    planner, _, _ = _planner(distances, predictions, pn_num_simulations=1)
+    state = np.array([99.0])
+    achieved = np.array([-1.0])
+    goal = np.array([0.0])
+    positives = np.empty((0, 1))
+    planner.edge_prediction_fn = lambda starts, commands, context: predictions[(ROOT, 0)]
+
+    result = planner.plan(state, achieved, goal, positives)
+
+    assert result.status is PlanStatus.ACTION
+    assert result.node_id == 0
+    assert np.array_equal(result.command_goal, goal)
+
+
+def test_edge_callback_rejects_scalar_prediction_for_multirow_batch():
+    distances = _complete_distances(nodes=(ROOT, 0, 1))
+    predictions = {(source, target): _prediction()
+                   for source, target in distances if source != target}
+    planner, _, _ = _planner(distances, predictions)
+    planner.edge_prediction_fn = lambda starts, commands, context: _prediction()
+
+    with pytest.raises(ValueError, match="one prediction per input row"):
+        planner.plan(*_inputs((0,), 1))
+
+
+def test_callbacks_receive_owned_contiguous_float32_inputs_and_cannot_mutate_plan_arguments():
+    distances = _complete_distances(nodes=(ROOT, 0, 1))
+    predictions = {(source, target): _prediction()
+                   for source, target in distances if source != target}
+    planner, _, _ = _planner(distances, predictions, pn_num_simulations=1)
+    state = np.array([99.0], dtype=np.float64)
+    achieved = np.array([-1.0], dtype=np.float64)
+    goal = np.array([1.0], dtype=np.float64)
+    positives = np.array([[0.0]], dtype=np.float64)
+    context = np.array([7.0], dtype=np.float64)
+    originals = tuple(value.copy() for value in (state, achieved, goal, positives, context))
+
+    def assert_callback_array(value):
+        assert value.dtype == np.float32
+        assert value.flags.c_contiguous and value.flags.owndata
+
+    def root(callback_state, targets):
+        assert_callback_array(callback_state)
+        assert_callback_array(targets)
+        result = np.array([distances[(ROOT, int(target[0]))] for target in targets])
+        callback_state.fill(-99.0)
+        targets.fill(-99.0)
+        return result
+
+    def value(sources, targets):
+        assert_callback_array(sources)
+        assert_callback_array(targets)
+        result = np.array([distances[(int(source[0]), int(target[0]))]
+                           for source, target in zip(sources, targets)])
+        sources.fill(-99.0)
+        targets.fill(-99.0)
+        return result
+
+    def edge(starts, commands, callback_context):
+        assert_callback_array(starts)
+        assert_callback_array(commands)
+        assert_callback_array(callback_context)
+        result = [predictions[(int(start[0]), int(command[0]))]
+                  for start, command in zip(starts, commands)]
+        starts.fill(-99.0)
+        commands.fill(-99.0)
+        callback_context.fill(-99.0)
+        return result
+
+    planner.root_distance_fn = root
+    planner.value_distance_fn = value
+    planner.edge_prediction_fn = edge
+
+    result = planner.plan(state, achieved, goal, positives, context=context)
+
+    assert result.status is PlanStatus.ACTION
+    assert np.array_equal(planner._context, context.astype(np.float32))
+    for value, original in zip((state, achieved, goal, positives, context), originals):
+        assert np.array_equal(value, original)
+
+
 @pytest.mark.parametrize("argument, value, message", [
     ("state", np.array([np.inf]), "state"),
     ("achieved_goal", np.array([np.nan]), "achieved_goal"),

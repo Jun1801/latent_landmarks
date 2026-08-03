@@ -216,7 +216,7 @@ class RiskConstrainedMCGS:
         self._positives = np.asarray(positive_goals, dtype=np.float64)
         if self._positives.ndim != 2 or self._positives.shape[1] != len(self._goal) or not np.isfinite(self._positives).all():
             raise ValueError("positive_goals must be a finite [N, goal_dim] array")
-        self._context = None if context is None else _vector(context, "context")
+        self._context = None if context is None else _vector(context, "context").astype(np.float32, copy=True)
         self._goal_id = len(self._positives)
         self._training = bool(training)
         self._prediction_cache: dict[tuple[int, int], EdgePrediction] = {}
@@ -285,8 +285,9 @@ class RiskConstrainedMCGS:
         """Evaluate the complete directed planning graph once for this plan.
 
         The distance callbacks return one finite non-negative scalar per batch
-        row. ``edge_prediction_fn`` returns a sequence of one EdgePrediction
-        per paired ``starts``/``commands`` row, including a one-row batch.
+        row. ``edge_prediction_fn`` returns one EdgePrediction per paired
+        ``starts``/``commands`` row; a scalar EdgePrediction is also accepted
+        for a one-row batch.
         All callback inputs are owned float32 arrays; no cache is published
         until every callback result has passed validation.
         """
@@ -314,7 +315,8 @@ class RiskConstrainedMCGS:
         starts = np.asarray([self._node_goal(source) for source, _ in pairs], dtype=np.float32).copy()
         commands = np.asarray([self._node_goal(target) for _, target in pairs], dtype=np.float32).copy()
         predictions = self._validated_predictions(
-            self.edge_prediction_fn(starts, commands, self._context), len(pairs))
+            self.edge_prediction_fn(starts, commands,
+                                    None if self._context is None else self._context.copy()), len(pairs))
 
         distances = {pair: float(value) for pair, value in zip(root_pairs, root_values)}
         distances.update({pair: float(value) for pair, value in zip(internal_pairs, internal_values)})
@@ -338,6 +340,8 @@ class RiskConstrainedMCGS:
 
     def _validated_predictions(self, values: Any, length: int) -> list[EdgePrediction]:
         if isinstance(values, EdgePrediction):
+            if length == 1:
+                return [values]
             raise ValueError("edge_prediction_fn must return one prediction per input row")
         try:
             predictions = list(values)
