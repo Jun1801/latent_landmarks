@@ -74,3 +74,31 @@ shortest-path, MCTS có earn its keep không?
   được → đó là regime **VLA (Tier 2/3)**, không phải toy N=50.
 - **P1 nên gồm ablation planner** (static Floyd / MPC-replan / robust-shortest-path /
   MCTS-nofb / MCTS-fb) để trả lời thẳng "thành phần nào mới thực sự giúp".
+
+## 6. Sizing subgoals & samples cho VLA (Tier 2) — ĐO, không đoán
+Câu hỏi "bao nhiêu sample / bao nhiêu subgoal là đủ?" **không có số phổ quát** — do vài
+yếu tố quyết định; cách đúng là **đo learning-curve** (đúng methodology N-sweep +
+`aggregate_ablation.py` đã dựng, áp sang VLA-sim). Tách rõ 2 loại sample:
+
+**(A) Ước lượng world-model/reachability `V(g1,g2)`** — "VLA ĐÓNG BĂNG đi từ g1→g2 được
+không, xa bao nhiêu". **Chỗ tốn nhất** (mỗi sample = 1 lần VLA thực thi; robot thật = đắt).
+- "Đủ" phụ thuộc: **chiều nội tại** goal-manifold, reachability **trơn/gãy**, **có tái
+  dùng prior VLA** (điểm ăn tiền: chỉ *map năng lực* VLA có sẵn ≪ *học control* từ đầu như
+  L³P triệu-step), **sim2real pretrain**.
+- Regime (hedged): tái dùng VLA + sim → ~**hàng trăm** trajectory thật; không tái dùng →
+  phình nhanh. **Sample-efficiency = đóng góp** → báo cáo **success vs #trajectory** (tìm knee).
+
+**(B) Chọn tập landmark (N subgoal)** — rẻ (dùng lại data của A). **N do VLA quyết định,
+KHÔNG phải hyperparam tự do:**
+- Landmark cách nhau ~ **tầm-với-một-lệnh VLA** `r` dọc manifold → **N ≈ (kích thước
+  manifold / r)^(chiều nội tại)**.
+- **Có N tối ưu** (N-sweep PointMaze: 25 tốt, 50 **tệ hơn** + đắt) — thêm quá ngưỡng phủ
+  manifold thì **vô ích + hại** (branching rộng → MCTS cây nông; soft-Floyd O(N³) nổ).
+- 1 lệnh VLA phủ nhiều hơn action low-level → subgoal = **waypoint ngữ nghĩa** → **N thường
+  vài chục (10–50)**, không phải hàng trăm như L³P low-level.
+
+**Cách chốt số cụ thể (2 sweep trên VLA-sim):**
+1. **success vs #trajectory** (ngân sách data world-model) → knee = "đủ sample".
+2. **success vs N** (số landmark) → plateau/đỉnh = "đủ subgoal"; kèm **cost-vs-N** (latency).
+Đây đúng là chỗ MCTS mới earn its keep (skill-space lớn/continuous, §5) — nên 2 sweep này
+vừa trả lời sizing, vừa kiểm giả thuyết "MCTS thắng ở regime VLA".
