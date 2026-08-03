@@ -19,6 +19,8 @@ from typing import Any, Mapping
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from l3p.config import get_config, list_envs, resolve_env
+from l3p.envs import make_vec_env
+from l3p.trainer import L3PTrainer
 
 
 class WandbSink:
@@ -72,7 +74,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Train L3P or PN-LMCGS with Kaggle-friendly artifacts.",
     )
-    parser.add_argument("--env", default="FetchPickAndPlace", choices=list_envs())
+    parser.add_argument("--env", default="PointMaze", choices=list_envs())
     parser.add_argument("--steps", type=int, default=1_000_000)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--workers", type=int, default=None)
@@ -139,13 +141,95 @@ def prepare_run_directory(
     return run_dir
 
 
+class Tee:
+    """Write launcher output to both the terminal and a line-buffered file."""
+
+    def __init__(self, path: Path):
+        self.path = path
+        self.terminal = None
+        self.file = None
+
+    def __enter__(self):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.terminal = sys.stdout
+        self.file = self.path.open("a", buffering=1)
+        sys.stdout = self
+        return self
+
+    def __exit__(self, _exc_type, _exc_value, _traceback):
+        sys.stdout = self.terminal
+        self.file.close()
+
+    def write(self, message: str) -> None:
+        self.terminal.write(message)
+        self.file.write(message)
+
+    def flush(self) -> None:
+        self.terminal.flush()
+        self.file.flush()
+
+
 def main(argv=None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
-        build_config(args)
+        cfg = build_config(args)
     except ValueError as error:
         parser.error(str(error))
+
+    if args.wandb_mode == "online" and not os.environ.get("WANDB_API_KEY"):
+        parser.error("--wandb-mode online requires WANDB_API_KEY (set it in Kaggle Secrets)")
+
+    run_name = args.run_name or default_run_name(cfg.env_name, cfg.seed)
+    run_config = {
+        "config": vars(cfg),
+        "launcher": {
+            name: str(value) if isinstance(value, Path) else value
+            for name, value in vars(args).items()
+        },
+    }
+    try:
+        run_dir = prepare_run_directory(
+            args.output_dir, run_name, run_config, overwrite=args.overwrite,
+        )
+    except FileExistsError as error:
+        parser.error(str(error))
+
+    sink = create_wandb_sink(
+        args.wandb_mode,
+        args.wandb_project,
+        args.wandb_entity,
+        args.wandb_run_name or run_name,
+        run_config,
+    )
+    try:
+        with Tee(run_dir / "train.log"):
+            print(f"===== L3P on {cfg.env_name} | steps={cfg.total_steps} seed={cfg.seed} =====")
+            print(f"(artifacts -> {run_dir})")
+            env = make_vec_env(cfg, cfg.n_workers, cfg.seed)
+            trainer = L3PTrainer(env, cfg, metrics_callback=sink)
+            checkpoint_path = run_dir / "checkpoint.pt"
+            trainer.train(
+                checkpoint_path=str(checkpoint_path) if args.save_every else None,
+                checkpoint_every=args.save_every,
+            )
+            model_path = run_dir / "model.pt"
+            trainer.save(str(model_path))
+            print(f"Saved model to {model_path}")
+            success_rate = trainer.evaluate(cfg.eval_episodes)
+            final_metrics = {"success_rate": float(success_rate)}
+            if cfg.pn_lmcgs_enabled:
+                final_metrics.update(trainer.last_eval_metrics)
+            if sink is not None:
+                sink("final", trainer.total_env_steps, final_metrics)
+                try:
+                    sink.log_model(model_path)
+                except Exception as error:
+                    print(f"W&B artifact upload failed; local model preserved: {error}")
+            print(f"Final test success rate: {success_rate:.2f}")
+    finally:
+        if sink is not None:
+            sink.finish()
 
 
 if __name__ == "__main__":

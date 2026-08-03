@@ -26,6 +26,7 @@ def test_kaggle_config_keeps_baseline_default_and_wires_hazard_mode(tmp_path):
     kaggle = _load_kaggle_script()
 
     baseline = kaggle.build_config(kaggle.build_parser().parse_args([]))
+    assert baseline.env_name == "PointMaze"
     assert not baseline.pn_lmcgs_enabled
     assert not baseline.pn_pointmaze_hazard_enabled
 
@@ -134,3 +135,50 @@ def test_wandb_sink_logs_final_model_as_artifact(monkeypatch, tmp_path):
     assert artifact.name == "run-model"
     assert artifact.type == "model"
     assert artifact.files == [str(model_path)]
+
+
+def test_main_saves_local_artifacts_without_wandb(tmp_path, monkeypatch):
+    kaggle = _load_kaggle_script()
+
+    class FakeTrainer:
+        def __init__(self, _env, _cfg, metrics_callback=None):
+            self.metrics_callback = metrics_callback
+            self.last_eval_metrics = {"safe_success_rate": 0.75}
+
+        def train(self, checkpoint_path, checkpoint_every):
+            assert checkpoint_path is None
+            assert checkpoint_every == 0
+            assert self.metrics_callback is None
+
+        def save(self, path):
+            Path(path).write_bytes(b"model")
+
+        def evaluate(self, episodes):
+            assert episodes > 0
+            return 0.5
+
+    monkeypatch.setattr(kaggle, "make_vec_env", lambda *_args: object())
+    monkeypatch.setattr(kaggle, "L3PTrainer", FakeTrainer)
+
+    kaggle.main([
+        "--env", "PointMaze", "--steps", "3", "--output-dir", str(tmp_path),
+        "--run-name", "smoke", "--wandb-mode", "disabled",
+    ])
+
+    run_dir = tmp_path / "smoke"
+    assert (run_dir / "model.pt").read_bytes() == b"model"
+    assert json.loads((run_dir / "config.json").read_text())["config"]["total_steps"] == 3
+    assert (run_dir / "train.log").exists()
+
+
+def test_main_requires_wandb_api_key_for_online_mode(monkeypatch, tmp_path, capsys):
+    kaggle = _load_kaggle_script()
+    monkeypatch.delenv("WANDB_API_KEY", raising=False)
+
+    with pytest.raises(SystemExit) as error:
+        kaggle.main([
+            "--output-dir", str(tmp_path), "--wandb-mode", "online",
+        ])
+
+    assert error.value.code == 2
+    assert "WANDB_API_KEY" in capsys.readouterr().err

@@ -72,6 +72,29 @@ while preserving the float goal-success output for existing scripts.
 
 ---
 
+## Kaggle training with W&B
+
+For a Kaggle notebook, upload or clone this repository, then install the
+Kaggle-only optional dependency set and run the general launcher:
+
+```bash
+pip install -r requirements-kaggle.txt
+python scripts/train_kaggle.py --env PointMaze --pn-lmcgs \
+  --hazardous-pointmaze --steps 500000 --wandb-project latent-landmarks \
+  --wandb-mode online
+```
+
+The launcher accepts every supported `--env`, stores `config.json`, `train.log`,
+interval `checkpoint.pt` files, and the final `model.pt` under
+`/kaggle/working/l3p_runs/<run-name>/` (or `l3p_runs/` outside Kaggle). Use
+`--output-dir`, `--run-name`, and `--save-every` to control those artifacts.
+
+Set `WANDB_API_KEY` through Kaggle Secrets before selecting
+`--wandb-mode online`. The default `--wandb-mode offline` writes a local W&B run
+for later sync; `--wandb-mode disabled` avoids importing W&B entirely.
+
+---
+
 ## How the code maps to the paper
 
 Every component maps to a specific equation / algorithm from the paper.
