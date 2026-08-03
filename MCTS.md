@@ -375,6 +375,54 @@ Claim "feedback sửa bias" vẫn chỉ vững trên **PointMaze critic-`D`** (�
 
 ---
 
+## 7.7 Bộ thí nghiệm robustness — env paper (Route A) + multi-seed
+Dựng lại **stack paper 2019** trên Kaggle và train checkpoint paper-faithful:
+**AntMaze-v1 test-plan ~0.8** (long-horizon, planner load-bearing: test-plan 0.8 >> HER 0.58)
+và **FetchPickAndPlace-v1 ~1.0** (short-horizon). Port MCTS-over-landmarks vào repo paper
+(`repro/paper_mcts/`: engine tự chứa + `PaperMCTSPlanner` override `get_subgoals`, cầu dấu
+V≤0 ↔ D≥0). Chạy song song backbone **multi-seed local** (reimpl PointMaze, 4 seed) +
+**single-seed paper** (Kaggle). Bơm nhiễu vào world-model rồi so soft-Floyd vs MCTS.
+
+**Hai cơ chế robustness — cả hai đều DƯƠNG, đúng chỗ dự đoán:**
+
+*E1a (stochastic) — MCTS sample-averaging.* AntMaze (env có đòn bẩy), 100 sims:
+| σ | soft_floyd | mcts | +pw | +bayes |
+|---|---|---|---|---|
+| 0 | 0.71 | 0.73 | 0.72 | 0.74 |
+| 5 | 0.58 | 0.68 | **0.87** | 0.79 |
+| 10 | **0.19** | **0.50** | 0.42 | 0.52 |
+
+→ Dưới nhiễu, **MCTS >> soft-Floyd** (σ=10: 0.50 vs 0.19); **+pw thắng đậm ở σ=5** (0.87) —
+graph lớn N≈200, đào sâu phát huy (ngược PointMaze nhỏ nơi PW trung tính/hại).
+
+*E1c (bias hệ thống) — execution feedback.* PointMaze reimpl, **4 seed, mean[95% CI]:**
+| σ | soft_floyd | mcts_nofb | mcts_fb |
+|---|---|---|---|
+| 0 | 0.96 | 0.96 | 0.96 |
+| 0.1 | 0.89 | 0.82 | **0.98** |
+| 0.3 | 0.51 [0.37,0.64] | 0.41 [0.27,0.57] | **0.80 [0.70,0.89]** |
+
+→ Dưới bias (wormhole cố định), **feedback thắng rõ** (0.80 vs 0.51, CI gần tách rời).
+*(E1c trên AntMaze paper: notebook `repro/kaggle_notebooks/antmaze_ablation.ipynb` — chờ chạy.)*
+
+**E1a local (PointMaze, 4 seed)** — graph nhỏ/sạch-ish: MPC(fresh) bền nhất (σ=0.3: 0.95),
+mcts≈soft_floyd (0.86 vs 0.83), **3 cờ trung tính** — khớp: giá trị MCTS ở graph lớn+nhiễu,
+không phải nhỏ+sạch.
+
+**Chi phí (Track C):** soft-Floyd ~O(N³)/episode (plan 1 lần), MCTS ~O(n_sim·H·N)/**mỗi**
+macro-step (re-search) → PointMaze N=50: MCTS **~2.4 s/ep** vs soft-Floyd ~8 ms (**~250×**).
+Cost nổ theo N (10→50: 9→2400 ms). `--latency` (paper) + `aggregate_ablation.py` đo trực tiếp.
+
+**Minh hoạ cơ chế (Track V):** `scripts/viz_graph_noise.py` → `logs/exp_suite/viz_pointmaze_{e1a,e1c}.png`:
+graph landmark **clean vs noisy**, highlight **"wormhole"** (cạnh nhiễu làm ngắn giả, xuyên
+tường) — chính là bẫy soft-Floyd cắm vào còn feedback/averaging né được.
+
+**Chốt regime-dependent (câu chuyện paper):** *soft-Floyd tốt + rẻ khi world-model chính xác;
+MCTS ăn tiền khi world-model NHIỄU + task long-horizon (stochastic→averaging, bias→feedback),
+đổi lấy chi phí planning ~250× cao hơn.* Learned world-model thực tế luôn nhiễu → đây là niche thật.
+
+---
+
 ## 8. Tổng hợp — cơ chế robustness
 
 | | Nhiễu | Cơ chế cứu | Kết luận |
