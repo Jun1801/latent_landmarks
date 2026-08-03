@@ -13,6 +13,7 @@ run_test_env_plan_eval for soft_floyd + MCTS variants over a sigma sweep.
 """
 import argparse
 import importlib
+import json
 import os
 import sys
 
@@ -55,6 +56,11 @@ def main():
     p.add_argument("--no_cuda", action="store_true")
     p.add_argument("--latency", action="store_true",
                    help="also report MCTS planning latency (ms/search) per variant")
+    p.add_argument("--out", default=None, help="save the sweep table to JSON (for aggregate/plot)")
+    p.add_argument("--dump", default=None,
+                   help="save one episode's graph (clean/noisy edges, landmark xy, soft-Floyd "
+                        "trajectory + subgoals) to JSON for the clean-vs-noisy figure")
+    p.add_argument("--dump-sigma", type=float, default=None, help="sigma for --dump (default: max)")
     a = p.parse_args()
     ec = ENV_CFG[a.env]
     ckpt = a.resume_ckpt or ec["ckpt"]
@@ -130,6 +136,8 @@ def main():
                     ("mcts_nofb",  "mcts",      False, dict()),
                     ("mcts_fb",    "mcts",      True,  dict())]
 
+    results = {"env": a.env, "regime": a.regime, "sigmas": list(a.sigmas),
+               "sims": a.sims, "variants": {}, "latency": {}}
     print(f"\n[{a.regime}] {'variant':14}" + "".join(f"  s={s}".ljust(9) for s in a.sigmas), flush=True)
     for name, mode, fb, kw in variants:
         row, lat = [], []
@@ -140,13 +148,57 @@ def main():
             row.append(runner(a.episodes))
             calls = getattr(algo.planner, "search_calls", 0)
             lat.append(1000.0 * algo.planner.search_seconds / calls if calls else 0.0)
+        results["variants"][name] = row
+        results["latency"][name] = lat
         print(f"     {name:14}" + "".join(f"  {v:.3f}".ljust(9) for v in row), flush=True)
         if a.latency:
             print(f"     {'  ^ ms/search':14}" + "".join(f"  {v:.0f}".ljust(9) for v in lat), flush=True)
 
+    if a.out:
+        os.makedirs(os.path.dirname(a.out) or ".", exist_ok=True)
+        json.dump(results, open(a.out, "w"), indent=2)
+        print(f"\nsaved sweep -> {a.out}", flush=True)
+
+    if a.dump:
+        _dump_episode(algo, a, np, PaperMCTSPlanner, MctsCfg,
+                      a.dump_sigma if a.dump_sigma is not None else max(a.sigmas))
+
     print(f"\nSANITY (s=0): all ~match soft_floyd(clean). Under s>0: "
           + ("MCTS holds vs static soft_floyd?" if a.regime == "e1a"
              else "mcts_fb detects+routes around the bias vs soft_floyd/mcts_nofb?"), flush=True)
+
+
+def _dump_episode(algo, a, np, PaperMCTSPlanner, MctsCfg, sigma):
+    """Record one episode's graph (clean/noisy edges, landmark xy) + soft-Floyd-style
+    achieved trajectory + chosen sub-goals for the clean-vs-noisy figure."""
+    algo.planner.__class__ = PaperMCTSPlanner
+    algo.planner.configure_mcts(MctsCfg(n_simulations=a.sims), sigma=float(sigma),
+                                select_mode="mcts", regime=a.regime, feedback=False, noise_seed=0)
+    env = algo.test_env if hasattr(algo, "test_env") else algo.env
+    o = env.reset(); ob, bg, ag = o['observation'], o['desired_goal'], o['achieved_goal']
+    algo.planner.reset(); algo.planner.update(goals=bg.copy(), test_time=True)
+    xy = lambda v: np.asarray(v).reshape(-1)[:2].tolist()
+    traj, subs, info = [xy(ag)], [], None
+    for _t in range(env._max_episode_steps):
+        sub = algo.planner.get_subgoals(ob, bg.copy(), achieved_goal=ag.copy())
+        pg = algo.planner.past_goal.get(0, -1)
+        if pg != -1 and (not subs or subs[-1] != pg):
+            subs.append(int(pg))
+        o, r, d, info = env.step(algo.agent.get_actions(ob, sub))
+        ob, bg, ag = o['observation'], o['desired_goal'], o['achieved_goal']
+        traj.append(xy(ag))
+        i0 = info[0] if isinstance(info, (list, tuple)) else info
+        if i0.get('is_success') == 1.0:
+            break
+    n = algo.planner.n_landmarks
+    lm = algo.planner.landmarks[:n].detach().cpu().numpy()[:, :2]
+    dump = dict(env=a.env, regime=a.regime, sigma=float(sigma), n=int(n),
+                landmark_xy=lm.tolist(), edge_clean=algo.planner._edge_clean.tolist(),
+                edge_noisy=algo.planner._edge_noisy.tolist(),
+                traj=traj, subgoals=subs, goal=xy(bg), start=traj[0])
+    os.makedirs(os.path.dirname(a.dump) or ".", exist_ok=True)
+    json.dump(dump, open(a.dump, "w"))
+    print(f"dumped graph+trajectory -> {a.dump}  (n={n}, steps={len(traj)}, subgoals={len(subs)})")
 
 
 if __name__ == "__main__":
