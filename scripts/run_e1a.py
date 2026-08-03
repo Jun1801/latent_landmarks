@@ -182,6 +182,14 @@ def main():
                    help="override Config.mcts_n_simulations (fixed across all sigma/seeds)")
     p.add_argument("--mcts-rollout-horizon", type=int, default=None,
                    help="override Config.mcts_rollout_horizon")
+    p.add_argument("--suffix-backup", action="store_true",
+                   help="MCTS return-to-go (suffix) backup [upgrade 1]")
+    p.add_argument("--pw", action="store_true",
+                   help="MCTS progressive widening on deep nodes [upgrade 2]")
+    p.add_argument("--pw-c", type=float, default=None, help="PW branch budget c")
+    p.add_argument("--pw-alpha", type=float, default=None, help="PW branch exponent alpha")
+    p.add_argument("--uncertainty-mode", choices=["none", "bayes", "thompson"], default=None,
+                   help="oracle-free posterior uncertainty [upgrade 3]")
     p.add_argument("--d-max", type=float, default=None,
                    help="fix d_max explicitly and SKIP calibration (default: auto-calibrate, spec R3)")
     p.add_argument("--calibrate-episodes", type=int, default=20,
@@ -199,6 +207,16 @@ def main():
         cfg_overrides["mcts_n_simulations"] = args.mcts_n_simulations
     if args.mcts_rollout_horizon is not None:
         cfg_overrides["mcts_rollout_horizon"] = args.mcts_rollout_horizon
+    if args.suffix_backup:
+        cfg_overrides["mcts_suffix_backup"] = True
+    if args.pw:
+        cfg_overrides["mcts_progressive_widening"] = True
+    if args.pw_c is not None:
+        cfg_overrides["mcts_pw_c"] = args.pw_c
+    if args.pw_alpha is not None:
+        cfg_overrides["mcts_pw_alpha"] = args.pw_alpha
+    if args.uncertainty_mode is not None:
+        cfg_overrides["mcts_uncertainty_mode"] = args.uncertainty_mode
     cfg = get_config(args.env, seed=args.seeds[0], **cfg_overrides)
     env = make_vec_env(cfg, 1, cfg.seed)
     trainer = L3PTrainer(env, cfg)

@@ -145,10 +145,17 @@ def main():
     p.add_argument("--n-boot", type=int, default=2000)
     p.add_argument("--mcts-n-simulations", type=int, default=120)
     p.add_argument("--mcts-rollout-horizon", type=int, default=10)
-    p.add_argument("--uncertainty-mode", choices=["none", "alpha", "beta", "both"],
+    p.add_argument("--uncertainty-mode",
+                   choices=["none", "alpha", "beta", "both", "bayes", "thompson"],
                    default="none")
     p.add_argument("--lambda-risk", type=float, default=1.0)
     p.add_argument("--beta-unc", type=float, default=1.0)
+    p.add_argument("--suffix-backup", action="store_true",
+                   help="MCTS return-to-go (suffix) backup [upgrade 1]")
+    p.add_argument("--pw", action="store_true",
+                   help="MCTS progressive widening on deep nodes [upgrade 2]")
+    p.add_argument("--pw-c", type=float, default=None)
+    p.add_argument("--pw-alpha", type=float, default=None)
     p.add_argument("--d-max", type=float, default=None)
     p.add_argument("--calibrate-episodes", type=int, default=20)
     p.add_argument("--out", type=str, default="logs/e1c_results.json")
@@ -158,12 +165,21 @@ def main():
     if 0.0 not in args.sigmas and not args.allow_missing_zero:
         args.sigmas = [0.0] + list(args.sigmas)
 
+    _extra = {}
+    if args.suffix_backup:
+        _extra["mcts_suffix_backup"] = True
+    if args.pw:
+        _extra["mcts_progressive_widening"] = True
+    if args.pw_c is not None:
+        _extra["mcts_pw_c"] = args.pw_c
+    if args.pw_alpha is not None:
+        _extra["mcts_pw_alpha"] = args.pw_alpha
     cfg = get_config(args.env, seed=args.seeds[0],
                      mcts_n_simulations=args.mcts_n_simulations,
                      mcts_rollout_horizon=args.mcts_rollout_horizon,
                      mcts_uncertainty_mode=args.uncertainty_mode,
                      mcts_lambda_risk=args.lambda_risk,
-                     mcts_beta_uncertainty=args.beta_unc)
+                     mcts_beta_uncertainty=args.beta_unc, **_extra)
     env = make_vec_env(cfg, 1, cfg.seed)
     trainer = L3PTrainer(env, cfg)
     trainer.load(args.load)
