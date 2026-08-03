@@ -403,7 +403,21 @@ graph lớn N≈200, đào sâu phát huy (ngược PointMaze nhỏ nơi PW trun
 | 0.3 | 0.51 [0.37,0.64] | 0.41 [0.27,0.57] | **0.80 [0.70,0.89]** |
 
 → Dưới bias (wormhole cố định), **feedback thắng rõ** (0.80 vs 0.51, CI gần tách rời).
-*(E1c trên AntMaze paper: notebook `repro/kaggle_notebooks/antmaze_ablation.ipynb` — chờ chạy.)*
+
+*E1c trên AntMaze (paper, single-seed, fine sweep):*
+| σ | soft_floyd | mcts_nofb | mcts_fb |
+|---|---|---|---|
+| 0 | 0.77 | 0.79 | 0.82 |
+| 0.05 | 0.74 | 0.77 | **0.81** |
+| 0.10 | 0.69 | 0.70 | **0.76** |
+| 0.15 | 0.67 | 0.72 | **0.74** |
+| 0.20 | 0.49 | 0.74* | 0.56 |
+
+→ **mcts_fb ≥ soft_floyd ở MỌI σ** (+0.05–0.09) — feedback cứu bias trên env paper, nhưng
+**modest** (không "kịch tính" như PointMaze). **Cơ chế KHÁC theo env:** PointMaze win thuần
+do *feedback* (nofb 0.41 **tệ hơn** floyd); AntMaze **replan/lookahead đã gánh chính** (nofb
+cũng > floyd), feedback thêm chút. *(σ=0.2 nofb=0.74 phi lý-tăng → nghi variance 1-seed.)*
+**Caveat:** single-seed × 90 ep → gap nhỏ cần multi-seed/CI mới firm.
 
 **E1a local (PointMaze, 4 seed)** — graph nhỏ/sạch-ish: MPC(fresh) bền nhất (σ=0.3: 0.95),
 mcts≈soft_floyd (0.86 vs 0.83), **3 cờ trung tính** — khớp: giá trị MCTS ở graph lớn+nhiễu,
@@ -413,9 +427,13 @@ không phải nhỏ+sạch.
 macro-step (re-search) → PointMaze N=50: MCTS **~2.4 s/ep** vs soft-Floyd ~8 ms (**~250×**).
 Cost nổ theo N (10→50: 9→2400 ms). `--latency` (paper) + `aggregate_ablation.py` đo trực tiếp.
 
-**Minh hoạ cơ chế (Track V):** `scripts/viz_graph_noise.py` → `logs/exp_suite/viz_pointmaze_{e1a,e1c}.png`:
-graph landmark **clean vs noisy**, highlight **"wormhole"** (cạnh nhiễu làm ngắn giả, xuyên
-tường) — chính là bẫy soft-Floyd cắm vào còn feedback/averaging né được.
+**Minh hoạ cơ chế (Track V)** — `logs/exp_suite/`:
+- `viz_pointmaze_{e1a,e1c}.png`, `viz_antmaze_e1c.png` (`viz_graph_noise.py`): graph landmark
+  **clean vs noisy**, **"wormhole"** đỏ (cạnh nhiễu làm ngắn giả). AntMaze thấy rõ wormhole
+  **cắt ngang tường U-maze** = "teleport" giả — bẫy soft-Floyd tin, MCTS né.
+- `plans_pointmaze_e1c.png` (`viz_plans.py`): **plan 3 planner cạnh nhau** cùng episode/nhiễu —
+  soft_floyd FAIL (2 subgoal, cắm wormhole), mcts_nofb FAIL (171, thrash), **mcts_fb REACHED (9)**.
+- `summary_{e1a,e1c}.png` (PointMaze CI) + `summary_antmaze.png` (AntMaze E1a+E1c) (`aggregate_ablation.py`).
 
 **Chốt regime-dependent (câu chuyện paper):** *soft-Floyd tốt + rẻ khi world-model chính xác;
 MCTS ăn tiền khi world-model NHIỄU + task long-horizon (stochastic→averaging, bias→feedback),
