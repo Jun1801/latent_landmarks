@@ -431,8 +431,9 @@ Cost nổ theo N (10→50: 9→2400 ms). `--latency` (paper) + `aggregate_ablati
 - `viz_pointmaze_{e1a,e1c}.png`, `viz_antmaze_e1c.png` (`viz_graph_noise.py`): graph landmark
   **clean vs noisy**, **"wormhole"** đỏ (cạnh nhiễu làm ngắn giả). AntMaze thấy rõ wormhole
   **cắt ngang tường U-maze** = "teleport" giả — bẫy soft-Floyd tin, MCTS né.
-- `plans_pointmaze_e1c.png` (`viz_plans.py`): **plan 3 planner cạnh nhau** cùng episode/nhiễu —
-  soft_floyd FAIL (2 subgoal, cắm wormhole), mcts_nofb FAIL (171, thrash), **mcts_fb REACHED (9)**.
+- `plans_{pointmaze,antmaze}_e1c.png` (`viz_plans.py`): **plan 3 planner cạnh nhau** cùng
+  episode/nhiễu. PointMaze: soft_floyd FAIL (cắm wormhole) / mcts_nofb FAIL (thrash) / **mcts_fb
+  REACHED**. AntMaze U-maze: **soft_floyd FAIL (kẹt góc phải)** / mcts_nofb & mcts_fb **đi trọn U tới goal**.
 - `summary_{e1a,e1c}.png` (PointMaze CI) + `summary_antmaze.png` (AntMaze E1a+E1c) (`aggregate_ablation.py`).
 
 **Chốt regime-dependent (câu chuyện paper):** *soft-Floyd tốt + rẻ khi world-model chính xác;
