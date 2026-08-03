@@ -39,6 +39,39 @@ python scripts/eval.py --load l3p_pointmaze.pt --episodes 50 --show-landmarks
 
 ---
 
+## PN-LMCGS safety workflow (optional)
+
+The baseline remains unchanged: PN-LMCGS is disabled unless `--pn-lmcgs` is
+selected. Train and evaluate a PN checkpoint with:
+
+```bash
+python scripts/train_pointmaze.py --pn-lmcgs --steps 500000 --save pn_pointmaze.pt
+python scripts/eval.py --pn-lmcgs --load pn_pointmaze.pt --episodes 50
+```
+
+PointMaze also has an opt-in two-route task with a short hazardous route and a
+longer safe detour. It is PointMaze-only; `--hazardous-pointmaze` automatically
+enables PN-LMCGS, and evaluation must use the same structural geometry:
+
+```bash
+python scripts/train_pointmaze.py --pn-lmcgs --hazardous-pointmaze --steps 500000 --save pn_hazard.pt
+python scripts/eval.py --pn-lmcgs --hazardous-pointmaze --load pn_hazard.pt --episodes 50
+```
+
+Safety input precedence is: separate Safety-Gym cost, then `info["safety_cost"]`,
+then `info["cost"]`, then an explicitly enabled collision adapter, otherwise
+zero. Collision inference is disabled by default: ordinary contact is not
+treated as unsafe. For an environment that needs an adapter, explicitly set
+`pn_collision_cost_enabled=True`, `pn_collision_cost_info_key`, and optionally
+`pn_collision_cost_unsafe_value` in its `Config`.
+
+PN checkpoints use v3 state and retain legacy checkpoint compatibility. The
+trainer progresses through `WARMUP`, `LANDMARKS`, `MACRO_BOOTSTRAP`, and `JOINT`
+gates; PN runs report `safe_success_rate` as the primary safety-aware metric
+while preserving the float goal-success output for existing scripts.
+
+---
+
 ## How the code maps to the paper
 
 Every component maps to a specific equation / algorithm from the paper.
