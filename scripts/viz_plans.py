@@ -32,19 +32,21 @@ def run_episode(tr, planner, es, max_steps):
     e.rng = np.random.default_rng(es); obs = e.reset()   # seed BEFORE reset (start/goal)
     goal = obs["desired_goal"].astype(np.float32)
     planner.reset(goal)
-    traj, subs, succ = [obs["achieved_goal"].copy()], [], 0
+    traj, subs, aims, succ = [obs["achieved_goal"].copy()], [], [], 0
     for _ in range(max_steps):
+        pos = np.asarray(obs["achieved_goal"]).copy()      # position when the subgoal is (re)chosen
         a = planner.act(obs["observation"], achieved_goal=obs["achieved_goal"])
         obs, r, d, info = e.step(a)
         traj.append(obs["achieved_goal"].copy())
         si = getattr(planner, "subg_idx", None)
         if si is not None and (not subs or subs[-1] != si):
             subs.append(int(si))
+            aims.append((pos, int(si)))                    # faithful "aim" vector at re-plan
         if float(info.get("is_success", r == 0.0)) > 0:   # PointMaze: reward 0 = reached
             succ = 1; break
         if d:
             break
-    return np.array(traj), subs, succ, goal, np.asarray(traj[0])
+    return np.array(traj), subs, succ, goal, np.asarray(traj[0]), aims
 
 
 def main():
@@ -115,15 +117,18 @@ def main():
                     ax.plot(xy[[i, j], 0], xy[[i, j], 1], color=("red" if red else "0.8"),
                             lw=(1.5 if red else 0.4), alpha=(0.7 if red else 0.3), zorder=1)
         ax.scatter(xy[:, 0], xy[:, 1], s=14, c="steelblue", zorder=3)
-        # planned route: start -> chosen subgoals -> goal (dashed)
-        route = [start] + [xy[i] for i in subs if i < N] + [goal]
-        route = np.array(route)
-        ax.plot(route[:, 0], route[:, 1], "--", color="orange", lw=1.6, alpha=0.85, zorder=4,
-                label="planned route")
+        # faithful "aim" arrows: from the agent's position at each re-plan -> the
+        # sub-goal it then committed to (reactive planning, NOT a precomputed route)
+        aims = runs[k][5]
+        for idx, (pos, si) in enumerate(aims[:20]):        # cap arrows so thrashing stays readable
+            tgt = xy[si] if si < N else goal
+            ax.annotate("", xy=(tgt[0], tgt[1]), xytext=(pos[0], pos[1]),
+                        arrowprops=dict(arrowstyle="->", color="orange", lw=1.2, alpha=0.6), zorder=4)
         ax.scatter([xy[i, 0] for i in subs if i < N], [xy[i, 1] for i in subs if i < N],
-                   s=120, facecolors="none", edgecolors="orange", linewidths=2, zorder=6)
+                   s=110, facecolors="none", edgecolors="orange", linewidths=1.8, zorder=6,
+                   label="sub-goal aimed")
         ax.plot(traj[:, 0], traj[:, 1], "-", color="navy", lw=2.2, alpha=0.95, zorder=5,
-                label="achieved")
+                label="achieved path")
         ax.scatter([start[0]], [start[1]], marker="s", s=90, c="green", edgecolors="k", zorder=7)
         ax.scatter([goal[0]], [goal[1]], marker="*", s=300, c="gold", edgecolors="k", zorder=7)
         ax.set_title(f"{k}   {'REACHED' if succ else 'FAILED'}   ({len(subs)} subgoals)",
