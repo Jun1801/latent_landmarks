@@ -150,6 +150,16 @@ class EdgeStats:
     def feasibility_risk(self) -> float:
         return self.prediction.p_violation if self.visits == 0 else self.upper_risk
 
+    @property
+    def search_risk(self) -> float:
+        # The conservative prior starts above the default search limit even
+        # for p=0. Gather safe evidence until a rollout reports nonzero risk;
+        # final root selection still always uses the posterior upper bound.
+        prior_alpha = 1.0 + self.pseudocount * self.prediction.p_violation
+        if self.alpha <= prior_alpha:
+            return self.prediction.p_violation
+        return self.upper_risk
+
     def update(self, reward_return: float, safety_return: float) -> None:
         self.visits += 1
         self.reward_sum += float(reward_return)
@@ -402,7 +412,8 @@ class RiskConstrainedMCGS:
         # A transposition can be reached through several histories, so this
         # check cannot be frozen when its reusable node object is created.
         feasible = [edge for edge in node.edges
-                    if edge.target_id not in path and edge.feasibility_risk <= self.cfg.pn_search_risk_limit]
+                    if edge.target_id not in path
+                    and edge.search_risk <= self.cfg.pn_search_risk_limit]
         feasible.sort(key=lambda edge: (-edge.prior_score, edge.target_id))
         feasible = feasible[:int(self.cfg.pn_top_k)]
         if not feasible:

@@ -109,7 +109,12 @@ class PNPlannerAdapter:
         achieved = _vector(achieved_goal, "achieved_goal")
         final = _vector(final_goal, "final_goal", len(achieved))
         positives = self._prepare_plan(final, context)
-        return self.search.plan(state_array, achieved, final, positives, self._context, training=training)
+        search_context = None if self._context is not None and self._context.size == 0 \
+            else self._context
+        return self.search.plan(
+            state_array, achieved, final, positives, search_context,
+            training=training,
+        )
 
     def _root_distance(self, state: np.ndarray, targets: np.ndarray) -> np.ndarray:
         result = np.asarray(self.agent.distance_after_action(state, targets), dtype=np.float32)

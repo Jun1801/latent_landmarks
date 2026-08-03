@@ -15,7 +15,7 @@ from l3p.envs.vec_env import make_vec_env
 from l3p.models.landmarks import LatentLandmarks
 from l3p.planning.graph_search import GraphSearch
 from l3p.planning.planner import LatentPlanner
-from l3p.pn_lmcgs.mcgs import PlanStatus
+from l3p.pn_lmcgs.mcgs import EdgePrediction, PlanStatus
 from l3p.pn_lmcgs.macro_replay import MacroAttempt
 from l3p.pn_lmcgs.macro_transition_model import MacroTransitionModel
 from l3p.pn_lmcgs.planner_adapter import CommandResult, PNPlannerAdapter
@@ -330,6 +330,44 @@ def test_phase_gates_do_not_enable_mcgs_early():
     trainer = _tiny_trainer(pn_lmcgs_enabled=True)
 
     assert trainer.pn_phase != PNPhase.JOINT
+
+
+def test_joint_collection_with_default_limits_keeps_zero_risk_plan_available(
+        monkeypatch):
+    trainer = _tiny_trainer(
+        pn_lmcgs_enabled=True,
+        pn_k_min=1,
+        pn_k_max=1,
+        pn_probability_mcg_search=1.0,
+        pn_probability_original_planner=0.0,
+        pn_probability_direct_goal=0.0,
+    )
+    trainer.pn_phase = PNPhase.JOINT
+    trainer.centroids_initialized = True
+    trainer.pn_positive_active = True
+    prediction = EdgePrediction()
+    monkeypatch.setattr(
+        trainer.pn_planner.search,
+        "edge_prediction_fn",
+        lambda starts, _commands, _context: [prediction] * len(starts),
+    )
+    env = trainer.env.envs[0]
+    monkeypatch.setattr(
+        env,
+        "step",
+        lambda _action: (
+            env._observation(), -1.0, True, False, {"safety_cost": 0.0},
+        ),
+    )
+
+    episode = trainer.collect_episode(
+        env, use_planning=True, random_actions=False,
+    )
+
+    assert episode is not None
+    assert episode["length"] == 1
+    assert trainer.pn_last_collection_status == "completed"
+    assert trainer.pn_no_safe_plan_count == 0
 
 
 def test_old_checkpoint_loads_and_new_checkpoint_round_trips(tmp_path):

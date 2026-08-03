@@ -192,7 +192,7 @@ Candidates must pass `d_max`, immediate violation probability, non-self, path-cy
 
 ### Search and risk
 
-Each search edge owns visit count, reward sum, and Beta risk parameters initialized from the model's immediate violation probability. Selection uses PUCT only among edges whose risk estimate is below `pn_search_risk_limit`. For an unvisited edge, feasibility uses its calibrated immediate violation probability; after its first simulated outcome, feasibility uses the conservative Beta posterior bound. This cold-start rule is required because the guide's recommended Beta(1, 5) zero-risk prior has an upper approximation near 0.40, which otherwise exceeds the default 0.20 search limit and prevents the first rollout. Root selection still uses the posterior bound after simulations.
+Each search edge owns visit count, reward sum, and Beta risk parameters initialized from the model's immediate violation probability. Selection uses PUCT only among edges whose search risk is below `pn_search_risk_limit`. While an edge has accumulated no positive simulated safety return, search risk remains its calibrated immediate violation probability so the search can gather enough safe evidence to tighten the conservative bound. After any positive safety return, search risk switches to the Beta posterior upper bound. This bootstrap is required because the guide's recommended zero-risk prior remains above the default 0.20 search limit even after one safe rollout. Root selection always uses the posterior upper bound after simulations.
 
 Chance simulation handles:
 

@@ -123,6 +123,36 @@ def test_zero_risk_chooses_shortest_route_and_returns_goal_copy():
     assert result.command_goal is not positives[SHORT]
 
 
+def test_default_risk_limits_accumulate_safe_evidence_and_choose_short_route():
+    distances = _complete_distances()
+    distances.update({
+        (ROOT, SHORT): 1,
+        (ROOT, LONG): 3,
+        (ROOT, GOAL): 9,
+        (SHORT, GOAL): 1,
+        (LONG, GOAL): 1,
+    })
+    predictions = {
+        (source, target): _prediction()
+        for source, target in distances if source != target
+    }
+    cfg = get_config("PointMaze", soft_iters=1)
+    callbacks = _Callbacks(distances, predictions)
+    planner = RiskConstrainedMCGS(
+        cfg, _IdentityGraphSearch(), callbacks.root, callbacks.value,
+        callbacks.edge, rng=np.random.default_rng(7),
+    )
+
+    result = planner.plan(*_inputs())
+
+    assert result.status is PlanStatus.ACTION
+    assert result.node_id == SHORT
+    root = planner.last_table[NodeKey(ROOT, cfg.pn_macro_depth)]
+    chosen = next(edge for edge in root.edges if edge.target_id == SHORT)
+    assert chosen.visits > 1
+    assert chosen.upper_risk <= cfg.pn_root_risk_limit
+
+
 def test_risky_short_route_yields_safe_long_route_under_root_threshold():
     distances = _complete_distances()
     distances.update({(ROOT, SHORT): 1, (ROOT, LONG): 3, (SHORT, GOAL): 1, (LONG, GOAL): 1})
@@ -310,7 +340,12 @@ def test_cold_start_uses_immediate_risk_but_root_uses_posterior_upper_bound():
     planner.plan(state, achieved, goal, positives)
     edge = planner.last_table[NodeKey(ROOT, 3)].edges[0]
     assert edge.visits == 1 and edge.feasibility_risk > 0.2
+    assert edge.search_risk == edge.prediction.p_violation
     assert edge.upper_risk == pytest.approx(edge.q_risk + planner.cfg.pn_risk_z * edge.risk_std)
+
+    edge.update(reward_return=0.0, safety_return=1.0)
+
+    assert edge.search_risk == edge.upper_risk
 
 
 def test_root_selection_breaks_ties_by_visits_reward_posterior_risk_then_id():
