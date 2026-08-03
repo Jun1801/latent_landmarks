@@ -52,13 +52,14 @@ The trainer emits these events:
 - `evaluation`: long-horizon success rate and, for PN-LMCGS, all values from
   `last_eval_metrics`, including safe-success rate and safety-cost metrics.
 - `checkpoint`: a numeric checkpoint-saved flag at the saved step.
-- `final`: final evaluation metrics and success rate.
 
 The Kaggle launcher maps these events to stable W&B metric names, logs only
 numeric metrics, and uses the global step as W&B's step. PN-only diagnostics
 are included only when PN-LMCGS is enabled. The run config records all
 resolved L3P configuration fields plus launcher arguments. Artifact paths are
-owned by the launcher rather than the scalar callback payload.
+owned by the launcher rather than the scalar callback payload. After saving the
+final model and running final evaluation, the launcher emits the numeric
+`final` event itself.
 
 ## W&B Lifecycle
 

@@ -55,13 +55,19 @@ def create_wandb_sink(mode: str, project: str, entity: str | None,
             "W&B is unavailable; run 'pip install -r requirements-kaggle.txt' "
             "or pass --wandb-mode disabled",
         ) from error
-    run = wandb.init(
-        project=project,
-        entity=entity,
-        name=run_name,
-        config=dict(config),
-        mode=mode,
-    )
+    try:
+        run = wandb.init(
+            project=project,
+            entity=entity,
+            name=run_name,
+            config=dict(config),
+            mode=mode,
+        )
+    except Exception as error:
+        raise RuntimeError(
+            "W&B initialization failed; use --wandb-mode offline or disabled "
+            f"to continue without an online run ({error})",
+        ) from error
     return WandbSink(wandb, run, run_name)
 
 
@@ -131,6 +137,10 @@ def default_run_name(env_name: str, seed: int) -> str:
 def prepare_run_directory(
         output_dir: Path, run_name: str, config: Mapping[str, Any],
         *, overwrite: bool = False) -> Path:
+    run_name_path = Path(run_name)
+    if (not run_name or run_name_path.is_absolute() or len(run_name_path.parts) != 1
+            or run_name_path.name in ("", ".", "..")):
+        raise ValueError("run name must be a single relative directory name")
     run_dir = Path(output_dir) / run_name
     if run_dir.exists() and any(run_dir.iterdir()) and not overwrite:
         raise FileExistsError(f"run directory {run_dir} exists; pass --overwrite to reuse it")
@@ -192,7 +202,7 @@ def main(argv=None) -> None:
         run_dir = prepare_run_directory(
             args.output_dir, run_name, run_config, overwrite=args.overwrite,
         )
-    except FileExistsError as error:
+    except (FileExistsError, ValueError) as error:
         parser.error(str(error))
 
     sink = create_wandb_sink(

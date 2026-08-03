@@ -68,6 +68,14 @@ def test_prepare_run_directory_writes_resolved_config_under_output_root(tmp_path
     assert kaggle.prepare_run_directory(tmp_path, "pointmaze-seed0", config, overwrite=True) == run_dir
 
 
+@pytest.mark.parametrize("run_name", ("/tmp/escaped", "../escaped", "nested/run", ".", ""))
+def test_prepare_run_directory_rejects_names_that_escape_output_root(tmp_path, run_name):
+    kaggle = _load_kaggle_script()
+
+    with pytest.raises(ValueError, match="run name"):
+        kaggle.prepare_run_directory(tmp_path, run_name, {"seed": 0})
+
+
 class _FakeWandb:
     def __init__(self):
         self.logged = []
@@ -118,6 +126,19 @@ def test_wandb_sink_prefixes_event_metrics_and_uses_global_step(monkeypatch):
     assert fake.logged == [({"evaluation/success_rate": 0.5}, 42)]
     sink.finish()
     assert fake.finished
+
+
+def test_wandb_init_failure_includes_offline_and_disabled_guidance(monkeypatch):
+    kaggle = _load_kaggle_script()
+
+    class FailingWandb:
+        def init(self, **_kwargs):
+            raise RuntimeError("authentication failed")
+
+    monkeypatch.setattr(importlib, "import_module", lambda name: FailingWandb())
+
+    with pytest.raises(RuntimeError, match="--wandb-mode offline or disabled"):
+        kaggle.create_wandb_sink("online", "project", None, "run", {})
 
 
 def test_wandb_sink_logs_final_model_as_artifact(monkeypatch, tmp_path):
