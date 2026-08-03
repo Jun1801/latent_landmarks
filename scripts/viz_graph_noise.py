@@ -58,7 +58,7 @@ def render(xy, D, Dn, adm, worm, goal, start, traj, subg, out, subtitle):
     print(f"saved {out}  |  {int(worm.sum())} wormhole edges, {int(adm.sum() // 2)} admissible")
 
 
-def from_dump(path, pct):
+def from_dump(path, pct, worm_frac=0.5):
     d = json.load(open(path))
     n = d["n"]
     xy = np.asarray(d["landmark_xy"])
@@ -66,11 +66,11 @@ def from_dump(path, pct):
     Dn = -np.asarray(d["edge_noisy"])[:n, :n]
     np.fill_diagonal(D, np.inf)
     adm = D <= np.percentile(D[np.isfinite(D)], pct)
-    worm = adm & (Dn < 0.5 * D)
+    worm = adm & (Dn < worm_frac * D)            # edge looks >= 1/worm_frac x shorter
     sub = f"({d['regime']}, sigma={d['sigma']})"
+    subg = [s for s in (d.get("subgoals") or []) if s < n]   # drop the goal node (idx n)
     return dict(xy=xy, D=D, Dn=Dn, adm=adm, worm=worm, goal=np.asarray(d["goal"]),
-                start=np.asarray(d["start"]), traj=d.get("traj"), subg=d.get("subgoals") or [],
-                subtitle=sub)
+                start=np.asarray(d["start"]), traj=d.get("traj"), subg=subg, subtitle=sub)
 
 
 def from_checkpoint(a):
@@ -130,11 +130,13 @@ def main():
     p.add_argument("--regime", choices=["e1a", "e1c"], default="e1c")
     p.add_argument("--sigma", type=float, default=0.3)
     p.add_argument("--pct", type=float, default=25)
+    p.add_argument("--worm-frac", type=float, default=0.5,
+                   help="flag an edge as wormhole if noisy dist < worm_frac*clean (raise for mild bias)")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--traj", action="store_true")
     p.add_argument("--out", default="logs/exp_suite/viz_graph_noise.png")
     a = p.parse_args()
-    data = from_dump(a.from_dump, a.pct) if a.from_dump else from_checkpoint(a)
+    data = from_dump(a.from_dump, a.pct, a.worm_frac) if a.from_dump else from_checkpoint(a)
     render(out=a.out, **data)
 
 
