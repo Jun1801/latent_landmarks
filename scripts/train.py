@@ -81,9 +81,12 @@ def _print_pn_mode(cfg) -> None:
 
 
 def main(argv=None):
-    args = build_parser().parse_args(argv)
-
-    cfg = build_config(args)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    try:
+        cfg = build_config(args)
+    except ValueError as error:
+        parser.error(str(error))
     save = args.save or f"l3p_{cfg.env_name}.pt"
     log_file = args.log_file or f"logs/{cfg.env_name}.log"
     sys.stdout = Tee(log_file)

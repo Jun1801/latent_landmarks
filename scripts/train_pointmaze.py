@@ -67,6 +67,7 @@ def build_parser() -> argparse.ArgumentParser:
 def build_config(args):
     total_steps = args.steps if args.steps is not None else 500_000
     overrides = dict(seed=args.seed, total_steps=total_steps)
+    pn_enabled = args.pn_lmcgs or args.hazardous_pointmaze
 
     if args.n_landmarks is not None:
         overrides["n_landmarks"] = args.n_landmarks
@@ -78,7 +79,7 @@ def build_config(args):
         overrides["hindsight_range"] = args.hindsight
     if args.eval_episodes is not None:
         overrides["eval_episodes"] = args.eval_episodes
-    if args.pn_lmcgs or args.hazardous_pointmaze:
+    if pn_enabled:
         overrides["pn_lmcgs_enabled"] = True
     if args.hazardous_pointmaze:
         overrides["pn_pointmaze_hazard_enabled"] = True
@@ -89,10 +90,11 @@ def build_config(args):
             max_episode_steps=100, n_workers=1,
             n_landmarks=15, n_warmup_trajs=20, initial_random_trajs=10,
             random_landmarks_train=10, batch_size=128, gls_batch_size=128,
-            landmark_batch_size=64, train_after=1, n_grad_steps=1,
-            env_steps_per_opt=100, eval_interval=5000, eval_episodes=10,
-            log_interval=2000,
+            landmark_batch_size=64, train_after=1000, eval_interval=5000,
+            eval_episodes=10, log_interval=2000,
         )
+        if pn_enabled:
+            overrides.update(train_after=1, n_grad_steps=1, env_steps_per_opt=100)
     return get_config("PointMaze", **overrides)
 
 

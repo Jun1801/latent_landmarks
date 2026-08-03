@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import warnings
 from pathlib import Path
 
 import pytest
@@ -16,7 +17,8 @@ def _load_script(name: str):
     spec = importlib.util.spec_from_file_location(f"test_{path.stem}", path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
-    spec.loader.exec_module(module)
+    with warnings.catch_warnings():
+        spec.loader.exec_module(module)
     return module
 
 
@@ -44,6 +46,19 @@ def test_general_train_cli_keeps_pn_disabled_by_default_and_wires_hazard_mode():
         train.build_config(non_pointmaze)
 
 
+def test_general_train_reports_invalid_hazard_environment_as_cli_error(capsys):
+    train = _load_script("train.py")
+
+    with pytest.raises(SystemExit) as error:
+        train.main(["--env", "AntMaze", "--hazardous-pointmaze"])
+
+    assert error.value.code == 2
+    stderr = capsys.readouterr().err
+    assert "usage:" in stderr
+    assert "only valid for the PointMaze environment" in stderr
+    assert "Traceback" not in stderr
+
+
 def test_pointmaze_short_preserves_explicit_steps_and_smoke_training_overrides():
     pointmaze = _load_script("train_pointmaze.py")
 
@@ -53,15 +68,25 @@ def test_pointmaze_short_preserves_explicit_steps_and_smoke_training_overrides()
 
     short = pointmaze.build_config(pointmaze.build_parser().parse_args(["--short"]))
     assert short.total_steps == 30_000
-    assert short.train_after == 1
-    assert short.n_grad_steps == 1
+    assert short.train_after == 1_000
+    assert short.n_grad_steps == 40
+    assert short.env_steps_per_opt == 2
 
     explicit = pointmaze.build_config(
         pointmaze.build_parser().parse_args(["--short", "--steps", "200"])
     )
     assert explicit.total_steps == 200
-    assert explicit.train_after == 1
-    assert explicit.n_grad_steps == 1
+    assert explicit.train_after == 1_000
+    assert explicit.n_grad_steps == 40
+    assert explicit.env_steps_per_opt == 2
+
+    pn_smoke = pointmaze.build_config(pointmaze.build_parser().parse_args([
+        "--short", "--steps", "200", "--pn-lmcgs",
+    ]))
+    assert pn_smoke.total_steps == 200
+    assert pn_smoke.train_after == 1
+    assert pn_smoke.n_grad_steps == 1
+    assert pn_smoke.env_steps_per_opt == 100
 
     hazardous = pointmaze.build_config(
         pointmaze.build_parser().parse_args(["--hazardous-pointmaze"])
