@@ -61,6 +61,9 @@ def main():
                    help="save one episode's graph (clean/noisy edges, landmark xy, soft-Floyd "
                         "trajectory + subgoals) to JSON for the clean-vs-noisy figure")
     p.add_argument("--dump-sigma", type=float, default=None, help="sigma for --dump (default: max)")
+    p.add_argument("--dump-plans", default=None,
+                   help="dump ALL 3 planners' routes (soft_floyd/mcts_nofb/mcts_fb) on the same "
+                        "episode+graph to JSON for the plan-comparison figure (E1c)")
     a = p.parse_args()
     ec = ENV_CFG[a.env]
     ckpt = a.resume_ckpt or ec["ckpt"]
@@ -163,6 +166,10 @@ def main():
         _dump_episode(algo, a, np, PaperMCTSPlanner, MctsCfg,
                       a.dump_sigma if a.dump_sigma is not None else max(a.sigmas))
 
+    if a.dump_plans:
+        _dump_plans(algo, a, np, PaperMCTSPlanner, MctsCfg,
+                    a.dump_sigma if a.dump_sigma is not None else max(a.sigmas))
+
     print(f"\nSANITY (s=0): all ~match soft_floyd(clean). Under s>0: "
           + ("MCTS holds vs static soft_floyd?" if a.regime == "e1a"
              else "mcts_fb detects+routes around the bias vs soft_floyd/mcts_nofb?"), flush=True)
@@ -199,6 +206,52 @@ def _dump_episode(algo, a, np, PaperMCTSPlanner, MctsCfg, sigma):
     os.makedirs(os.path.dirname(a.dump) or ".", exist_ok=True)
     json.dump(dump, open(a.dump, "w"))
     print(f"dumped graph+trajectory -> {a.dump}  (n={n}, steps={len(traj)}, subgoals={len(subs)})")
+
+
+def _dump_plans(algo, a, np, PaperMCTSPlanner, MctsCfg, sigma):
+    """Record all THREE planners' routes on the SAME episode + graph (E1c) for the
+    plan-comparison figure. Each planner runs from the same seeded reset (same
+    start/goal) and the same fixed bias (noise_seed=0)."""
+    env = algo.test_env if hasattr(algo, "test_env") else algo.env
+    specs = [("soft_floyd", "softfloyd", False), ("mcts_nofb", "mcts", False),
+             ("mcts_fb", "mcts", True)]
+    out = {"env": a.env, "regime": a.regime, "sigma": float(sigma), "planners": {}}
+    xy = lambda v: np.asarray(v).reshape(-1)[:2].tolist()
+    for name, mode, fb in specs:
+        algo.planner.__class__ = PaperMCTSPlanner
+        algo.planner.configure_mcts(MctsCfg(n_simulations=a.sims), sigma=float(sigma),
+                                    select_mode=mode, regime=a.regime, feedback=fb, noise_seed=0)
+        try:
+            env.seed(1234)                                 # same start/goal across planners
+        except Exception:
+            pass
+        o = env.reset(); ob, bg, ag = o['observation'], o['desired_goal'], o['achieved_goal']
+        algo.planner.reset(); algo.planner.update(goals=bg.copy(), test_time=True)
+        traj, subs, aims, succ, info = [xy(ag)], [], [], 0, None
+        for _t in range(env._max_episode_steps):
+            pos = xy(ag)
+            sub = algo.planner.get_subgoals(ob, bg.copy(), achieved_goal=ag.copy())
+            pg = algo.planner.past_goal.get(0, -1)
+            if pg != -1 and (not subs or subs[-1] != pg):
+                subs.append(int(pg)); aims.append([pos, int(pg)])
+            o, r, d, info = env.step(algo.agent.get_actions(ob, sub))
+            ob, bg, ag = o['observation'], o['desired_goal'], o['achieved_goal']
+            traj.append(xy(ag))
+            i0 = info[0] if isinstance(info, (list, tuple)) else info
+            if i0.get('is_success') == 1.0:
+                succ = 1; break
+        if "landmark_xy" not in out:                       # graph is shared (same episode/bias)
+            n = algo.planner.n_landmarks
+            out.update(n=int(n),
+                       landmark_xy=algo.planner.landmarks[:n].detach().cpu().numpy()[:, :2].tolist(),
+                       edge_clean=algo.planner._edge_clean.tolist(),
+                       edge_noisy=algo.planner._edge_noisy.tolist(),
+                       goal=xy(bg), start=traj[0])
+        out["planners"][name] = dict(traj=traj, subgoals=subs, aims=aims, success=succ)
+        print(f"  {name}: {'REACHED' if succ else 'FAILED'} ({len(subs)} subgoals)", flush=True)
+    os.makedirs(os.path.dirname(a.dump_plans) or ".", exist_ok=True)
+    json.dump(out, open(a.dump_plans, "w"))
+    print(f"dumped 3-planner plans -> {a.dump_plans}")
 
 
 if __name__ == "__main__":

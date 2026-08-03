@@ -49,6 +49,53 @@ def run_episode(tr, planner, es, max_steps):
     return np.array(traj), subs, succ, goal, np.asarray(traj[0]), aims
 
 
+def _plot_from_dump(a):
+    import json
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    d = json.load(open(a.from_dump))
+    n = d["n"]; xy = np.asarray(d["landmark_xy"])
+    D = -np.asarray(d["edge_clean"])[:n, :n]; Dn = -np.asarray(d["edge_noisy"])[:n, :n]
+    np.fill_diagonal(D, np.inf)
+    adm = D <= np.percentile(D[np.isfinite(D)], a.pct)
+    worm = adm & (Dn < a.worm_frac * D)
+    goal = np.asarray(d["goal"]); start = np.asarray(d["start"])
+    names = list(d["planners"].keys())
+    fig, axes = plt.subplots(1, len(names), figsize=(5.3 * len(names), 5.5))
+    axes = np.atleast_1d(axes)
+    for ax, name in zip(axes, names):
+        p = d["planners"][name]
+        for i in range(n):
+            for j in range(i + 1, n):
+                if adm[i, j]:
+                    red = worm[i, j] or worm[j, i]
+                    ax.plot(xy[[i, j], 0], xy[[i, j], 1], color=("red" if red else "0.8"),
+                            lw=(1.4 if red else 0.4), alpha=(0.7 if red else 0.3), zorder=1)
+        ax.scatter(xy[:, 0], xy[:, 1], s=12, c="steelblue", zorder=3)
+        for pos, si in p.get("aims", [])[:20]:
+            if si < n:
+                ax.annotate("", xy=(xy[si, 0], xy[si, 1]), xytext=(pos[0], pos[1]),
+                            arrowprops=dict(arrowstyle="->", color="orange", lw=1.1, alpha=0.6), zorder=4)
+        subg = [s for s in p.get("subgoals", []) if s < n]
+        ax.scatter(xy[subg, 0], xy[subg, 1], s=90, facecolors="none", edgecolors="orange",
+                   linewidths=1.6, zorder=6)
+        t = np.asarray(p["traj"])
+        ax.plot(t[:, 0], t[:, 1], "-", color="navy", lw=2.0, alpha=0.95, zorder=5)
+        ax.scatter([start[0]], [start[1]], marker="s", s=80, c="green", edgecolors="k", zorder=7)
+        ax.scatter([goal[0]], [goal[1]], marker="*", s=280, c="gold", edgecolors="k", zorder=7)
+        succ = p.get("success", 0)
+        ax.set_title(f"{name}  {'REACHED' if succ else 'FAILED'}  ({len(subg)} subgoals)",
+                     fontsize=11, color=("green" if succ else "crimson"))
+        ax.set_aspect("equal"); ax.axis("off")
+    fig.suptitle(f"{d['env']} plan comparison (same noisy world model, {d['regime']} "
+                 f"sigma={d['sigma']}) — red=wormhole", fontsize=13)
+    fig.tight_layout()
+    os.makedirs(os.path.dirname(a.out) or ".", exist_ok=True)
+    fig.savefig(a.out, dpi=130)
+    print(f"saved {a.out}  |  " + ", ".join(f"{k}={d['planners'][k]['success']}" for k in names))
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--load", default="checkpoint/l3p_pointmaze_full.pt")
@@ -56,9 +103,14 @@ def main():
     p.add_argument("--sigma", type=float, default=0.3)
     p.add_argument("--seed", type=int, default=3, help="episode seed (pick one where soft-Floyd fails)")
     p.add_argument("--pct", type=float, default=25)
+    p.add_argument("--worm-frac", type=float, default=0.5)
+    p.add_argument("--from-dump", default=None,
+                   help="plot 3-panel from eval_ablation --dump-plans JSON (paper envs)")
     p.add_argument("--dmax", type=float, default=None, help="fix d_max, skip calibration (faster seed search)")
     p.add_argument("--out", default="logs/exp_suite/plans_pointmaze_e1c.png")
     a = p.parse_args()
+    if a.from_dump:
+        _plot_from_dump(a); return
 
     import matplotlib
     matplotlib.use("Agg")
