@@ -63,6 +63,9 @@ def main():
     p.add_argument("--n_test_rollouts", type=int, default=30)
     p.add_argument("--sims", type=int, default=120)
     p.add_argument("--sigmas", type=float, nargs="+", default=[0.0, 2.0, 5.0, 10.0, 20.0])
+    p.add_argument("--noise-seeds", type=int, nargs="+", default=[0],
+                   help="noise seeds to average per (variant, sigma); >1 gives a spread band "
+                        "(was hardcoded to a single seed 0)")
     p.add_argument("--no_cuda", action="store_true")
     p.add_argument("--latency", action="store_true",
                    help="also report MCTS planning latency (ms/search) per variant")
@@ -150,20 +153,30 @@ def main():
                     ("mcts_fb",    "mcts",      True,  dict())]
 
     results = {"env": a.env, "regime": a.regime, "sigmas": list(a.sigmas),
-               "sims": a.sims, "variants": {}, "latency": {}}
+               "sims": a.sims, "noise_seeds": list(a.noise_seeds),
+               "variants": {}, "per_seed": {}, "latency": {}}
     print(f"\n[{a.regime}] {'variant':14}" + "".join(f"  s={s}".ljust(9) for s in a.sigmas), flush=True)
     for name, mode, fb, kw in variants:
-        row, lat = [], []
+        row, lat, per_seed = [], [], []
         for s in a.sigmas:
-            algo.planner.__class__ = PaperMCTSPlanner
-            algo.planner.configure_mcts(MctsCfg(n_simulations=a.sims, **kw), sigma=float(s),
-                                        select_mode=mode, regime=a.regime, feedback=fb, noise_seed=0)
-            row.append(runner(a.episodes))
+            seed_vals = []
+            for ns in a.noise_seeds:
+                algo.planner.__class__ = PaperMCTSPlanner
+                algo.planner.configure_mcts(MctsCfg(n_simulations=a.sims, **kw), sigma=float(s),
+                                            select_mode=mode, regime=a.regime, feedback=fb,
+                                            noise_seed=int(ns))
+                seed_vals.append(runner(a.episodes))
+            row.append(float(np.mean(seed_vals)))
+            per_seed.append(seed_vals)
             calls = getattr(algo.planner, "search_calls", 0)
             lat.append(1000.0 * algo.planner.search_seconds / calls if calls else 0.0)
         results["variants"][name] = row
+        results["per_seed"][name] = per_seed
         results["latency"][name] = lat
         print(f"     {name:14}" + "".join(f"  {v:.3f}".ljust(9) for v in row), flush=True)
+        if len(a.noise_seeds) > 1:
+            spread = ["[%.2f,%.2f]" % (min(v), max(v)) for v in per_seed]
+            print(f"     {'  ^ [min,max]':14}" + "".join(f"  {v}".ljust(13) for v in spread), flush=True)
         if a.latency:
             print(f"     {'  ^ ms/search':14}" + "".join(f"  {v:.0f}".ljust(9) for v in lat), flush=True)
 
