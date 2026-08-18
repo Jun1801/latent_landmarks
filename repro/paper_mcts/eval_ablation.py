@@ -84,6 +84,11 @@ def main():
     p.add_argument("--planners", nargs="+", default=None,
                    help=f"explicit planner set (subset of {sorted(PLANNER_REGISTRY)}); "
                         "default = the regime's built-in list")
+    p.add_argument("--pair-seed", type=int, default=20260818,
+                   help="env-reset seed base: rollout i uses pair_seed+i for EVERY planner, so "
+                        "all planners see identical start/goal per episode (paired comparison)")
+    p.add_argument("--no-pairing", action="store_true",
+                   help="disable paired env seeding (each planner re-randomizes start/goal)")
     p.add_argument("--no_cuda", action="store_true")
     p.add_argument("--latency", action="store_true",
                    help="also report MCTS planning latency (ms/search) per variant")
@@ -129,15 +134,21 @@ def main():
     if hasattr(algo, "_clusters_initialized"):
         algo._clusters_initialized = True
 
-    def eval_paper(passes):                    # E1a: paper's own plan-eval loop
+    def eval_paper(passes):                    # paper's own plan-eval loop (clean-sanity print only)
         return float(np.mean([algo.run_test_env_plan_eval() for _ in range(passes)]))
 
-    def eval_feedback(passes):                 # E1c: custom loop passing achieved_goal
+    def eval_loop(passes, pair_seed):          # unified controlled loop; returns (mean, per-episode 0/1)
+        # Paired: rollout index i uses env seed pair_seed+i for EVERY planner, so all planners
+        # face the SAME start/goal per episode (the bias sequence is already paired via noise_seed).
         env = algo.test_env if hasattr(algo, "test_env") else algo.env
-        means = []
+        outcomes, idx = [], 0
         for _ in range(passes):
-            succ = trials = 0
             for _r in range(a.n_test_rollouts):
+                if pair_seed is not None:
+                    try:
+                        env.seed(pair_seed + idx)
+                    except Exception:
+                        pass
                 o = env.reset(); ob, bg, ag = o['observation'], o['desired_goal'], o['achieved_goal']
                 algo.planner.reset(); algo.planner.update(goals=bg.copy(), test_time=True)
                 info = None
@@ -147,17 +158,16 @@ def main():
                     o, _, _, info = env.step(act)
                     ob, bg, ag = o['observation'], o['desired_goal'], o['achieved_goal']
                 if getattr(algo, "num_envs", 1) > 1:
-                    for pe in info:
-                        trials += 1; succ += int(pe['is_success'] == 1.0)
+                    outcomes.extend(int(pe['is_success'] == 1.0) for pe in info)
                 else:
-                    trials += 1; succ += int(info['is_success'] == 1.0)
-            means.append(succ / max(1, trials))
-        return float(np.mean(means))
+                    outcomes.append(int(info['is_success'] == 1.0))
+                idx += 1
+        return (float(np.mean(outcomes)) if outcomes else 0.0), outcomes
 
-    runner = eval_feedback if a.regime == "e1c" else eval_paper
+    runner = eval_loop                         # both regimes use the paired per-episode loop
 
     algo.planner.__class__ = Planner
-    print(f"\nsoft_floyd (clean):            {eval_paper(a.episodes):.3f}", flush=True)
+    print(f"\nsoft_floyd (clean, paper loop): {eval_paper(a.episodes):.3f}", flush=True)
 
     if a.regime == "e1a":                      # (name, select_mode, feedback, kw)
         variants = [("soft_floyd", "softfloyd", False, dict()),
@@ -176,26 +186,32 @@ def main():
             p.error(f"unknown --planners {bad}; choose from {sorted(PLANNER_REGISTRY)}")
         variants = [(name, *PLANNER_REGISTRY[name]) for name in a.planners]
 
+    pair_seed = None if a.no_pairing else int(a.pair_seed)
     results = {"env": a.env, "regime": a.regime, "sigmas": list(a.sigmas),
                "sims": a.sims, "noise_seeds": list(a.noise_seeds),
-               "variants": {}, "per_seed": {}, "latency": {}}
+               "paired": bool(pair_seed is not None), "pair_seed": a.pair_seed,
+               "n_rollouts": a.episodes * a.n_test_rollouts,
+               "variants": {}, "per_seed": {}, "per_episode": {}, "latency": {}}
     print(f"\n[{a.regime}] {'variant':14}" + "".join(f"  s={s}".ljust(9) for s in a.sigmas), flush=True)
     for name, mode, fb, kw in variants:
-        row, lat, per_seed = [], [], []
+        row, lat, per_seed, per_ep = [], [], [], []
         for s in a.sigmas:
-            seed_vals = []
+            seed_vals, seed_outs = [], []
             for ns in a.noise_seeds:
                 algo.planner.__class__ = PaperMCTSPlanner
                 algo.planner.configure_mcts(MctsCfg(n_simulations=a.sims, **kw), sigma=float(s),
                                             select_mode=mode, regime=a.regime, feedback=fb,
                                             noise_seed=int(ns))
-                seed_vals.append(runner(a.episodes))
+                m, outs = runner(a.episodes, pair_seed)
+                seed_vals.append(m); seed_outs.append(outs)
             row.append(float(np.mean(seed_vals)))
             per_seed.append(seed_vals)
+            per_ep.append(seed_outs)          # [sigma_idx][seed_idx] -> list of 0/1 (paired by index)
             calls = getattr(algo.planner, "search_calls", 0)
             lat.append(1000.0 * algo.planner.search_seconds / calls if calls else 0.0)
         results["variants"][name] = row
         results["per_seed"][name] = per_seed
+        results["per_episode"][name] = per_ep
         results["latency"][name] = lat
         print(f"     {name:14}" + "".join(f"  {v:.3f}".ljust(9) for v in row), flush=True)
         if len(a.noise_seeds) > 1:
