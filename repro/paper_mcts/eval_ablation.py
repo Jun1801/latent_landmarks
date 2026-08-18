@@ -50,6 +50,21 @@ ENV_CFG = {
 }
 
 
+# name -> (select_mode, feedback, kw). Classical planners are static (no feedback).
+PLANNER_REGISTRY = {
+    "soft_floyd":  ("softfloyd", False, {}),
+    "dijkstra":    ("dijkstra",  False, {}),
+    "astar":       ("astar",     False, {}),
+    "greedy":      ("greedy",    False, {}),
+    "mcts":        ("mcts",      False, {}),
+    "mcts+suffix": ("mcts",      False, {"suffix_backup": True}),
+    "mcts+pw":     ("mcts",      False, {"progressive_widening": True}),
+    "mcts+bayes":  ("mcts",      False, {"uncertainty_mode": "bayes"}),
+    "mcts_nofb":   ("mcts",      False, {}),
+    "mcts_fb":     ("mcts",      True,  {}),
+}
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--env", choices=list(ENV_CFG), default="antmaze")
@@ -66,6 +81,9 @@ def main():
     p.add_argument("--noise-seeds", type=int, nargs="+", default=[0],
                    help="noise seeds to average per (variant, sigma); >1 gives a spread band "
                         "(was hardcoded to a single seed 0)")
+    p.add_argument("--planners", nargs="+", default=None,
+                   help=f"explicit planner set (subset of {sorted(PLANNER_REGISTRY)}); "
+                        "default = the regime's built-in list")
     p.add_argument("--no_cuda", action="store_true")
     p.add_argument("--latency", action="store_true",
                    help="also report MCTS planning latency (ms/search) per variant")
@@ -151,6 +169,12 @@ def main():
         variants = [("soft_floyd", "softfloyd", False, dict()),
                     ("mcts_nofb",  "mcts",      False, dict()),
                     ("mcts_fb",    "mcts",      True,  dict())]
+
+    if a.planners:                             # explicit override from the registry
+        bad = [x for x in a.planners if x not in PLANNER_REGISTRY]
+        if bad:
+            p.error(f"unknown --planners {bad}; choose from {sorted(PLANNER_REGISTRY)}")
+        variants = [(name, *PLANNER_REGISTRY[name]) for name in a.planners]
 
     results = {"env": a.env, "regime": a.regime, "sigmas": list(a.sigmas),
                "sims": a.sims, "noise_seeds": list(a.noise_seeds),

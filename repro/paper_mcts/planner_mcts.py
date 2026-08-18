@@ -18,6 +18,8 @@ Feedback needs `achieved_goal`, which the paper `get_subgoals(ob, bg)` does not
 receive -> the E1c eval loop (eval_ablation.py) passes it via the extra kwarg;
 E1a keeps using the paper's own run_test_env_plan_eval (achieved_goal=None).
 """
+import time
+
 import numpy as np
 import torch
 
@@ -25,6 +27,7 @@ from rl.search.latent_planner import (Planner, clip_dist, v_pairwise_dists,
                                        value_iter, adaptive_clip_dist)
 
 from mcts_core import LandmarkMCTS, MatrixNoisyValueFn
+from pathfind import dijkstra_first_hop, astar_first_hop, greedy_first_hop
 
 
 class MctsCfg:
@@ -196,6 +199,39 @@ class PaperMCTSPlanner(Planner):
             score[prev] = -self.args.inf_value
         return int(np.argmax(score))
 
+    # ---- classical pathfinding baselines (pure-numpy, see pathfind.py) ----
+    def _classical_inputs(self, env_id, d_s2c_row, heur_row, edge_land):
+        n = self.n_landmarks
+        cols = list(range(n)) + [n + env_id]
+        d = d_s2c_row[cols].detach().cpu().numpy().astype(np.float64)   # (n+1,)
+        heur = np.asarray(heur_row)[cols].astype(np.float64)           # (n+1,)
+        edge = np.asarray(edge_land, dtype=np.float64)
+        return d, heur, edge[:n, :n], edge[:n, n + env_id], self._mask(env_id)[:n]
+
+    def _dijkstra_select(self, env_id, d_s2c_row, heur_row, edge_land):
+        d, _, esub, gcol, mask = self._classical_inputs(env_id, d_s2c_row, heur_row, edge_land)
+        t0 = time.perf_counter()
+        idx = dijkstra_first_hop(d, esub, gcol, self.args.dist_clip, mask=mask)
+        self.search_seconds += time.perf_counter() - t0
+        self.search_calls += 1
+        return int(idx)
+
+    def _astar_select(self, env_id, d_s2c_row, heur_row, edge_land):
+        d, heur, esub, gcol, mask = self._classical_inputs(env_id, d_s2c_row, heur_row, edge_land)
+        t0 = time.perf_counter()
+        idx, _ = astar_first_hop(d, esub, gcol, self.args.dist_clip, heur, mask=mask)
+        self.search_seconds += time.perf_counter() - t0
+        self.search_calls += 1
+        return int(idx)
+
+    def _greedy_select(self, env_id, d_s2c_row, heur_row, edge_land):
+        d, heur, _, _, mask = self._classical_inputs(env_id, d_s2c_row, heur_row, edge_land)
+        t0 = time.perf_counter()
+        idx = greedy_first_hop(d, heur, self.args.dist_clip, mask=mask)
+        self.search_seconds += time.perf_counter() - t0
+        self.search_calls += 1
+        return int(idx)
+
     def get_subgoals(self, obs, goals, achieved_goal=None):
         obs = self.to_2d_array(obs)
         goals = self.to_2d_array(goals).copy()
@@ -224,6 +260,12 @@ class PaperMCTSPlanner(Planner):
                     edge_land, heur = self._edge_noisy, self._noisy_dtg[env_id]
                 if self._select_mode == "softfloyd":
                     idx = self._softfloyd_select(env_id, d2l[env_id], heur)
+                elif self._select_mode == "dijkstra":
+                    idx = self._dijkstra_select(env_id, d2l[env_id], heur, edge_land)
+                elif self._select_mode == "astar":
+                    idx = self._astar_select(env_id, d2l[env_id], heur, edge_land)
+                elif self._select_mode == "greedy":
+                    idx = self._greedy_select(env_id, d2l[env_id], heur, edge_land)
                 else:
                     idx = self._mcts_select(env_id, d2l[env_id], heur, edge_land)
                 if idx < n:
