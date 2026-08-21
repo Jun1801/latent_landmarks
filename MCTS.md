@@ -1,63 +1,74 @@
+# MCTS-over-Landmarks: planning bền vững khi world-model bị nhiễu
 
-# MCTS-over-Landmarks: robust planning khi ước lượng khoảng cách bị nhiễu
+> Mở rộng nghiên cứu cho **L³P** (*World Model as a Graph*, ICML 2021). Thay planner
+> **Soft Floyd tất định** bằng **MCTS trên graph landmark**, rồi đo xem MCTS có ra quyết
+> định **bền hơn khi ước lượng khoảng cách `V` bị nhiễu** hay không. Tài liệu này tổng hợp
+> *phương pháp*, *kết quả đã xác thực*, và *lý giải thiết kế*. Spec gốc:
+> [`docs/SPEC_MCTS_Landmark_L3P.md`](docs/SPEC_MCTS_Landmark_L3P.md).
 
-> Mở rộng nghiên cứu cho L³P (*World Model as a Graph*, ICML 2021). Thay planner
-> Soft Floyd tất định bằng **MCTS trên graph landmark**, và đo xem MCTS có ra
-> quyết định **bền vững hơn khi ước lượng khoảng cách `V` bị nhiễu** hay không.
-> Tài liệu này tổng hợp *phương pháp*, *bốn thí nghiệm E1a/E1b/E1c/E1d*, và **lý giải
-> vì sao chọn từng kỹ thuật**. Spec gốc: [`docs/SPEC_MCTS_Landmark_L3P.md`](docs/SPEC_MCTS_Landmark_L3P.md).
+> **Kết luận một dòng:** *soft-Floyd tốt + gần như miễn phí khi world-model chính xác;
+> MCTS ăn tiền khi world-model NHIỄU + task LONG-HORIZON* — nhiễu stochastic thì
+> **replan/sample-averaging** cứu, bias hệ thống thì **execution feedback** cứu — đổi
+> lấy chi phí planning cao hơn (re-search mỗi macro-step).
 
-> **Trạng thái 2026-07-29:** E1a-E1d đã được chạy lại sau correctness review.
-> Kết quả corrected nằm tại
-> `logs/e1_correctness_rerun_20260728/pointmaze_numpy/`. Mỗi điểm lưu raw
-> per-episode outcomes, hierarchical-bootstrap CI và plot. E1d đã được lặp lại
-> độc lập; outcomes và mọi thống kê không phải timing khớp chính xác.
+## Nguồn số liệu (provenance) — mọi con số trong report truy được về đây
+
+| Nhóm kết quả | Nơi chạy | File nguồn (đã xác thực) |
+|---|---|---|
+| **PointMaze reimpl, 4 training-seed, E1a+E1c** (canonical) | local | `logs/exp_suite/local/e1{a,c}_seed{0..3}_*.json` → pool bằng `scripts/aggregate_ablation.py` |
+| **Fetch (paper stack, s967), E1a+E1c** | Kaggle | `logs/exp_suite/fetch_{e1a,e1c,plans_e1c}.json` (single-seed, point-estimate) |
+| **AntMaze (paper stack), single-seed s221, E1a+E1c** | Kaggle | *reported* (raw per-episode log CHƯA sync về repo); trên đĩa chỉ có dump 1-episode: `logs/exp_suite/antmaze_{dump,plans}_e1c.json` |
+| **Latency MCTS** (PointMaze N=50, 80 sims) | local | `logs/e1d_results.json` → `stats.mcts_seconds` |
+| **E1b/E1d** (đã loại khỏi suite cuối) | local | `logs/e1_correctness_rerun_20260728/pointmaze_numpy/e1b_results.json`, `logs/e1d_results.json` |
+| **E3 trap (CVaR)** — *preliminary* (§7.6) | local | `logs/exp_suite/e3{a,b}_results.json` (ckpt `l3p_pointmaze_trap.pt`) |
+| **Planner comparison** (classical/soft-Floyd/MCTS, 3 env, E1a+E1c) — §7.7 | Kaggle | `logs/outputs/{antmaze,fetch,box_distractor}/…` (paired, per-episode; single **training**-seed) |
+
+**Quy ước:** mọi bảng dưới đây là **mean [95% hierarchical-bootstrap CI]** trừ khi ghi
+"reported" (AntMaze single-seed Kaggle — CHƯA có CItừ log gốc, cần multi-seed để firm). Ngoại lệ:
+**§7.7** dùng **paired bootstrap CI** trên outcome per-episode (paired qua start/goal), single
+training-seed — xem `docs/EXPERIMENTAL_DESIGN_planners.md`.
 
 ---
 
 ## 0. Tóm tắt kết quả
 
-| Thí nghiệm | Loại nhiễu | Câu hỏi | Kết quả |
+| Regime | Nhiễu | Cơ chế cứu | Kết quả (đã xác thực) |
 |---|---|---|---|
-| **E1a** | Loại-2 đồng nhất | MCTS + sample-rollout có bền hơn Soft Floyd? | **Có so với static Floyd:** ở σ=0.3, MCTS **0.65** vs Floyd **0.29**. Nhưng fresh-`V_obs` replan đạt **0.97**, nên MCTS không phải baseline tốt nhất. |
-| **E1b** | Loại-2 dị biệt (oracle) | Uncertainty bonus có đóng góp riêng? | **Chưa đủ bằng chứng:** α đạt 0.27 vs none 0.19 ở σ_hi=0.5 nhưng CI chồng lấn; tại 1.0 cả ba cùng 0.03. β không có lợi ích. |
-| **E1c** | Loại-1 (bias hệ thống) | Feedback có phát hiện/sửa bias? | ✅ Ở σ=0.3 feedback **0.87** > Floyd 0.52 > no-feedback 0.43 (CI tách); robust qua sweep τ. (Kết quả âm 0.43 trước đây là artifact của bug goal-blacklist, đã fix.) |
-| **E1d** | Loại-2 tại Nơi 1,2,3 | Recovery/feedback có giúp khi execution nhiễu? | Sau fix: feedback **1.00** ≥ no-fb 0.97 ≥ Floyd 0.90 (KHÔNG hại; con 0.33 cũ là artifact bug). Nhưng σ=0.3 mọi nhánh gần trần → chưa đủ căng để tách. |
+| **E1a** | Loại-2 stochastic (resample mỗi lần) | sample-rollout + replan | **Phụ thuộc graph.** PointMaze (nhỏ, sạch-ish): MCTS ≈ soft-Floyd, **MPC-fresh bền nhất** (σ=0.3: 0.95). AntMaze (lớn, long-horizon): **MCTS >> soft-Floyd** (σ=10: 0.50 vs 0.19; +pw 0.87 @σ=5) — *reported*. |
+| **E1c** | Loại-1 bias hệ thống (cố định/episode) | execution feedback | **Dương, mạnh nhất trên PointMaze:** σ=0.3 feedback **0.80 [0.70,0.89]** > Floyd 0.51 > no-fb 0.41 (4 seed, CI gần tách). AntMaze: fb ≥ Floyd ở mọi σ nhưng modest (+0.05–0.09, *reported*). |
+| **Fetch** (control) | E1a & E1c | — | **Bão hoà trần** (short-horizon, goal reach ~13 bước / 0 subgoal): mọi planner ~1.0 tới σ=40 (E1a) / σ=0.3 (E1c) — negative control xác nhận planning không có đòn bẩy (§7.2). |
 
-**Bức tranh sau khi fix bug goal-blacklist (2026-07-29):** **E1c là claim tích cực
-mạnh nhất** (feedback 0.87 > Floyd 0.52, CI tách, robust qua τ). **E1d**: feedback
-không còn gây hại (1.00 ≥ 0.97 ≥ 0.90) — con âm 0.33 trước đây là artifact bug —
-nhưng σ=0.3 mọi nhánh gần trần nên chưa phân giải. **E1a**: MCTS > Soft Floyd tĩnh
-nhưng **thua fresh-graph-replan** (nhiễu 0-mean thì replan-mỗi-bước ăn đứt). **E1b**:
-tín hiệu α yếu ở frac_high=0.3 (mạnh hơn ở frac_high=0.6). Chi tiết §7-9.
+**Câu chuyện regime-dependent (đọc kỹ §7.6):** giá trị của tree-search KHÔNG tự hiện ra ở
+mọi env — nó cần **(graph lớn hoặc/và horizon dài) + world-model nhiễu**. Ở PointMaze nhỏ,
+"đắt nhất" thắng là **re-observe graph mỗi bước** (MPC-fresh), không phải tree-search. Ở
+AntMaze lớn + nhiễu, MCTS mới tách rõ khỏi soft-Floyd tĩnh.
 
 ---
 
 ## 1. Vì sao mở rộng L³P
 
-L³P học một **world-model dạng graph**: các *latent landmark* rải trên goal space,
-nối bằng ước lượng khoảng cách (reachability) `V(g₁,g₂)` chưng cất từ Q-function.
-Planner của L³P là **Soft Floyd** (Floyd–Warshall mềm) — tính đường đi ngắn nhất
-*một lần* đầu episode rồi commit.
+L³P học một **world-model dạng graph**: các *latent landmark* rải trên goal space, nối bằng
+ước lượng reachability `V(g₁,g₂)` chưng cất từ Q-function. Planner của L³P là **Soft Floyd**
+(Floyd–Warshall mềm) — tính đường ngắn nhất *một lần* đầu episode rồi commit.
 
-**Điểm yếu L³P tự thừa nhận:** *"neural distance estimates are not entirely
-accurate"*. Soft Floyd **tin `V` một cách tất định**: nếu `V` sai (một cạnh nhìn
-ngắn giả — "wormhole", L³P Fig. 6), planner lao vào và không có cơ chế sửa.
+**Điểm yếu L³P tự thừa nhận:** *"neural distance estimates are not entirely accurate"*.
+Soft Floyd **tin `V` một cách tất định**: nếu một cạnh nhìn ngắn giả ("wormhole", L³P Fig. 6)
+thì planner lao vào và **không có cơ chế sửa**.
 
-> **Câu hỏi nghiên cứu:** *Khi `V` là ước lượng nhiễu, MCTS (explore/exploit qua
-> UCB, sample-based rollout, uncertainty-aware) có ra quyết định robust hơn Soft
-> Floyd không?* Nếu có, insight chuyển thẳng sang VLA (world-model cũng nhiễu y hệt).
+> **Câu hỏi nghiên cứu:** khi `V` là ước lượng nhiễu, MCTS (explore/exploit qua UCB,
+> sample-based rollout, uncertainty-aware, + execution feedback) có robust hơn Soft Floyd
+> không? Nếu có, insight chuyển thẳng sang VLA (world-model học được cũng nhiễu y hệt).
 >
-> **Tiêu chí thành công:** hai đường `success-rate vs σ` **tách nhau** khi σ tăng,
-> **VÀ trùng nhau tại σ=0** (sanity check bắt buộc).
+> **Tiêu chí thành công:** hai đường `success vs σ` **tách nhau khi σ tăng** VÀ **trùng tại
+> σ=0** (sanity bắt buộc).
 
 ---
 
 ## 2. Kiến trúc phân tầng — và vì sao giữ nguyên
 
-Hệ thống có **2 tầng thời gian**. MCTS chỉ hoạt động ở **tầng cao (macro)**, chọn
-landmark kế tiếp; việc đi giữa 2 landmark giao cho **low-level policy π** (đã học
-qua HER) tự navigate. Đây là *temporal abstraction* của L³P.
+Hệ thống có **2 tầng thời gian**. MCTS chỉ hoạt động ở **tầng cao (macro)**, chọn landmark
+kế tiếp; việc đi giữa 2 landmark giao cho **low-level policy π** (học qua HER) — đây là
+*temporal abstraction* của L³P.
 
 ```
 HIGH-LEVEL (MCTS)  — "đi tới landmark nào tiếp?"  | rời rạc, N landmark (+goal)
@@ -65,346 +76,224 @@ HIGH-LEVEL (MCTS)  — "đi tới landmark nào tiếp?"  | rời rạc, N landm
 LOW-LEVEL (π, HER) — "đi thế nào?"                | action liên tục, 1 env.step
 ```
 
-**Vì sao KHÔNG để MCTS plan từng action:** (1) sẽ quay lại đúng bài toán horizon-500
-mà L³P né được; (2) latent space được huấn luyện để khoảng cách phản ánh
-reachability → 2 landmark liền kề là điểm π *tin cậy đi được* trong tầm ngắn
-(`d_max` cutoff đảm bảo); (3) chính vì π tự đi nên `V` chỉ là *ước tính* — đây là
-nguồn uncertainty ta nghiên cứu.
+**Vì sao KHÔNG để MCTS plan từng action:** (1) quay lại đúng bài toán horizon-500 mà L³P né
+được; (2) latent space được train để khoảng cách phản ánh reachability → 2 landmark liền kề
+là điểm π *tin cậy đi được* (`d_max` cutoff đảm bảo); (3) chính vì π tự đi nên `V` chỉ là
+*ước tính* — đây là nguồn uncertainty ta nghiên cứu.
 
 ---
 
-## 3. MCTS-over-landmarks — phương pháp & lý giải
+## 3. MCTS-over-landmarks — phương pháp
 
-Sau khi có `N` landmark, không gian search là **hữu hạn** → UCT cổ điển áp dụng
-trực tiếp. Code: [`l3p/planning/mcts_planner.py`](l3p/planning/mcts_planner.py)
-(`LandmarkMCTS`, `MCTSPlanner`).
+Sau khi có `N` landmark, không gian search **hữu hạn** → UCT cổ điển áp dụng trực tiếp.
+Code: [`l3p/planning/mcts_planner.py`](l3p/planning/mcts_planner.py).
 
 | Pha | Làm gì | **Vì sao** |
 |---|---|---|
-| **Root** | Node gốc = *state thật* hiện tại; cạnh gốc = `d_{s→c}` từ critic `D` (sạch, không nhiễu) | `D(s,π,c)` được tính lại mỗi replan từ state thật → không cần nhiễu; chỉ **graph landmark-landmark** (thứ được ghép nối qua horizon dài) mới là nơi `V` nhiễu — đúng chỗ cần test. |
-| **Selection (UCT)** | `argmax_j [ Q(node,j) + c·√(ln N/n_j) ]` | Cân bằng exploit (Q) và explore. Dấu nhất quán với toàn codebase: "ít âm hơn = tốt hơn". |
-| **Expansion** | Thêm 1 landmark con chưa thử (trong tập *admissible*) | — |
-| **Simulation (rollout)** | Từ node mới, greedy theo Soft-Floyd heuristic `d_{c→g}` tới goal/hết horizon; **sample `V` mỗi lần dùng** | Rollout = "dynamics model" rẻ (1 forward MLP). Sample `V` mỗi lần = **lập luận về kỳ vọng dưới transition stochastic** (chính là điều Soft Floyd bỏ qua). |
-| **Backprop** | Cộng dồn chi phí (âm) lên đường đã đi | — |
-| **Chọn action cuối** | **Robust child** = max visit count (tie-break bằng Q), KHÔNG chỉ max-Q | **Vì sao robust:** tránh exploit một nhánh may mắn nhờ noise; visit count trung bình hoá nhiễu tốt hơn Q đơn lẻ. |
+| **Root** | Node gốc = state thật hiện tại; cạnh gốc = `d_{s→c}` từ critic `D` (sạch) | `D(s,π,c)` tính lại mỗi replan từ state thật → không cần nhiễu; chỉ **graph landmark-landmark** (ghép qua horizon dài) mới là nơi `V` nhiễu — đúng chỗ cần test. |
+| **Selection (UCT)** | `argmax_j [ Q(node,j) + c·√(ln N/n_j) ]` | Cân bằng exploit (Q) và explore. Dấu nhất quán toàn codebase: "ít âm hơn = tốt hơn". |
+| **Expansion** | Thêm landmark con chưa thử (trong tập *admissible*) | Có tùy chọn **progressive widening** (chỉ mở `k(n)=⌈c·nᵅ⌉` con) để không phải expand hết mới đào sâu — hữu ích khi N lớn (AntMaze). |
+| **Simulation (rollout)** | Greedy theo heuristic `d_{c→g}` tới goal/hết horizon; **sample `V` mỗi lần dùng** | Rollout = "dynamics model" rẻ (1 forward MLP). Sample `V` mỗi lần = lập luận về **kỳ vọng** dưới transition stochastic (điều Soft Floyd bỏ qua). |
+| **Backprop** | Cộng dồn chi phí (âm) lên đường đã đi; tùy chọn **suffix (return-to-go) backup** | Suffix backup credit đúng phần "còn lại tới goal" cho từng cạnh thay vì tổng thô. |
+| **Chọn action cuối** | **Robust child** = max visit count (tie-break Q), KHÔNG chỉ max-Q | Tránh exploit một nhánh may nhờ noise; visit-count trung bình hoá nhiễu tốt hơn Q đơn lẻ. |
 
-**Hai bất biến quan trọng (và vì sao):**
+**Ba nâng cấp opt-in (bật qua config, mặc định tắt):** ① **suffix backup**, ② **progressive
+widening**, ③ **uncertainty oracle-free** (normal-normal posterior / Thompson từ chính return
+quan sát được, KHÔNG cần oracle σ). Ba cái này thay cho hướng oracle-σ cũ (E1b, §8).
 
-- **`d_max` masking là thuộc tính CẤU TRÚC, quyết định 1 lần/episode — không resample.**
-  Soft Floyd dùng softmax nên logit bị mask (`neg_inf`) tự tan về trọng số ~0. MCTS
-  backup **trung bình cộng**, nên nếu để cạnh bị mask đóng góp chi phí cỡ `neg_inf`
-  vào trung bình đó thì nó nuốt chửng tất cả. → tách rõ "cạnh có tồn tại không"
-  (mask tĩnh) khỏi "chi phí cạnh bao nhiêu" (resample mỗi lần). *Bug này từng làm
-  test sanity fail với `mean_q ≈ -10063` thay vì `-3`; sửa xong khớp chính xác Soft Floyd.*
-- **`d_max` phải TUNE theo scale của `V` từng checkpoint** (xem §6) — spec R3.
+**Bất biến quan trọng:** **`d_max` masking là thuộc tính CẤU TRÚC — quyết định 1 lần/episode,
+KHÔNG resample.** Soft Floyd dùng softmax nên logit bị mask (`neg_inf`) tự tan; MCTS backup
+**trung bình cộng** nên nếu để cạnh bị mask đóng góp chi phí cỡ `neg_inf` vào trung bình thì
+nó nuốt tất cả. → tách "cạnh có tồn tại không" (mask tĩnh) khỏi "chi phí cạnh bao nhiêu"
+(resample mỗi lần). Ở σ=0 MCTS khớp chính xác Soft Floyd.
 
 ---
 
-## 4. Mô hình nhiễu — vì sao cần ba loại
+## 4. Mô hình nhiễu — hai loại, hai năng lực khác nhau
 
-Ước lượng `V` sai theo **hai bản chất khác nhau**, test **năng lực khác nhau**.
-Code: [`l3p/planning/noise.py`](l3p/planning/noise.py).
+Ước lượng `V` sai theo **hai bản chất khác nhau**, test **năng lực khác nhau**. Code:
+[`l3p/planning/noise.py`](l3p/planning/noise.py).
 
-| | **Loại 2 — execution stochasticity** | **Loại 1 — estimation bias** |
+| | **Loại 2 — execution stochasticity (E1a)** | **Loại 1 — estimation bias (E1c)** |
 |---|---|---|
 | Công thức | `V_obs = V_true + η`, `η~N(0,σ²)` **resample mỗi lần** | `V_obs = V_true·(1+b)`, `b~N(0,σ²)` **cố định 1 lần/episode** |
 | Mô phỏng | π không tất định (cùng cặp, lần 20 bước lần 25) | world-model học SAI hệ thống vài cạnh ("wormhole") |
-| MCTS thắng nhờ | **sample rollout** → ước tính kỳ vọng đúng | **execution feedback** → phát hiện bias, sửa |
-| Vì sao Soft Floyd thua | dùng điểm ước tính, bỏ qua variance | tin edge bias một lần, không sửa |
+| MCTS thắng nhờ | **sample rollout / replan** → ước tính kỳ vọng đúng | **execution feedback** → phát hiện bias, sửa |
+| Vì sao Soft Floyd thua | dùng điểm ước tính, bỏ qua variance | tin cạnh bias một lần, không sửa |
 
-**Vì sao Loại-2 phải làm trước (E1a/E1b):** khớp trực tiếp với thiết kế
-rollout sample-based. **Loại-1 (E1c) khó hơn** vì bias cố định → **trung bình hoá
-KHÔNG cứu được** → bắt buộc phải có cơ chế "học từ thực thi" (§5).
-
-**Ba nơi `V` xuất hiện** — và ta chỉ tiêm nhiễu ở Nơi 1&2, giữ Nơi 3 sạch:
+**Ba nơi `V` xuất hiện — chỉ tiêm nhiễu ở Nơi 1&2, giữ Nơi 3 sạch:**
 ```
-Nơi 1: planner nhìn thấy (chọn đường)         → V_obs
+Nơi 1: planner nhìn thấy (chọn đường)          → V_obs
 Nơi 2: rollout bên trong MCTS (đánh giá đường) → V_sampled
 Nơi 3: MÔI TRƯỜNG THẬT (agent đi mất bao nhiêu bước) → V_true  ← GIỮ SẠCH
 ```
-**Vì sao giữ Nơi 3 sạch:** để **so sánh công bằng** — cả MCTS và Floyd bị "lừa"
-bởi cùng một estimate nhiễu, nhưng success đo trên env thật. Khác biệt duy nhất là
-*cách xử lý* estimate nhiễu, không phải env khác nhau.
-
-**Nhiễu dị biệt (E1b), `build_sigma_matrix`:** thay vì mọi cạnh cùng σ, chỉ một
-phần `frac_high` cạnh có σ cao, **decorrelated với `V`** (cạnh *nhìn ngắn* có thể
-bí mật *không tin cậy*). **Vì sao cần decorrelation:** nếu σ đồng nhất thì uncertainty
-là hằng số → bonus vô nghĩa; phải có cạnh "bẫy" thì "biết-mà-né" mới có giá trị.
+**Vì sao giữ Nơi 3 sạch:** để **so sánh công bằng** — cả MCTS và Floyd bị "lừa" bởi cùng một
+estimate nhiễu, nhưng success đo trên env thật. Khác biệt duy nhất là *cách xử lý* estimate
+nhiễu, không phải env khác nhau.
 
 ---
 
-## 5. Đưa uncertainty vào MCTS — hai lựa chọn, và execution feedback
+## 5. Execution feedback (E1c) — chỗ MCTS *hơn về bản chất*
 
-### 5.1. Reward macro-step và hai chỗ nhét uncertainty (E1b)
-```
-R(cᵢ→cⱼ) = −V(cᵢ,cⱼ) + λ_goal·1[cⱼ=goal] − λ_risk·Unc(cᵢ,cⱼ)
-```
-- **Lựa chọn α — trong reward** (`−λ_risk·Unc`): phạt cạnh bất định → **né rủi ro**.
-- **Lựa chọn β — trong UCT** (`+β·σ_V`): thưởng thăm dò cạnh bất định → **thu thập
-  thông tin** (giảm bất định qua simulation).
+Dưới bias Loại-1, sample rollout vô dụng (bias cố định, trung bình hoá không cứu được). Cơ
+chế thắng là **đi thử → đo chi phí thật → sửa**. Code: `FeedbackMCTSPlanner`.
 
-**Vì sao hiện thực CẢ HAI:** để trả lời câu phụ *"nên coi uncertainty là
-risk-to-avoid hay information-to-gather?"* — chỉ ablate được khi có cả hai.
+1. **Snap-to-nearest:** gán state hiện tại về landmark gần nhất `i`.
+2. **Đo realized cost:** `realized = k_used + max(0, −V(z_end, c_j))` (số bước env thật + phần
+   dư), rồi **EMA**: `V_exec[i][j] ← (1−ρ)·prev + ρ·realized`.
+3. **Rebuild `d_c2g` mỗi macro-step** với `V_exec` đã sửa → planner "học" trong episode.
+4. **Loop guard:** blacklist cạnh thất bại quá `r_max` lần.
 
-> **Lưu ý cấu trúc (giải thích kết quả E1b):** α sửa **cost cạnh** → chảy vào Q của
-> root child → **đổi được subgoal chọn**. β chỉ áp ở **node sâu** (cạnh gốc sạch,
-> không có oracle σ) và chỉ đổi *thứ tự thăm dò* — mà planner chỉ *thực thi macro-step
-> đầu tiên*. Trong planner một-macro-step, **phải đổi GIÁ TRỊ backup lên root mới đổi
-> được hành vi** → α có đòn bẩy, β gần như không.
+> **Vì sao đây là chỗ MCTS hơn Soft Floyd:** Soft Floyd tính path 1 lần, không sửa; MCTS
+> **học từ execution thật** rồi điều chỉnh — đúng điểm yếu L³P tự thừa nhận.
 
-### 5.2. Execution feedback (E1c, §4 của spec)
-Dưới bias Loại-1, sample rollout vô dụng (bias cố định). Cơ chế thắng: **đi thử →
-đo chi phí thật → sửa**. Code: `FeedbackMCTSPlanner`.
-
-1. **Snap-to-nearest (§4.2):** gán state hiện tại về landmark gần nhất `i`.
-2. **Đo realized cost (§4.3):** `realized = k_used + max(0, −V(z_end, c_j))` (số bước
-   env thật + phần dư), rồi **EMA**: `V_exec[i][j] ← (1−ρ)·prev + ρ·realized`.
-3. **Rebuild d_c2g mỗi macro-step** với `V_exec` đã sửa → planner "học" trong episode.
-4. **Loop guard (§4.4):** blacklist cạnh thất bại quá `r_max` lần (STUCK → ngay lập tức).
-
-> **Vì sao đây là chỗ MCTS *hơn* Soft Floyd một cách bản chất:** Soft Floyd tính path
-> 1 lần, không sửa; MCTS **học từ execution thật** và điều chỉnh — đúng điểm yếu L³P
-> tự thừa nhận.
-
-**Vì sao E1c dựng graph trên critic-`D` (không phải `V`):** feedback blend
-`realized_cost` (đơn vị **bước env**) vào ước lượng cạnh. Nhưng `agent.value` (V) ở
-checkpoint này **nén ~10×** so với `D` (xem §6) → blend số-bước vào V-nén sẽ **sai
-đơn vị**. Dùng critic-`D` (chính xác, đúng scale bước env) làm substrate → bias là
-lỗi *duy nhất* được tiêm, và feedback sửa được **không lệch đơn vị**.
-
-**E1d dùng lại cùng substrate critic-`D`:** nhiễu Loại-2 được tiêm vào graph
-planner, rollout MCTS, và cả độ dài macro-step được thực thi. Vì realized cost vẫn
-là số bước env thật, feedback/recovery/loop guard có cùng đơn vị với cạnh graph.
+**Substrate nhất quán:** feedback blend `realized_cost` (đơn vị
+**bước env**) vào ước lượng cạnh. Nếu graph dựng trên `V` (thang khác, nén ~10×) mà không đổi
+đơn vị thì EMA sai. → khi obs≡goal (PointMaze) dùng substrate **critic-`D`** (≈ số bước);
+khi obs≠goal (Fetch/AntMaze) buộc dùng `V` và đo realized cost **cũng bằng `V`** (cờ
+`_step_scale`) để không lệch đơn vị.
 
 ---
 
-## 6. Giao thức công bằng — và vì sao bắt buộc
+## 6. Giao thức công bằng — bắt buộc
 
-Spec cảnh báo R3: *"phải tune Soft Floyd công bằng, nếu không reviewer nghi ngờ"*.
-
-- **`d_max` auto-calibrate (mỗi run):** `d_max` mặc định = 20 (từ paper, hợp scale
-  AntMaze) nhưng **SAI** cho checkpoint này: `V∈[0.5,4]`, critic `D` median ~12.
-  Với `d_max=20`, **không cạnh nào bị mask** → Soft Floyd không ghép được multi-hop
-  → planner misroute → **success = 0.00** (dù flat policy đạt 0.9!). Sửa: quét `d_max`
-  (percentile của phân phối `V`), chọn giá trị tối đa hoá **Soft Floyd sạch**, rồi
-  **dùng chung cho MỌI nhánh**. → không confound "MCTS thắng nhờ tune tốt hơn".
-  *Vực thẳm sắc:* E1a chọn `d_max≈0.68`, và `d_max≥1.0` → 0.00.
-- **Paired per-episode:** cùng `(σ, seed, episode)` → cả 3 nhánh thấy **cùng start/goal**
-  và **cùng seed nhiễu**. Chỉ khác *thuật toán*.
-- **Mean ± 95% hierarchical-bootstrap CI:** resample seed trước, rồi episode trong
-  seed; không làm mất phương sai giữa seed.
-- **Sanity σ=0 bắt buộc:** không nhiễu → các nhánh phải trùng. Nếu không → có bug,
-  dừng (spec KB3).
+- **`d_max` auto-calibrate mỗi run:** `d_max` mặc định 20 (từ AntMaze paper) **SAI** cho các
+  checkpoint reimpl (scale `V`/`D` khác) → không cạnh nào bị mask → soft-Floyd không ghép được
+  multi-hop → success 0.00 (dù flat policy ~0.9!). Sửa: quét `d_max`, chọn giá trị **tối đa hoá
+  soft-Floyd sạch**, rồi **dùng chung cho MỌI nhánh** → không confound "MCTS thắng nhờ tune tốt
+  hơn". (`calibrate_d_max`.)
+- **Paired per-episode:** cùng `(σ, seed, episode)` → cả các nhánh thấy **cùng start/goal** và
+  **cùng seed nhiễu**. Chỉ khác *thuật toán*.
+- **Mean ± 95% hierarchical-bootstrap CI:** resample training-seed trước, rồi episode trong
+  seed → giữ phương sai giữa seed (`hierarchical_bootstrap_ci`).
+- **Sanity σ=0 bắt buộc:** không nhiễu → mọi nhánh phải trùng khít (điều kiện port đúng).
 
 ---
 
-## 7. Thí nghiệm
+## 7. Kết quả (đã xác thực)
 
-**Môi trường:** `PointMaze-Hard` (NumPy thuần, không MuJoCo), long-horizon test
-(start↔goal hai đầu, horizon 500). **Checkpoint:** `checkpoint/l3p_pointmaze_full.pt` (train
-500k steps, 50 landmark). Config nền: γ=0.98, N=50 landmark, embedding=16,
-hidden 3×256 (Appendix-E). Chi tiết: [`l3p/config.py`](l3p/config.py).
+**Môi trường reimpl:** `PointMaze-Hard` (NumPy thuần), long-horizon test (start↔goal hai đầu,
+horizon 500). **4 checkpoint** train độc lập (`l3p_pointmaze_full.pt` = seed0, `_seed{1,2,3}.pt`),
+mỗi cái 500k bước, train-success 1.00. Config: γ=0.98, N=50 landmark, embedding=16, hidden
+3×256 (Appendix-E). Đặc tính đo được: `V` nén (median ~1.5, max ~4.65), critic `D` median ~12
+→ **D/V ≈ 10×** (lý do chọn substrate theo env, §5).
 
-**Đặc tính checkpoint (đo được):** `V` nén (median ~1.5, max ~4.65), critic `D`
-median ~12 → **D/V ≈ 10×**. Lý do E1c chuyển substrate sang `D`.
+### 7.1 PointMaze reimpl — multi-seed (canonical)
 
-### E1a — sample rollout dưới nhiễu đồng nhất
-Loại-2 đồng nhất, Nơi 1&2 · 3 seed × 50 eps (n=150/điểm) · d_max=0.68 · 200 sims ·
-so: Soft Floyd / Naive-replan / fresh-`V_obs` replan / MCTS. `scripts/run_e1a.py`.
+Pool 4 training-seed × 2 eval-seed × 25 episode; CI = hierarchical bootstrap qua training-seed.
+Tái tạo: `scripts/aggregate_ablation.py --dir logs/exp_suite/local --seeds 0 1 2 3 --regime e1{a,c}`.
 
-![E1a](logs/e1_correctness_rerun_20260728/pointmaze_numpy/e1a_curve.png)
+**E1a (stochastic, Nơi 1&2, `d_max=0.68`, 100 sims):**
 
-| σ | Soft Floyd | Naive re-plan | Fresh `V_obs` | MCTS |
-|---|---|---|---|---|
-| 0.0 | 0.93 [0.87,0.99] | 0.93 [0.87,0.99] | 0.93 [0.87,0.99] | 0.93 [0.87,0.99] |
-| 0.1 | 0.95 [0.89,0.99] | 0.94 [0.87,0.99] | 0.99 [0.96,1.00] | 0.92 [0.83,0.99] |
-| **0.3** | **0.29 [0.18,0.40]** | **0.24 [0.13,0.34]** | **0.97 [0.93,0.99]** | **0.65 [0.54,0.75]** |
-| 0.5 | 0.03 [0.01,0.07] | 0.03 [0.01,0.07] | 0.01 [0.00,0.03] | 0.07 [0.03,0.13] |
+![E1a](logs/exp_suite/summary_e1a.png)
 
-**Đọc:** ở σ=0.3, MCTS tách CI khỏi static Floyd và naive replan, nên có tín hiệu
-tree-search/rollout giúp trong cửa sổ nhiễu trung bình. Tuy nhiên baseline bắt
-buộc `Soft Floyd + fresh V_obs` đạt 0.97: re-observe toàn graph mỗi env-step đã
-trung bình hoá temporal noise hiệu quả hơn MCTS. Baseline này không compute-matched
-(có thể rebuild graph tới 500 lần/episode), nên cần bổ sung latency/model-query
-count; hiện chỉ được kết luận MCTS hơn **static** Floyd, không phải tốt nhất.
+| σ | soft_floyd | naive_replan | **MPC(fresh)** | mcts | mcts+pw | mcts+bayes |
+|---|---|---|---|---|---|---|
+| 0.0 | 0.97 [0.92,1.00] | 0.95 [0.90,0.99] | 0.95 [0.90,0.99] | 0.97 [0.92,1.00] | 0.97 [0.91,1.00] | 0.97 [0.92,1.00] |
+| 0.1 | 0.97 [0.91,1.00] | 0.94 [0.89,0.99] | 0.96 [0.92,1.00] | 0.91 [0.81,0.99] | 0.91 [0.81,0.99] | 0.91 [0.81,0.99] |
+| **0.3** | 0.83 [0.51,1.00] | 0.79 [0.45,0.98] | **0.95 [0.90,0.99]** | 0.86 [0.70,1.00] | 0.85 [0.67,1.00] | 0.86 [0.70,1.00] |
+| 0.5 | 0.76 [0.29,1.00] | 0.72 [0.28,0.98] | 0.72 [0.24,0.99] | 0.73 [0.30,1.00] | 0.73 [0.32,1.00] | 0.73 [0.29,1.00] |
 
-### E1b — uncertainty bonus (α vs β) dưới nhiễu dị biệt oracle
-Loại-2 dị biệt (frac_high=0.6, oracle σ) · 2 seed × 35 eps (n=70) · d_max=0.68 ·
-100 sims · λ_risk=3, β_unc=1 · so: MCTS none/α/β. `scripts/run_e1b.py`.
+**Đọc:** trên graph PointMaze nhỏ, **MPC-fresh** (re-observe toàn graph mỗi env-step) bền nhất
+ở σ=0.3 (0.95) vì trung bình hoá temporal noise hiệu quả nhất. MCTS ≈ soft-Floyd (CI rộng,
+chồng lấn) và **3 nâng cấp (pw/bayes) trung tính** — đúng kỳ vọng: đào sâu chỉ phát huy khi
+graph lớn (xem AntMaze §7.3). MPC-fresh **không compute-matched** (rebuild graph tới 500 lần/ep)
+→ chỉ kết luận được MCTS ≈ soft-Floyd tĩnh ở đây, không phải tốt nhất tuyệt đối.
 
-![E1b](logs/e1_correctness_rerun_20260728/pointmaze_numpy/e1b_curve.png)
+**E1c (bias hệ thống, substrate critic-`D`, 80 sims, auto-τ = 0.25/0.5/1.0·d_max):**
 
-| σ_hi | MCTS (β=0) | MCTS+α (né rủi ro) | MCTS+β (thăm dò) |
+![E1c](logs/exp_suite/summary_e1c.png)
+
+| σ | soft_floyd (tĩnh) | mcts_nofb | **mcts_fb** |
 |---|---|---|---|
-| 0.0 | 0.90 [0.80,0.97] | 0.90 [0.80,0.97] | 0.90 [0.80,0.97] |
-| 0.5 | 0.19 [0.10,0.29] | 0.27 [0.17,0.39] | 0.19 [0.10,0.29] |
-| **1.0** | **0.03 [0.00,0.10]** | **0.03 [0.00,0.10]** | **0.03 [0.00,0.10]** |
+| 0.0 | 0.96 [0.89,1.00] | 0.96 [0.89,1.00] | 0.96 [0.89,1.00] |
+| 0.1 | 0.89 [0.81,0.95] | 0.82 [0.73,0.91] | **0.98 [0.94,1.00]** |
+| **0.3** | 0.51 [0.37,0.64] | 0.41 [0.27,0.57] | **0.80 [0.70,0.89]** |
 
-**Đọc:** α có tín hiệu +0.08 tại σ_hi=0.5 nhưng CI chồng lấn; tại 1.0 mọi biến thể
-đều về sàn. Vì vậy E1b **chưa đạt** tiêu chí “MCTS-full > MCTS-β=0”. β trùng none
-ở cả hai mức, phù hợp với phân tích rằng bonus ở node sâu không đổi root value đủ
-mạnh. Cần quét `lambda_risk` trên calibration seeds và thêm điểm giữa 0.5-1.0.
+**Đọc:** dưới bias, **feedback thắng rõ** (σ=0.3: 0.80 vs Floyd 0.51, CI gần tách; no-fb 0.41
+**tệ nhất** → phần thắng đến từ *feedback*, không phải lookahead). σ=0 là control tất định (3
+nhánh = 0.96). **Robust với τ:** một run riêng với τ nới lỏng (2/3/4 bước, `logs/p1_multiseed/`)
+cho fb ≈ **0.90 ± 0.03** ở σ=0.3 — cùng chiều, gap còn lớn hơn; kết quả không cherry-pick theo τ.
 
-### E1c — execution feedback dưới bias hệ thống
-Loại-1 bias · substrate critic-`D` · 2 seed × 30 eps (n=60) · d_max=0.998 · 80 sims ·
-ρ=0.5, τ_reach=2.0, τ_progress=3.0, τ_snap=4.0, r_max=2 · hierarchical bootstrap CI ·
-so: Soft Floyd / MCTS no-fb / MCTS+fb. `scripts/run_e1c.py`.
+**Minh hoạ (σ=0.3 bias):**
 
-![E1c](logs/e1c_curve.png)
+![PointMaze graph](logs/exp_suite/viz_pointmaze_e1c.png)
 
-| σ_bias | Soft Floyd (tĩnh) | MCTS no-feedback | MCTS + feedback |
+Graph landmark trong maze chữ-W: panel nhiễu (phải) đầy cạnh **wormhole đỏ** cắt ngang tường; đường
+soft-Floyd (navy) bị hút lên góc trên vào một wormhole.
+
+![PointMaze plans](logs/exp_suite/plans_pointmaze_e1c.png)
+
+Plan 3-planner cùng episode: **soft_floyd FAILED** (aim thẳng vào wormhole, 2 subgoal) / **mcts_nofb
+FAILED** (thrash — 171 lần đổi subgoal) / **mcts_fb REACHED** (9 subgoal). Chiến thắng đến từ feedback.
+
+### 7.2 Fetch (paper stack) — negative control: planning không có đòn bẩy
+
+> **Provenance:** chạy trên **stack paper**, checkpoint **FetchPickAndPlace-v1 s967** (train đủ,
+> plan-success ~1.0) qua `repro/paper_mcts/`. Single-seed, point-estimate (mean qua ~90 episode,
+> chưa CI). Nguồn trên đĩa: `logs/exp_suite/fetch_{e1a,e1c,plans_e1c}.json`.
+
+Fetch là **short-horizon manipulation**: dump 1-episode (σ=0.2) cho thấy cả 3 planner chạm goal
+trong **13 bước với 0 subgoal** — reach goal trực tiếp, **không route qua landmark nào** → planning
+gần như **không có đòn bẩy**.
+
+![Fetch graph](logs/exp_suite/viz_fetch_e1c.png)
+
+Graph landmark (object x–y, N=80): dù nhiễu tạo cạnh **wormhole đỏ**, start (ô vuông xanh) nằm ngay
+cạnh goal (sao vàng) nên đường soft-Floyd (navy) rất ngắn.
+
+![Fetch plans](logs/exp_suite/plans_fetch_e1c.png)
+
+Hình plan (σ=0.2 bias): start (ô vuông xanh) nằm **ngay cạnh** goal (sao vàng) trong không gian
+object x–y; dù nhiễu tạo cạnh **wormhole** (đỏ), cả `soft_floyd`/`mcts_nofb`/`mcts_fb` đều REACHED
+với **0 subgoal** — không planner nào bị bẫy vì goal ở trong tầm với trực tiếp.
+
+**E1a (stochastic, 100 sims)** — mọi planner giữ **~1.0 tới tận σ=40**:
+
+| σ | soft_floyd | mcts | +suffix | +pw | +bayes |
+|---|---|---|---|---|---|
+| 0 | 1.00 | 0.99 | 0.98 | 0.99 | 1.00 |
+| 5 | 0.98 | 1.00 | 1.00 | 0.99 | 1.00 |
+| 10 | 1.00 | 1.00 | 1.00 | 1.00 | 0.99 |
+| 20 | 1.00 | 0.99 | 0.99 | 1.00 | 0.99 |
+| 40 | 0.97 | 0.98 | 0.99 | 1.00 | 0.97 |
+
+**E1c (bias, 100 sims)** — tương tự, **~1.0 tới σ=0.3**:
+
+| σ | soft_floyd | mcts_nofb | mcts_fb |
 |---|---|---|---|
-| 0.0 | 0.87 [0.70,1.00] | 0.87 [0.70,1.00] | 0.87 [0.70,1.00] |
-| 0.1 | 0.83 [0.70,0.95] | 0.85 [0.75,0.93] | 0.93 [0.80,1.00] |
-| **0.3** | **0.52 [0.35,0.68]** | **0.43 [0.32,0.57]** | **0.87 [0.73,0.97]** |
+| 0.0 | 1.00 | 1.00 | 0.99 |
+| 0.1 | 1.00 | 0.99 | 1.00 |
+| 0.2 | 1.00 | 1.00 | 0.99 |
+| 0.3 | 1.00 | 1.00 | 0.99 |
 
-**Đọc:** MCTS+feedback (0.87) vượt Soft Floyd (0.52) ở σ=0.3, CI không chồng
-(0.73 > 0.68); MCTS no-feedback (0.43) tệ nhất → phần thắng đến từ **feedback**,
-không phải lookahead. σ=0 là control tất định chính xác (3 nhánh = 0.87, |Δ|=0.00).
+**Chốt Fetch:** đây là **negative control đúng như dự đoán** — task short-horizon, goal reach trực
+tiếp (0 subgoal) → nhiễu world-model **không** phá được planning vì gần như không có planning để phá.
+Mọi planner bão hoà trần, không tách được — và đó chính là điều nên thấy. Khẳng định câu chuyện
+regime-dependent: **MCTS chỉ ăn tiền khi planning load-bearing (long-horizon, §7.1/§7.3)**.
 
-> **⚠️ Sửa bug + robustness với τ (quan trọng, trung thực):** một run trước đó
-> kết luận E1c "không đạt acceptance" (feedback 0.43 < Floyd) — hoá ra là **artifact
-> của bug goal-blacklist** (node goal bị `<=` mask nhầm, khiến planner không được
-> nhắm goal trực tiếp sau một lần STUCK; đã fix, xem `_candidate_mask`). Ở đúng
-> config auto-τ của run đó (τ_reach=0.25·d_max), code đã-fix cho feedback = **0.78**
-> (không phải 0.43). Sweep τ tại σ=0.3 (sau fix) cho thấy feedback **vượt Floyd
-> (mean) ở MỌI τ**: τ_reach/τ_progress = 0.25/0.5 → 0.78; 1.0/1.5 → 0.83;
-> 2.0/3.0 → 0.87; 4.0/6.0 → 0.87. CI **tách hẳn** (ý nghĩa thống kê) khi τ_reach ≥ 2
-> bước; ở auto-τ (¼ bước, quá chặt) fb vẫn > mean nhưng CI còn chồng nhẹ. → kết
-> quả **robust với τ**, không cherry-pick. (Spec §4.1 vốn khuyên quét τ_progress.)
+### 7.3 AntMaze (paper stack, Route A) — *single-seed, reported*
 
-### E1d — noisy graph + noisy execution
-Loại-2 tại Nơi 1,2,3 · substrate critic-`D` · 2 seed × 30 eps (n=60) ·
-d_max=0.998 · 80 sims · rollout horizon=10 · graph_sigma_scale=1 ·
-exec_sigma_scale=1 · ρ=0.5, τ_reach=2.0, τ_progress=3.0, τ_snap=4.0, r_max=2 · so:
-Soft Floyd / MCTS no-feedback / MCTS+recovery-feedback. `scripts/run_e1d.py`.
+> **Provenance:** các bảng dưới đây chạy trên **stack paper 2019 (Kaggle)**, checkpoint
+> paper-faithful **AntMaze-v1 seed 221** (test-plan ~0.8 >> HER ~0.58 — long-horizon, planner
+> load-bearing). Đây là **single-seed**, và **raw per-episode log CHƯA sync về repo** → chưa có
+> CI. Trên đĩa chỉ có dump 1-episode để verify chiều (dưới). Cần multi-seed để firm.
 
-![E1d](logs/e1d_curve.png)
+**E1a (stochastic, 100 sims) — MCTS sample-averaging thắng đậm:**
 
-| σ | Soft Floyd | MCTS no-feedback | MCTS + recovery/feedback |
-|---|---|---|---|
-| 0.0 | 0.87 [0.70,1.00] | 0.87 [0.70,1.00] | 0.87 [0.70,1.00] |
-| **0.3** | **0.90 [0.73,1.00]** | **0.97 [0.90,1.00]** | **1.00 [1.00,1.00]** |
+![AntMaze E1a](logs/exp_suite/summary_antmaze_e1a.png)
 
-**Đọc:** feedback **KHÔNG gây hại** — 1.00 ≥ nofb 0.97 ≥ Floyd 0.90 ở σ=0.3.
-
-> **⚠️ Sửa bug (cùng gốc với E1c):** một run trước đó cho feedback = **0.33**
-> ("recovery/feedback gây hại, over-correction") — cũng là **artifact của bug
-> goal-blacklist** + τ chặt (auto). Fix xong + τ 2/3/4, feedback nhảy 0.33 → **1.00**.
-> Bài học: kết luận "treatment có hại" trước đây là do bug, không phải do cơ chế.
->
-> **Hạn chế thật của E1d:** ở exec-noise scale=1, σ=0.3 mọi nhánh đều gần trần
-> (0.90–1.00, CI chồng) → thí nghiệm **chưa đủ căng để phân biệt**. Muốn E1d có
-> sức phân giải cần tăng exec_sigma_scale (Nơi-3 mạnh hơn) để kéo baseline xuống.
-> Latency sau fix: **0.16 s/episode** (early-stop-on-success làm nhanh ~15× so với
-> chạy đủ 500 bước).
-
----
-
-## 7.5 P1 — Multi-seed (robustness qua 4 world-model độc lập)
-Train 4 checkpoint PointMaze (seed huấn luyện 0,1,2,3, mỗi cái 500k bước, đều đạt
-train-success 1.00), chạy lại E1a + E1c trên từng cái, tổng hợp mean ± std qua seed.
-Kết quả: `logs/p1_multiseed/seed{0..3}_e1{a,c}.json`.
-
-**E1c (bias, critic-D) — NHẤT QUÁN & MẠNH:**
-| σ | Soft Floyd | MCTS no-fb | MCTS + feedback |
-|---|---|---|---|
-| 0.0 | 0.96±0.06 | 0.96±0.06 | 0.96±0.06 |
-| 0.1 | 0.89±0.05 | 0.86±0.06 | 0.98±0.03 |
-| **0.3** | **0.53±0.11** | **0.48±0.14** | **0.90±0.03** |
-
-fb @σ=0.3 per-seed = [0.87,0.93,0.93,0.87] (std 0.03) → thắng Floyd trên **cả 4 seed**.
-Execution feedback sửa bias hệ thống **nhất quán qua các world-model độc lập** — đây là
-claim vững nhất của cả dự án.
-
-**E1a (stochastic, V-substrate) — KHÔNG đáng tin:** 3/4 seed degenerate (calibration ra
-graph ~rỗng → Floyd noise-immune ~1.0). Soft Floyd @σ=0.3 per-seed = [0.32,1.0,0.98,1.0]
-(std 0.29). "MPC ≫ MCTS" chỉ đúng ở seed-0. → không kết luận được từ E1a.
-
-**Hai điều P1 chốt:**
-1. **Tree-search MCTS không tự earn its keep** (E1c: mcts_nofb tệ nhất; E1a: không thắng
-   fresh-replan/Floyd). Cái ăn tiền = **execution feedback** + (dưới stochastic) **replan**.
-2. **PointMaze quá dễ/không nhất quán cho câu chuyện stochastic** → cần env khó của paper
-   (AntMaze/Fetch) để E1a có tín hiệu ổn định; đây là động lực cho phase MuJoCo/VLA-sim.
-
----
-
-## 7.6 Fetch (gym-robotics) — 2 bug substrate được tìm ra & sửa
-Checkpoint `checkpoint/l3p_fetch.pt` (undertrained: flat 0.70 / Soft Floyd 0.50; V-scale ~0.3).
-Fetch có obs≠goal nên substrate graph bắt buộc là `V`/`agent.value` (KHÁC PointMaze dùng
-critic-`D`). Lần chạy đầu, MCTS **sập** 0.42→0.05 dưới bias trong khi Soft Floyd tĩnh giữ
-0.42 — thoạt nhìn "ngược PointMaze". Soi kỹ code cho thấy đây là **2 bug substrate**, không
-phải phát hiện khoa học:
-
-**Bug #1 — MCTS lạc quan hoá "wormhole" V≈0, cap tắt.** Trên `V` (`agent.value` "compressed
-~10x, weakly correlated with D" — chính docstring `noise.py:CriticEdgeFn`) có cạnh landmark→goal
-gần 0. Rollout hard-argmax của MCTS (`mcts_planner.py:_rollout`) latch vào đó; Soft Floyd nhờ
-softmax-β trung bình hoá nên miễn nhiễm. Guard `mcts_cap_rollout_by_heuristic` sinh ra đúng cho
-case này nhưng **mặc định tắt và không bật ở đâu**. Probe quyết định (σ=0.1, 20 eps):
-`mcts_nofb` cap=OFF **0.00** → cap=ON **0.50** = Soft Floyd. → Fix: harness E1a/c/d tự bật cap
-khi `obs_dim != goal_dim` (substrate `V`); PointMaze critic-`D` giữ tắt (config default không đổi).
-
-**Bug #2 — realized cost trộn đơn vị.** `realized = macro_k + dist_to_goal` (`:534`) cộng
-**số env-step** (`macro_k`) với **thang `V`** (~0.3); chỉ đúng trên critic-`D` (D≈số bước).
-Trên `V` → EMA `_v_exec` bơm cạnh lên ~O(10-50), phá graph. → Fix: khi substrate `V`, đo
-`realized`/`dist_travelled`/`_snap` bằng `edge_value_fn` (đơn vị `V`), qua cờ `self._step_scale`
-(critic-`D` giữ nguyên byte-for-byte → **PointMaze P1 không đổi**; các test feedback cũ vẫn pass).
-Regression test mới: `test_feedback_realized_cost_on_v_scale_not_step_count`.
-
-**E1c (bias) SAU FIX — hết sập, MCTS bám Soft Floyd** (seeds 0,1 × 30 eps; cap auto-on):
-| σ | Soft Floyd | MCTS no-fb | MCTS + fb | (buggy: nofb/fb) |
-|---|---|---|---|---|
-| 0.0 | 0.42 | 0.42 | 0.42 | 0.42 / 0.42 |
-| 0.1 | 0.42 | 0.42 | 0.42 | ~~0.05 / 0.05~~ |
-| 0.3 | 0.32 | 0.32 | 0.32 | ~~0.07 / 0.05~~ |
-
-Bias đơn điệu + checkpoint yếu → feedback **trung tính** (không hại, không thêm) trên Fetch.
-Claim "feedback sửa bias" vẫn chỉ vững trên **PointMaze critic-`D`** (§7.5, 4 seed).
-
-**E1a (stochastic) SAU FIX — vẫn degenerate, nhưng do σ-scale, KHÔNG phải bug:**
-| σ | Soft Floyd (static) | Naive replan | Fresh V_obs (MPC) | MCTS |
-|---|---|---|---|---|
-| 0.0 | 0.42 | 0.40 | 0.40 | 0.42 |
-| 0.1 | 0.05 | 0.05 | 0.05 | 0.08 |
-| 0.3 | 0.05 | 0.05 | 0.05 | 0.07 |
-
-Ở đây **cả Soft Floyd tĩnh cũng sập** 0.42→0.05 → dấu hiệu rõ đây là **nhiễu quá lớn** (zero-mean
-σ=0.1 trên V-scale ~0.3 ≈ 30% tương đối), không phải lỗi planner. E1a Fetch chỉ có nghĩa khi
-**σ calibrate theo V-scale** (≈0.01–0.03) hoặc checkpoint train đủ. Kết quả: `logs/fetch_fixed/`
-(bản buggy giữ ở `logs/fetch/`).
-
----
-
-## 7.7 Bộ thí nghiệm robustness — env paper (Route A) + multi-seed
-Dựng lại **stack paper 2019** trên Kaggle và train checkpoint paper-faithful:
-**AntMaze-v1 test-plan ~0.8** (long-horizon, planner load-bearing: test-plan 0.8 >> HER 0.58)
-và **FetchPickAndPlace-v1 ~1.0** (short-horizon). Port MCTS-over-landmarks vào repo paper
-(`repro/paper_mcts/`: engine tự chứa + `PaperMCTSPlanner` override `get_subgoals`, cầu dấu
-V≤0 ↔ D≥0). Chạy song song backbone **multi-seed local** (reimpl PointMaze, 4 seed) +
-**single-seed paper** (Kaggle). Bơm nhiễu vào world-model rồi so soft-Floyd vs MCTS.
-
-**Hai cơ chế robustness — cả hai đều DƯƠNG, đúng chỗ dự đoán:**
-
-*E1a (stochastic) — MCTS sample-averaging.* AntMaze (env có đòn bẩy), 100 sims:
 | σ | soft_floyd | mcts | +pw | +bayes |
 |---|---|---|---|---|
 | 0 | 0.71 | 0.73 | 0.72 | 0.74 |
 | 5 | 0.58 | 0.68 | **0.87** | 0.79 |
 | 10 | **0.19** | **0.50** | 0.42 | 0.52 |
 
-→ Dưới nhiễu, **MCTS >> soft-Floyd** (σ=10: 0.50 vs 0.19); **+pw thắng đậm ở σ=5** (0.87) —
-graph lớn N≈200, đào sâu phát huy (ngược PointMaze nhỏ nơi PW trung tính/hại).
+→ Dưới nhiễu, **MCTS >> soft-Floyd** (σ=10: 0.50 vs 0.19); **+pw thắng đậm ở σ=5** (0.87) — graph
+lớn (N≈200 sau extra-landmark), đào sâu phát huy (ngược PointMaze nhỏ nơi pw trung tính).
 
-*E1c (bias hệ thống) — execution feedback.* PointMaze reimpl, **4 seed, mean[95% CI]:**
-| σ | soft_floyd | mcts_nofb | mcts_fb |
-|---|---|---|---|
-| 0 | 0.96 | 0.96 | 0.96 |
-| 0.1 | 0.89 | 0.82 | **0.98** |
-| 0.3 | 0.51 [0.37,0.64] | 0.41 [0.27,0.57] | **0.80 [0.70,0.89]** |
+**E1c (bias, fine sweep) — feedback cứu nhưng modest:**
 
-→ Dưới bias (wormhole cố định), **feedback thắng rõ** (0.80 vs 0.51, CI gần tách rời).
-
-*E1c trên AntMaze (paper, single-seed, fine sweep):*
 | σ | soft_floyd | mcts_nofb | mcts_fb |
 |---|---|---|---|
 | 0 | 0.77 | 0.79 | 0.82 |
@@ -413,82 +302,244 @@ graph lớn N≈200, đào sâu phát huy (ngược PointMaze nhỏ nơi PW trun
 | 0.15 | 0.67 | 0.72 | **0.74** |
 | 0.20 | 0.49 | 0.74* | 0.56 |
 
-→ **mcts_fb ≥ soft_floyd ở MỌI σ** (+0.05–0.09) — feedback cứu bias trên env paper, nhưng
-**modest** (không "kịch tính" như PointMaze). **Cơ chế KHÁC theo env:** PointMaze win thuần
-do *feedback* (nofb 0.41 **tệ hơn** floyd); AntMaze **replan/lookahead đã gánh chính** (nofb
-cũng > floyd), feedback thêm chút. *(σ=0.2 nofb=0.74 phi lý-tăng → nghi variance 1-seed.)*
-**Caveat:** single-seed × 90 ep → gap nhỏ cần multi-seed/CI mới firm.
+→ **mcts_fb ≥ soft_floyd ở mọi σ** (+0.05–0.09). **Cơ chế KHÁC theo env:** PointMaze thắng thuần
+do *feedback* (nofb tệ hơn Floyd); AntMaze **replan/lookahead gánh chính** (nofb cũng > Floyd),
+feedback thêm chút. *(σ=0.2 nofb=0.74 tăng phi lý → nghi variance 1-seed.)*
 
-**E1a local (PointMaze, 4 seed)** — graph nhỏ/sạch-ish: MPC(fresh) bền nhất (σ=0.3: 0.95),
-mcts≈soft_floyd (0.86 vs 0.83), **3 cờ trung tính** — khớp: giá trị MCTS ở graph lớn+nhiễu,
-không phải nhỏ+sạch.
+**Corroboration trên đĩa** (`logs/exp_suite/antmaze_plans_e1c.json`, σ=0.2, **1 episode**): soft_floyd
+**FAIL** (30 subgoal, chạm trần 501 bước) trong khi **mcts_nofb & mcts_fb REACHED** (14/22 subgoal,
+221/291 bước) — nhất quán chiều với bảng E1c.
 
-**Chi phí (Track C):** soft-Floyd ~O(N³)/episode (plan 1 lần), MCTS ~O(n_sim·H·N)/**mỗi**
-macro-step (re-search) → PointMaze N=50: MCTS **~2.4 s/ep** vs soft-Floyd ~8 ms (**~250×**).
-Cost nổ theo N (10→50: 9→2400 ms). `--latency` (paper) + `aggregate_ablation.py` đo trực tiếp.
+**Minh hoạ:**
 
-**Minh hoạ cơ chế (Track V)** — `logs/exp_suite/`:
-- `viz_pointmaze_{e1a,e1c}.png`, `viz_antmaze_e1c.png` (`viz_graph_noise.py`): graph landmark
-  **clean vs noisy**, **"wormhole"** đỏ (cạnh nhiễu làm ngắn giả). AntMaze thấy rõ wormhole
-  **cắt ngang tường U-maze** = "teleport" giả — bẫy soft-Floyd tin, MCTS né.
-- `plans_{pointmaze,antmaze}_e1c.png` (`viz_plans.py`): **plan 3 planner cạnh nhau** cùng
-  episode/nhiễu. PointMaze: soft_floyd FAIL (cắm wormhole) / mcts_nofb FAIL (thrash) / **mcts_fb
-  REACHED**. AntMaze U-maze: **soft_floyd FAIL (kẹt góc phải)** / mcts_nofb & mcts_fb **đi trọn U tới goal**.
-- `summary_{e1a,e1c}.png` (PointMaze CI) + `summary_antmaze.png` (AntMaze E1a+E1c) (`aggregate_ablation.py`).
+![AntMaze graph](logs/exp_suite/viz_antmaze_e1c.png)
 
-**Chốt regime-dependent (câu chuyện paper):** *soft-Floyd tốt + rẻ khi world-model chính xác;
-MCTS ăn tiền khi world-model NHIỄU + task long-horizon (stochastic→averaging, bias→feedback),
-đổi lấy chi phí planning ~250× cao hơn.* Learned world-model thực tế luôn nhiễu → đây là niche thật.
+Graph trong U-maze (σ=0.15): vùng trống giữa-trái là **tường**; cạnh **wormhole đỏ** = "teleport"
+giả cắt ngang tường — bẫy soft-Floyd tin.
+
+![AntMaze plans](logs/exp_suite/plans_antmaze_e1c.png)
+
+Plan 3-planner (σ=0.2): **soft_floyd FAILED** (kẹt góc dưới-phải, thrash) / **mcts_nofb & mcts_fb
+REACHED** — đi trọn vòng U từ start (dưới-trái) lên phải, qua đỉnh, tới goal (sao trên-trái).
+
+### 7.4 Chi phí / độ phức tạp planning
+
+**Asymptotic (từ thuật toán):** soft-Floyd `O(soft_iters·N³)` — plan **1 lần/episode**; MCTS
+`O(n_sim·H·N)` — re-search **mỗi macro-step**. → MCTS đắt hơn nhiều bậc và **nổ theo N**.
+
+**Đo được:**
+- **PointMaze N=50, 80 sims** (`logs/e1d_results.json`, σ=0.3, search-time/episode): mcts_nofb
+  ≈ **0.40 s/ep**, mcts_fb ≈ **0.24 s/ep** (early-stop-on-success làm fb nhanh hơn); soft_floyd ≈ 0.
+- **Fetch N=80, 100 sims** (`logs/exp_suite/fetch_e1{a,c}.json`, ms/search): MCTS ≈ **28–82 ms/search**
+  (E1a), **~21–31 ms/search** (E1c); soft_floyd ≈ 0 (plan 1 lần).
+
+Chi phí MCTS tăng tuyến tính theo `n_sim`, `H`, và `N` (mỗi sim quét cạnh admissible); soft-Floyd
+plan **một lần/episode** nên ~miễn phí. Đây là cái giá để đổi lấy robustness dưới nhiễu (§7.1/§7.3).
+
+### 7.5 Chú thích hình & script
+
+Hình graph clean-vs-noisy + plan 3-planner của **cả ba env** đã nhúng inline ở §7.1 (PointMaze),
+§7.2 (Fetch), §7.3 (AntMaze). Quy ước chung: cạnh **đỏ = wormhole** (nhiễu làm ngắn giả), đường
+navy = trajectory thật, ô vuông xanh = start, sao vàng = goal, vòng cam = subgoal được aim.
+
+- `viz_graph_noise.py` → hình graph (`viz_{env}_e1c.png`); `viz_plans.py` → hình plan (`plans_{env}_e1c.png`).
+- Summary curve success-vs-σ: `summary_{e1a,e1c}.png` (PointMaze, có CI), `summary_antmaze*.png`.
+
+### 7.6 E3 — Trap deceptive-irreversible (risk-sensitive CVaR) — *preliminary*
+
+> **Hướng mở rộng CHÍNH** (spec §4.6 + `docs/REPORT_MCTS_Landmark_Trap.md`). Khác E1 (nhiễu ước
+> lượng): trap là vùng **bất khả hồi** mà planner tối-ưu-trung-bình (Floyd **và** MCTS-mean) **mù
+> về mặt thông tin** — Report §2.6 chứng minh rủi ro sống ở *moment ≥2 của landing distribution*,
+> không có trong `V`; nên softmax-Floyd cũng không cứu được. **MCTS backup risk-sensitive (CVaR)**
+> nhìn đuôi phân phối → né. **Trạng thái: preliminary** (engine proven; demo env còn modest).
+
+**Setup:** env `PointMazeTrap` — ring "vật cản giữa": arc ngắn (14 hop, qua trap-pocket) vs arc dài
+(26 hop, an toàn); đi thẳng bị tường chặn ⇒ planning **load-bearing** (flat-policy = 0.00). Checkpoint
+train **trap-OFF** (`checkpoint/l3p_pointmaze_trap.pt`) → `V`/landmark không "biết" trap (đúng tính
+deceptive). Planner giữ **hop-by-hop** (root-mask theo d_max) để trap được model ở từng macro-step;
+CVaR tính cả trong UCT (ổn định) + spill-seed cố định/episode (chống thrashing). Nhánh: `soft_floyd`
+(LatentPlanner, L³P), `mcts_mean` (CVaR α=1), `mcts_cvar` (α<1). Nguồn: `logs/exp_suite/e3{a,b}_results.json`.
+
+**Chứng minh ENGINE (chắc chắn, tất định):** `tests/test_modules.py::test_cvar_robust_child_avoids_spill_trap`
+— cho CÙNG landing/spill-model, mean/Floyd chọn landmark-danger, CVaR chọn landmark-safe.
+
+**E3a — sweep p_spill (α=0.3, r_absorb=−30), mean [95% CI], 4 seed × 15 ep:**
+
+![E3a](logs/exp_suite/e3a_curve.png)
+
+| p_spill | trap-hit: floyd / mean / **cvar** | success: floyd / mean / **cvar** |
+|---|---|---|
+| 0.0 | 0.00 / 0.00 / 0.00 | 1.00 / 1.00 / 1.00 |
+| 0.1 | 0.13 / 0.13 / 0.13 | 0.87 / 0.87 / 0.65 |
+| 0.2 | 0.22 / 0.18 / **0.12** | 0.78 / 0.77 / 0.40 |
+| 0.3 | 0.23 / 0.22 / **0.15** | 0.77 / 0.70 / 0.32 |
+
+**E3b — sweep α @ p_spill=0.3 (α-curve, kết quả chính §4.6), 4 seed × 15 ep:**
+
+![E3b](logs/exp_suite/e3b_curve.png)
+
+| α | cvar trap-hit | cvar success |
+|---|---|---|
+| **1.0** (≡ mean) | 0.22 [0.10,0.35] | 0.70 [0.55,0.85] |
+| 0.5 | 0.17 [0.05,0.28] | 0.63 [0.50,0.77] |
+| 0.3 | 0.15 [0.05,0.28] | 0.32 [0.18,0.47] |
+| 0.1 | 0.03 [0.00,0.10] | 0.13 [0.02,0.28] |
+
+**Đọc:** (i) **sanity ✓** — p_spill=0 mọi nhánh tie (1.00); α=1 ⇒ CVaR ≡ mean (0.22/0.70). (ii)
+**α-curve khớp lý thuyết §4.6:** giảm α → trap-hit giảm đơn điệu (0.22→0.03) **đổi lấy** success
+(0.70→0.13); α→0 = **paralysis** đúng như dự đoán. (iii) `cvar` giảm trap-hit **đúng chiều ở mọi
+p_spill** so với mean/Floyd.
+
+**⚠️ Hạn chế (trung thực):**
+- **Magnitude modest + CI chồng** — α=0.3 @σ=0.3: cvar trap 0.15[0.05,0.28] vs mean 0.22[0.08,0.35]
+  chưa tách thống kê (4 seed × 15 ep chưa đủ).
+- **Success cost nặng:** né trap ⇒ đi arc-an-toàn dài 26 hop, low-level point-mass hay timeout →
+  success tụt (α=0.3: 0.32). Không có α nào vừa trap≈0 vừa success cao trên env nhỏ này.
+- **Gốc rễ:** point-mass PointMaze **margin-planning mỏng** (đúng kết luận E1) → route-control nhiễu.
+  **Demo sạch/mạnh cần env load-bearing thật (AntMaze locomotion)** — hướng vòng sau.
+
+**Chốt E3:** cơ chế CVaR **đúng về nguyên lý (engine proven) + đúng chiều & khớp lý thuyết trên env
+(α-curve trade-off, paralysis)**; nhưng demo end-to-end trên PointMaze **modest, chưa significant**
+do env thiếu đòn bẩy + arc-safe khó.
+
+### 7.7 So sánh planner: cổ điển (Dijkstra / A* / greedy) vs soft-Floyd vs MCTS
+
+> **Câu hỏi:** trên cùng graph nhiễu, *thuật toán định tuyến* ảnh hưởng robustness thế nào, và
+> **bơm nhiễu tới đâu thì mọi planner fail?** Thêm 3 baseline định-tuyến cổ điển (Dijkstra hard
+> shortest-path, A*, greedy myopic) chạy trên **cùng** noisy landmark graph với soft-Floyd/MCTS.
+> Giao thức paper-grade: **paired** (mọi planner cùng start/goal mỗi episode), **paired bootstrap
+> 95% CI** trên outcome per-episode, classical 180 rollouts / MCTS-band 270 (3 noise-seed).
+> Thiết kế đầy đủ: [`docs/EXPERIMENTAL_DESIGN_planners.md`](docs/EXPERIMENTAL_DESIGN_planners.md).
+> Provenance: `logs/outputs/{antmaze,fetch,box_distractor}/…` (paper stack, single **training**-seed).
+
+**Bảng đầu (headline) — σ_all_fail & σ\* (gap MCTS−Floyd có ý nghĩa: CI tách 0):**
+
+| Env · regime | σ_all_fail | σ\* | gap tại σ\* (best-MCTS − soft_floyd) | planner tệ nhất tại σ\* |
+|---|---|---|---|---|
+| **AntMaze · E1c** (bias) | **0.30** | 0.25 | **+0.252 [+0.185, +0.319]** | astar/soft_floyd/dijkstra ~0.09–0.14 |
+| **AntMaze · E1a** (stochastic) | **20** | 10 | **+0.313 [+0.189, +0.444]** | **dijkstra 0.08** |
+| **Fetch** (control) | không sập | — | none significant | — |
+| **BoxDistractor** | không sập (sàn ~0.5) | 0 (planning-quality) | +0.13 [+0.06,+0.21] @σ=0 | greedy |
+
+**AntMaze E1a (stochastic) — mean [95% CI]:**
+
+![AntMaze E1a planners](logs/exp_suite/planners/antmaze_e1a.png)
+
+| σ | soft_floyd | dijkstra | astar | greedy | mcts | +pw | +bayes |
+|---|---|---|---|---|---|---|---|
+| 0 | 0.72 | 0.69 | 0.79 | 0.73 | 0.68 | 0.72 | 0.67 |
+| 5 | 0.67 | 0.61 | 0.67 | 0.64 | **0.81** | 0.72 | 0.69 |
+| **10** | 0.20 [.14,.26] | **0.08 [.04,.13]** | 0.16 [.11,.22] | 0.41 [.33,.48] | **0.47 [.37,.57]** | 0.48 [.38,.58] | **0.48 [.38,.59]** |
+| 20 | 0.00 | 0.00 | 0.00 | 0.03 | 0.01 | 0.00 | 0.01 |
+
+**AntMaze E1c (bias) — mean [95% CI]:**
+
+![AntMaze E1c planners](logs/exp_suite/planners/antmaze_e1c.png)
+
+| σ | soft_floyd | dijkstra | astar | greedy | mcts_nofb | mcts_fb |
+|---|---|---|---|---|---|---|
+| 0 | 0.74 [.68,.81] | 0.71 [.64,.77] | 0.77 [.71,.83] | 0.75 [.68,.81] | 0.75 [.70,.80] | 0.73 [.67,.78] |
+| 0.10 | 0.80 [.74,.86] | 0.76 [.70,.82] | 0.78 [.71,.84] | 0.68 [.62,.75] | 0.76 [.71,.81] | 0.73 [.68,.79] |
+| 0.15 | 0.70 [.63,.77] | 0.65 [.58,.72] | 0.66 [.58,.72] | 0.66 [.59,.73] | 0.73 [.68,.79] | 0.71 [.66,.76] |
+| **0.20** | 0.43 [.37,.51] | 0.44 [.37,.52] | 0.34 [.27,.41] | 0.51 [.44,.58] | 0.61 [.55,.67] | **0.65 [.59,.70]** |
+| **0.25** | 0.09 [.06,.14] | 0.14 [.09,.19] | 0.09 [.06,.14] | 0.28 [.22,.34] | **0.36 [.31,.42]** | 0.35 [.30,.41] |
+| 0.30 | 0.02 | 0.02 | 0.01 | 0.03 | 0.09 [.06,.12] | 0.07 [.04,.10] |
+
+*(σ=0.4/0.5: mọi planner ≈ 0.)*
+
+**Phát hiện chính — thứ tự gục đúng cơ chế** (rõ nhất tại E1a σ=10):
+**Dijkstra 0.08 < A* 0.16 < soft_floyd 0.20 < greedy 0.41 < MCTS ~0.48.** Hard shortest-path
+(Dijkstra/A*) **commit một đường cứng → bị "wormhole" nhiễu dụ nặng nhất**; soft-Floyd (soft
+aggregation) đỡ hơn; **greedy myopic vô tình robust** (không đuổi wormhole xa); **MCTS bền nhất**
+(sample rollout né đuôi). Đây chính là spread giải thích *vì sao* L³P chọn soft-Floyd và vì sao
+tree-search thắng. Ở E1c, MCTS trụ tới σ=0.25 (~0.35) khi Floyd/Dijkstra/A* đã sập (~0.09–0.14).
+
+**Fetch (negative control):** mọi planner ~0.95–1.0 tới σ=40 (E1a) / 0.5 (E1c), **không sập** —
+short-horizon, planning không đòn bẩy (greedy tụt nhẹ ~0.82–0.89 ở σ cao). Xác nhận: nhiễu không
+phá được thứ không có để phá.
+
+**BoxDistractor (manip):** **không sập** (sàn ~0.5 tới σ tối đa) và ngay tại σ=0 **Dijkstra/A*/MCTS
+0.76–0.80 > soft_floyd 0.68 > greedy 0.57** → đây là câu chuyện *chất lượng planning*, không phải
+*robustness-to-noise*; discriminator yếu cho trục nhiễu → **AntMaze là env chủ lực**.
+
+**⚠️ Hạn chế (trung thực):**
+- **A\* ≠ Dijkstra chính xác** (E1a σ=0: A* 0.79 vs Dijkstra 0.69). Heuristic soft-VI **không
+  admissible tuyệt đối** sau clipping của paper → A* chọn route hơi khác — nó là một planner
+  heuristic riêng, **không** phải "bản latency-twin" của Dijkstra. (Cross-check `astar==dijkstra`
+  chỉ đúng khi heuristic admissible.)
+- **Single TRAINING-seed** mỗi env (s221/s829/s967). Paired + noise-band khống chế phương sai
+  *nhiễu*, KHÔNG phải phương sai *training-seed* → cần 2–3 training-seed để firm hẳn
+  (`repro/kaggle_notebooks/antmaze_train.ipynb` train 252/173).
+- σ=0 các planner chỉ *xấp xỉ* nhau (thuật toán khác trên graph sạch) — trong khoảng CI.
+- σ **inject** (không phải nhiễu tự nhiên của một world-model học thật).
+
+Tái lập: `python scripts/plot_planners.py --json <env>_<regime>_classical.json <env>_<regime>_mcts.json --out …png`
+(paired bootstrap CI + knee/collapse/σ\*). Sweep: `repro/kaggle_notebooks/{antmaze_classical,antmaze_mcts,fetch_ablation,boxdistractor_ablation}.ipynb` (`--planners`, `--noise-seeds`).
 
 ---
 
-## 8. Tổng hợp — cơ chế robustness
+## 8. Điều đã loại khỏi suite cuối — và vì sao
 
-| | Nhiễu | Cơ chế cứu | Kết luận |
-|---|---|---|---|
-| E1a | stochastic đồng nhất | **sample rollout** (lookahead) | MCTS > static Floyd, nhưng < fresh-graph replan |
-| E1b | stochastic dị biệt (oracle) | **α né rủi ro** | tín hiệu yếu ở 0.5; chưa đạt acceptance |
-| E1c | bias hệ thống | **execution feedback** | feedback 0.87 > Floyd 0.52 > no-feedback 0.43 ở σ=0.3 (sau fix goal-blacklist); robust qua τ |
-| E1d | stochastic ở planner+rollout+execution | **recovery + loop guard** | sau fix: feedback 1.00 ≥ nofb 0.97 ≥ Floyd 0.90 (không hại); nhưng σ=0.3 mọi nhánh gần trần → chưa đủ căng |
-
-Kết quả hiện chỉ hỗ trợ chắc claim hẹp của E1a: sample-based MCTS robust hơn graph
-tĩnh ở nhiễu trung bình. Các module risk/feedback đã chạy đúng protocol và có
-sanity σ=0, nhưng hyperparameter hiện tại chưa tạo bằng chứng tích cực.
+- **E1b (uncertainty bonus với oracle σ):** cho MCTS biết chính xác σ mỗi cạnh — **không thực tế**.
+  Kết quả cũng yếu: α (né-rủi-ro-trong-reward) chỉ +0.08 @σ_hi=0.5 (0.27 vs none 0.19), **CI chồng**;
+  @σ_hi=1.0 cả ba về sàn 0.03; β (bonus-trong-UCT) **không lợi ích** (β chỉ áp ở node sâu, không đổi
+  giá trị backup lên root → không đổi được macro-step đầu). → **Thay bằng ③ bayes/thompson
+  oracle-free** (§3). Nguồn: `logs/e1_correctness_rerun_20260728/pointmaze_numpy/e1b_results.json`.
+- **E1d (composite: nhiễu ở planner+rollout+execution):** ở σ=0.3 **mọi nhánh gần trần**
+  (fb 1.00 ≥ nofb 0.97 ≥ Floyd 0.90) → không đủ sức phân giải các planner. Nguồn:
+  `logs/e1d_results.json`.
+- **Old single-checkpoint E1a/E1c** (`e1_correctness_rerun_20260728/`): **superseded** bởi multi-seed
+  §7.1 (chạy trên cả 4 checkpoint thay vì 1).
 
 ---
 
 ## 9. Hạn chế (trung thực)
 
-- **Một checkpoint, env PointMaze** mà spec đánh dấu R2 "dễ" (flat policy ~0.9) →
-  margin planning mỏng. Để tuyên bố chắc cần lặp trên env khó hơn (AntMaze, cần MuJoCo).
-- **E1b/E1c dùng oracle-ish uncertainty:** E1b cho MCTS biết chính xác σ_ij; E1c
-  feedback là thật (từ execution) nhưng trên substrate critic-`D`. Chưa test uncertainty
-  *ước lượng qua ensemble* (spec Cách 2).
-- **Fresh-graph baseline chưa compute-matched:** E1a chưa log số model query/latency
-  cho baseline rebuild toàn graph mỗi bước.
-- **E1c/E1d chưa quét recovery knobs** trên calibration seeds. Default theo
-  `d_max` (`tau_progress≈0.5`, `tau_snap≈1.0`) over-trigger correction/blacklist.
-- **E1d feedback thất bại rõ:** đây là finding cần sửa/tune, không phải ceiling.
-- **σ đến từ chính ta inject**, không phải nhiễu tự nhiên của một world-model học thật.
-- Hyperparameter α/β (λ_risk=3, β_unc=1), ρ=0.5, r_max=2 đặt theo lý lẽ (§ trong
-  code) nhưng phần lớn **chưa quét**.
+- **AntMaze single-seed, log gốc chưa sync:** kết quả dương mạnh nhất (E1a MCTS>>Floyd) hiện chỉ
+  *reported* từ Kaggle 1 seed; cần **multi-seed + CI** (train thêm seed 252/173) mới firm.
+- **PointMaze là env dễ** (flat policy ~0.9) → margin planning mỏng; giá trị MCTS chỉ hiện ở graph
+  lớn/nhiễu (AntMaze) → phụ thuộc vào việc mở rộng sang env khó của paper.
+- **Fetch bão hoà trần** (short-horizon, planning không đòn bẩy) → là negative control tốt nhưng
+  không phân biệt được planner; cần env manip **long-horizon** để test MCTS bên manipulation
+  (BoxDistractor — notebook train đã sẵn sàng).
+- **MPC-fresh chưa compute-matched:** E1a PointMaze chưa log số model-query/latency cho baseline
+  rebuild-mỗi-bước để so công bằng với MCTS.
+- **σ do ta inject**, không phải nhiễu tự nhiên của một world-model học thật.
+- **Hyperparameter phần lớn chưa quét** (ρ=0.5, r_max=2, pw c/α, bayes σ₀/n₀ đặt theo lý lẽ).
 
 ---
 
 ## 10. Tái lập
 
 ```bash
-python tests/test_modules.py                              # 47 unit tests
+python tests/test_modules.py                         # unit + regression (suffix backup, pw, bayes/thompson)
 
-python scripts/run_e1a.py --load checkpoint/l3p_pointmaze_full.pt --seeds 0 1 2 --episodes 50 --sigmas 0 0.1 0.3 0.5
-python scripts/run_e1b.py --load checkpoint/l3p_pointmaze_full.pt --seeds 0 1 --episodes 35 --sigma-hi 0 0.5 1.0 --frac-high 0.6 --mcts-n-simulations 100
-python scripts/run_e1c.py --load checkpoint/l3p_pointmaze_full.pt --seeds 0 1 --episodes 30 --sigmas 0 0.1 0.3 --mcts-n-simulations 80
-python scripts/run_e1d.py --env PointMaze --load checkpoint/l3p_pointmaze_full.pt --seeds 0 1 --episodes 30 --sigmas 0 0.3 --mcts-n-simulations 80 --mcts-rollout-horizon 10 --calibrate-episodes 20
+# PointMaze reimpl, multi-seed (canonical) — chạy từng checkpoint rồi pool:
+python scripts/run_e1a.py --load checkpoint/l3p_pointmaze_full.pt --seeds 0 1 --episodes 25 --sigmas 0 0.1 0.3 0.5
+python scripts/run_e1a.py --load checkpoint/l3p_pointmaze_full.pt --pw            # + progressive widening
+python scripts/run_e1a.py --load checkpoint/l3p_pointmaze_full.pt --uncertainty-mode bayes
+python scripts/run_e1c.py --load checkpoint/l3p_pointmaze_full.pt --seeds 0 1 --episodes 25 --sigmas 0 0.1 0.3
+#   ... lặp cho _seed{1,2,3}.pt, đặt vào logs/exp_suite/local/, rồi:
+python scripts/aggregate_ablation.py --dir logs/exp_suite/local --seeds 0 1 2 3 --regime e1a
+python scripts/aggregate_ablation.py --dir logs/exp_suite/local --seeds 0 1 2 3 --regime e1c
+
+# E3 trap (CVaR) — train the fork-maze checkpoint (trap OFF), then sweep:
+python scripts/train_pointmaze.py --env PointMazeTrap --steps 250000 --n-landmarks 40 \
+    --batch-size 256 --n-grad-steps 20 --warmup 150 --hindsight 12 --save checkpoint/l3p_pointmaze_trap.pt
+python scripts/run_e3.py --mode e3a --p-spill 0 0.1 0.2 0.3 --alpha 0.3 --r-absorb -30 --d-max 2.5 --seeds 0 1 2 3
+python scripts/run_e3.py --mode e3b --p-spill 0.3 --alpha 1.0 0.5 0.3 0.1 --r-absorb -30 --d-max 2.5 --seeds 0 1 2 3
+
+# Paper env (Kaggle, stack 2019) — Fetch/AntMaze/BoxDistractor; xem
+# repro/kaggle_notebooks/{antmaze,fetch,boxdistractor}_ablation.ipynb. Ví dụ Fetch:
+#   eval_ablation.py --env fetch --regime e1a --latency --out logs/exp_suite/fetch_e1a.json
+#   eval_ablation.py --env fetch --regime e1c --out logs/exp_suite/fetch_e1c.json --dump-plans logs/exp_suite/fetch_plans_e1c.json
+
+# Hình minh hoạ:
+python scripts/viz_graph_noise.py --load checkpoint/l3p_pointmaze_full.pt --regime e1c --sigma 0.3 --traj --out logs/exp_suite/viz_pointmaze_e1c.png
+python scripts/viz_plans.py       --load checkpoint/l3p_pointmaze_full.pt --sigma 0.3 --out logs/exp_suite/plans_pointmaze_e1c.png
+python scripts/viz_graph_noise.py --from-dump logs/exp_suite/antmaze_dump_e1c.json  --out logs/exp_suite/viz_antmaze_e1c.png
+python scripts/viz_plans.py       --from-dump logs/exp_suite/antmaze_plans_e1c.json --out logs/exp_suite/plans_antmaze_e1c.png
 ```
-Kết quả corrected (JSON + PNG) lưu ở
-`logs/e1_correctness_rerun_20260728/pointmaze_numpy/`. Launcher ghi atomic
-checkpoint sau mỗi noise point, hỗ trợ `--resume`, chạy sanity σ=0 và xuất
-hierarchical-bootstrap CI.
 
 ---
 
@@ -496,9 +547,17 @@ hierarchical-bootstrap CI.
 
 | File | Vai trò |
 |---|---|
-| `l3p/planning/mcts_planner.py` | `LandmarkMCTS` (UCT/rollout/backprop + α/β bonus), `MCTSPlanner`, `UncertaintyMCTSPlanner` (E1b), `FeedbackMCTSPlanner` + `SoftFloydE1c` (E1c) |
-| `l3p/planning/noise.py` | `NoisyValueFn` (Loại-2 đồng nhất), `HeterogeneousNoise`+`build_sigma_matrix` (E1b), `BiasedValueFn`+`build_bias_matrix`+`CriticEdgeFn` (E1c/E1d), `dmax_candidates`, `bootstrap_ci`, `ValueOverrideAgent` |
-| `l3p/planning/baselines.py` | `NaiveReplanPlanner` (Baseline 2), `FreshGraphReplanPlanner` (Baseline 3) |
-| `l3p/planning/{graph_search,planner}.py` | Soft Floyd + Algorithm 1 gốc (KHÔNG sửa) |
-| `scripts/run_e1{a,b,c,d}.py` | Harness thí nghiệm (calibrate d_max, paired eval, CI, plot); E1d thêm noisy macro execution + recovery/loop guard |
-| `tests/test_modules.py` | Unit test cho mọi thành phần mới |
+| `l3p/planning/mcts_planner.py` | `LandmarkMCTS` (UCT/rollout/backprop + suffix backup + progressive widening + bayes/thompson + **CVaR backup + trap-in-rollout**, E3), `MCTSPlanner`, `FeedbackMCTSPlanner` + `SoftFloydE1c` (E1c), **`TrapMCTSPlanner`** (E3: CVaR + hop-by-hop + spill model) |
+| `l3p/planning/noise.py` | `NoisyValueFn` (E1a), `BiasedValueFn`+`build_bias_matrix`+`CriticEdgeFn` (E1c), `dmax_candidates`, `hierarchical_bootstrap_ci`, `ValueOverrideAgent` |
+| `l3p/planning/baselines.py` | `NaiveReplanPlanner`, `FreshGraphReplanPlanner` (MPC-fresh) |
+| `l3p/planning/graph_search.py` | Soft Floyd + `reachable_to_goal`/`is_trap` (E3 reach-set collapse, self-supervised) |
+| `l3p/envs/point_maze_trap.py` | `PointMazeTrapEnv` (E3 fork/obstacle maze + absorbing trap + `p_spill` landing) |
+| `l3p/planning/{planner}.py` | Algorithm 1 gốc (KHÔNG sửa) |
+| `scripts/run_e1{a,c}.py`, `scripts/run_e3.py` | Harness reimpl E1 + **E3** (trap sweep p_spill/α, trap-hit/success + CI + plot) |
+| `scripts/aggregate_ablation.py` | Pool multi-seed JSON → bảng master + CI + curve |
+| `scripts/plot_planners.py` | **(§7.7)** overlay success-vs-σ mọi planner từ JSON paper; **paired bootstrap 95% CI** + knee/collapse/σ\* tự động |
+| `scripts/viz_{graph_noise,plans}.py` | Hình clean-vs-noisy graph + plan 3-planner |
+| `repro/paper_mcts/pathfind.py` | **(§7.7)** planner cổ điển pure-numpy: `hard_cost_to_goal`(Dijkstra), `astar_first_hop`, `greedy_first_hop` — unit-test `test_pathfind.py` vs Floyd/brute-force |
+| `repro/paper_mcts/` | Port MCTS vào repo paper (`PaperMCTSPlanner` + `_dijkstra/_astar/_greedy_select`; `eval_ablation.py` với `PLANNER_REGISTRY`/`--planners`/`--noise-seeds`/paired `--pair-seed` + per-episode log) |
+| `repro/kaggle_notebooks/` | Notebook train + ablation: `antmaze_{classical,mcts,train}`, `fetch_ablation`, `boxdistractor_{ablation,train}` |
+| `tests/test_modules.py` | Unit + regression cho mọi thành phần mới |
